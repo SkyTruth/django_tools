@@ -1,0 +1,119 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>OpenLayers Basic OSM Example</title>
+
+    <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/css/ui-lightness/jquery-ui-1.10.0.custom.min.css" />
+
+    <script src="{% get_static_prefix %}appomatic_mapserver/OpenLayers-2.12/OpenLayers.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/js/jquery-1.9.0.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/js/jquery-ui-1.10.0.custom.min.js"></script>
+
+    <script type="text/javascript">
+      var map, layer;
+      function init(){
+        map = new OpenLayers.Map( 'map');
+
+        var minfilter = new OpenLayers.Filter.Comparison({
+          type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
+          property: "datetime",
+          value: 0,
+        });
+
+        var maxfilter = new OpenLayers.Filter.Comparison({
+          type: OpenLayers.Filter.Comparison.LESS_THAN_OR_EQUAL_TO,
+          property: "datetime",
+          value: 0,
+        });
+
+
+        filter = new OpenLayers.Filter.Logical({
+          type: OpenLayers.Filter.Logical.AND,
+          filters: [minfilter, maxfilter]
+        });
+
+        var filterStrategy = new OpenLayers.Strategy.Filter({filter: filter, caching: false});
+
+        map.addLayers([
+          new OpenLayers.Layer.OSM("Simple OSM Map"),
+          new OpenLayers.Layer.Vector("Local data", {
+            projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
+            filter: filter,
+            strategies: [
+              new OpenLayers.Strategy.BBOX({resFactor: 1}),
+              filterStrategy
+            ],
+            protocol: new OpenLayers.Protocol.HTTP({
+              url: "{% url appomatic_mapserver.views.mapserver %}",
+              format: new OpenLayers.Format.GeoJSON(),
+              params: {action:'map'},
+            }),
+            styleMap: new OpenLayers.StyleMap({
+              "default": new OpenLayers.Style({
+                graphicName: "circle",
+                pointRadius: 3,
+                fillOpacity: 0.25,
+                fillColor: "#ffcc66",
+                strokeColor: "#ff9933",
+                strokeWidth: 1
+              })
+            }),
+            renderers: ["Canvas", "SVG", "VML"]
+          })
+        ]);
+
+
+        map.addControl(new OpenLayers.Control.MousePosition());
+
+        map.setCenter(
+          new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
+            new OpenLayers.Projection("EPSG:4326"),
+            map.getProjectionObject()
+          ), 5
+        );
+
+
+        $(function() {
+          $.get(
+            "{% url appomatic_mapserver.views.mapserver %}",
+            {action: 'timerange'},
+            function(data) {
+
+              minfilter.value = data.timemin;
+              maxfilter.value = data.timemax;
+
+              filterStrategy.setFilter(filter);
+              filterStrategy.layer.filter = filter;
+
+              $("#time-slider").slider({
+                range: true,
+                min: data.timemin,
+                max: data.timemax,
+                values: [data.timemax-24*60*60, data.timemax],
+                slide: function(event, ui) {
+                  minfilter.value = ui.values[0];
+                  maxfilter.value = ui.values[1];
+
+                  filterStrategy.setFilter(filter);
+                  filterStrategy.layer.filter = filter;
+
+                  filterStrategy.layer.refresh({force:true})
+                }
+              });
+            },
+            "json"
+          );
+        });
+
+      }
+    </script>
+  </head>
+  <body onload="init()">
+    <div id="time-slider" style="width:90%;"></div>
+    <div id="map" class="smallmap" style="position: absolute; left: 0; top: 40px; right: 0; bottom: 0;"></div>
+  </body>
+</html>
