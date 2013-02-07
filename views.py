@@ -4,6 +4,11 @@ import fcdjangoutils.jsonview
 import django.db
 import contextlib
 import datetime
+import shapely.geometry
+import shapely.wkb
+import shapely.wkt
+import geojson
+import json
 
 def index(request):
     return django.shortcuts.render_to_response(
@@ -26,8 +31,8 @@ def mapserver(request):
         datetimemax = int(request.GET['datetime__lte'])
         lon1,lat1,lon2,lat2 = [float(coord) for coord in request.GET['bbox'].split(",")]
         query = {
-            "datetimemin": datetime.datetime.utcfromtimestamp(datetimemin),
-            "datetimemax": datetime.datetime.utcfromtimestamp(datetimemax),
+            "timemin": datetime.datetime.utcfromtimestamp(datetimemin),
+            "timemax": datetime.datetime.utcfromtimestamp(datetimemax),
             "lonmin": min(lon1, lon2),
             "latmin": min(lat1, lat2),
             "lonmax": max(lon1, lon2),
@@ -35,43 +40,60 @@ def mapserver(request):
             }
         
         with contextlib.closing(django.db.connection.cursor()) as cur:
+
+            bboxmin = "ST_Point(%(lonmin)s, %(latmin)s)"
+            bboxmax = "ST_Point(%(lonmax)s, %(latmax)s)"
+            bbox = "st_setsrid(ST_MakeBox2D(" + bboxmin + ", " + bboxmax + "), (4326))"
+            bboxdiag = "ST_Distance(" + bboxmin + ", " + bboxmax + ")"
+
             cur.execute("""
               select
-                ais.*, vessel.*
-              from
-                ais
-                left outer join vessel on
-                  ais.mmsi = vessel.mmsi
+                count(mmsi) ,
+             """ + bboxdiag + """ / 10
+             from
+                ais_path
               where
-                datetime >= %(datetimemin)s
-                and datetime <= %(datetimemax)s
-                and longitude >= %(lonmin)s
-                and longitude <= %(lonmax)s
-                and latitude >= %(latmin)s
-                and latitude <= %(latmax)s
-              order by
-                ais.mmsi, datetime limit 100""",
-                        query)
+                ST_Intersects(
+                  line,
+                  """ + bbox + """)
+                and not (%(timemax)s < timemin or %(timemin)s > timemax)
+            """, query)
+            nrresults, tolerance = cur.fetchone()
 
+            sql = """
+              select
+                mmsi,
+                ST_AsText(
+                  ST_Intersection(
+                    ST_SimplifyPreserveTopology(
+                      line,
+                      """ + bboxdiag + """ / 10),
+                    """ + bbox + """))
+              from
+                ais_path
+              where
+                ST_Intersects(
+                  line,
+                  """ + bbox + """)
+                and not (%(timemax)s < timemin or %(timemin)s > timemax)
+            """
+        
+            cur.execute(sql, query)
 
             features = []
 
-            vessel = None
-            for row in dictreader(cur):
-                row['datetime'] = int(row['datetime'].strftime("%s"))
-                
-                if vessel is None or vessel['properties']['mmsi'] != row['mmsi']:
-                    if vessel is not None and len(vessel['geometry']['coordinates']) > 1:
-                        features.append(vessel)
-                    vessel = {'type': 'Feature', 'properties': row, 'geometry': {'type': 'LineString', 'coordinates': []}}
-                vessel['geometry']['coordinates'].append([row['longitude'], row['latitude']])
-
-                features.append({'type': 'Feature', 'properties': row, 'geometry': {'type': 'Point', 'coordinates': [row['longitude'], row['latitude']]}})
-
-
-            if vessel is not None and len(vessel['geometry']['coordinates']) > 1:
-                features.append(vessel)
-
+            print "TOLERANCE:", tolerance
+            print "RESULTS: ", nrresults
+            for mmsi, shape in cur:
+                #print "    ", str(shape)
+                geometry = json.loads(
+                    geojson.dumps(
+                        shapely.wkt.loads(str(shape))))
+                feature = {"type": "Feature",
+                           "geometry": geometry,
+                           "properties": {'datetime': datetimemin + 1}}
+                features.append(feature)
+            print "DONE"
 
             return {"type": "FeatureCollection",
                     "features": features}

@@ -8,3 +8,7 @@ wget http://jqueryui.com/resources/download/jquery-ui-1.10.0.custom.zip
 unzip jquery-ui-1.10.0.custom.zip
 mv jquery-ui-1.10.0.custom jquery-ui-1.10.0
 rm jquery-ui-1.10.0.custom.zip
+
+
+pip install geojson
+pip install Shapely
