@@ -94,7 +94,7 @@
                 min: data.timemin,
                 max: data.timemax,
                 values: [data.timemax-24*60*60, data.timemax],
-                slide: function(event, ui) {
+                stop: function(event, ui) {
                   minfilter.value = ui.values[0];
                   maxfilter.value = ui.values[1];
 
