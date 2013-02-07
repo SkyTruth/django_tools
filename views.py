@@ -66,7 +66,11 @@ def mapserver(request):
                 ST_AsText(
                   ST_Intersection(
                     ST_SimplifyPreserveTopology(
-                      line,
+                      ST_locate_between_measures(
+                        line,
+                        extract(epoch from %(timemin)s::timestamp),
+                        extract(epoch from %(timemax)s::timestamp)
+                      ),
                       """ + bboxdiag + """ / 10),
                     """ + bbox + """))
               from
