@@ -16,7 +16,19 @@
     <script type="text/javascript">
       var map, layer;
       function init(){
-        map = new OpenLayers.Map( 'map');
+        map = new OpenLayers.Map('map', {
+          controls: [
+            new OpenLayers.Control.Navigation(),
+            new OpenLayers.Control.PanZoomBar(),
+            new OpenLayers.Control.LayerSwitcher({'ascending':false}),
+            new OpenLayers.Control.Permalink(),
+            new OpenLayers.Control.ScaleLine(),
+            new OpenLayers.Control.Permalink('permalink'),
+            new OpenLayers.Control.MousePosition(),
+            new OpenLayers.Control.OverviewMap(),
+            new OpenLayers.Control.KeyboardDefaults()
+          ]
+        });
 
         var minfilter = new OpenLayers.Filter.Comparison({
           type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
@@ -65,9 +77,6 @@
             renderers: ["Canvas", "SVG", "VML"]
           })
         ]);
-
-
-        map.addControl(new OpenLayers.Control.MousePosition());
 
         map.setCenter(
           new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(

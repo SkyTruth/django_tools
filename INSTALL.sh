@@ -12,3 +12,4 @@ rm jquery-ui-1.10.0.custom.zip
 
 pip install geojson
 pip install Shapely
+curl https://raw.github.com/caolan/async/master/lib/async.js > async.js

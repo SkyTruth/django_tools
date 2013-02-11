@@ -9,6 +9,7 @@ import shapely.wkb
 import shapely.wkt
 import geojson
 import json
+import datetime
 
 def index(request):
     return django.shortcuts.render_to_response(
@@ -46,19 +47,8 @@ def mapserver(request):
             bbox = "st_setsrid(ST_MakeBox2D(" + bboxmin + ", " + bboxmax + "), (4326))"
             bboxdiag = "ST_Distance(" + bboxmin + ", " + bboxmax + ")"
 
-            cur.execute("""
-              select
-                count(mmsi) ,
-             """ + bboxdiag + """ / 10
-             from
-                ais_path
-              where
-                ST_Intersects(
-                  line,
-                  """ + bbox + """)
-                and not (%(timemax)s < timemin or %(timemin)s > timemax)
-            """, query)
-            nrresults, tolerance = cur.fetchone()
+            cur.execute("select " + bboxdiag + " / 10", query)
+            tolerance = cur.fetchone()
 
             sql = """
               select
@@ -82,12 +72,10 @@ def mapserver(request):
                 and not (%(timemax)s < timemin or %(timemin)s > timemax)
             """
         
+            before = datetime.datetime.now()
             cur.execute(sql, query)
 
             features = []
-
-            print "TOLERANCE:", tolerance
-            print "RESULTS: ", nrresults
             for mmsi, shape in cur:
                 #print "    ", str(shape)
                 geometry = json.loads(
@@ -97,7 +85,12 @@ def mapserver(request):
                            "geometry": geometry,
                            "properties": {'datetime': datetimemin + 1}}
                 features.append(feature)
-            print "DONE"
+
+            after = datetime.datetime.now()
+
+            print "TIME:", after - before
+            print "TOLERANCE:", tolerance
+            print "RESULTS: ", cur.rowcount
 
             return {"type": "FeatureCollection",
                     "features": features}
