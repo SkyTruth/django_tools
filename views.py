@@ -10,6 +10,7 @@ import shapely.wkt
 import geojson
 import json
 import datetime
+import math
 
 def index(request):
     return django.shortcuts.render_to_response(
@@ -47,29 +48,34 @@ def mapserver(request):
             bbox = "st_setsrid(ST_MakeBox2D(" + bboxmin + ", " + bboxmax + "), (4326))"
             bboxdiag = "ST_Distance(" + bboxmin + ", " + bboxmax + ")"
 
-            cur.execute("select " + bboxdiag + " / 10", query)
-            tolerance = cur.fetchone()
+            cur.execute("select " + bboxdiag + " / 100", query)
+            tolerance = cur.fetchone()[0]
+
+            # Round to nearest (lower) 2^x as those are the only tolerances implemented in the view...
+            # Fixme: Handle min and max...
+            tolerance = 2**int(math.log(float(tolerance), 2))
+
+            query['tolerance'] = tolerance
 
             sql = """
               select
                 mmsi,
                 ST_AsText(
                   ST_Intersection(
-                    ST_SimplifyPreserveTopology(
-                      ST_locate_between_measures(
-                        line,
-                        extract(epoch from %(timemin)s::timestamp),
-                        extract(epoch from %(timemax)s::timestamp)
-                      ),
-                      """ + bboxdiag + """ / 10),
+                    ST_locate_between_measures(
+                      line,
+                      extract(epoch from %(timemin)s::timestamp),
+                      extract(epoch from %(timemax)s::timestamp)
+                    ),
                     """ + bbox + """))
               from
                 ais_path
               where
-                ST_Intersects(
+                tolerance = %(tolerance)s
+                and not (%(timemax)s < timemin or %(timemin)s > timemax)
+                and ST_Intersects(
                   line,
                   """ + bbox + """)
-                and not (%(timemax)s < timemin or %(timemin)s > timemax)
             """
         
             before = datetime.datetime.now()
