@@ -83,9 +83,13 @@
       MapServer.Format.KML = OpenLayers.Class(OpenLayers.Format.KML, {
         CLASS_NAME: "MapServer.Format.KML",
         parseStyle: function(node) {
+          var baseURI = node.baseURI.split("?")[0]; // remove query, if any
+          if (baseURI.lastIndexOf("/") != baseURI.length - 1) {
+            baseURI = baseURI.substr(0, baseURI.lastIndexOf("/") + 1);
+          }
           var style =  OpenLayers.Format.KML.prototype.parseStyle.call(this, node);
           if (typeof style.externalGraphic != "undefined" && style.externalGraphic.match(new RegExp("(^/)|(://)")) == null) {
-            style.externalGraphic = this.baseUrl + style.externalGraphic;
+            style.externalGraphic = baseURI + style.externalGraphic;
           }
           return style;
         }
@@ -108,7 +112,6 @@
               OpenLayers.Util.extend(options.protocol, {
                 url: MapServer.fileurl + "vessel-detections/2013-01-04/doc.kml",
                 format: new MapServer.Format.KML({
-                  baseUrl: MapServer.fileurl + "vessel-detections/2013-01-04/",
                   extractStyles: true, 
                   extractAttributes: true,
                   maxDepth: 1024
