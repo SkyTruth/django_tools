@@ -110,13 +110,22 @@ def mapserver(request):
             return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
 
     if action == 'layers':
-            return {
-                'exactearth': {
-                    'type': 'Db',
-                    'id': 'ais_path', 
-                    'label': 'ExactEarth'},
-                'vessel-detections': {
-                    'type': 'KmlDateDir',
-                    'id': 'vessel-detections',
-                    'label': 'Vessel detections'
-                    }}
+        return {
+            'ExactEarth': {
+                'type': 'MapServer.Layer.Db',
+                'options': {
+                    'protocol': {
+                        'params': {
+                            'table': 'ais_path'
+                            }
+                        }
+                    }
+                },
+            # 'vessel-detections': {
+            #     'type': 'MapServer.Layer.KmlDateDir',
+            #     'label': 'Vessel detections',
+            #     'options': {
+            #         'directory': 'vessel-detections'
+            #         }
+            #     }
+            }

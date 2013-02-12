@@ -50,32 +50,31 @@
             });
             this.filterStrategy = new OpenLayers.Strategy.Filter({filter: this.filter, caching: false});
 
-            OpenLayers.Util.extend(
-              options,
-              {
-                projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
-                strategies: [
-                  new OpenLayers.Strategy.BBOX({resFactor: 1}),
-                  this.filterStrategy
-                ],
-                protocol: new OpenLayers.Protocol.HTTP({
+            OpenLayers.Util.extend(options, {
+              projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
+              strategies: [
+                new OpenLayers.Strategy.BBOX({resFactor: 1}),
+                this.filterStrategy
+              ],
+              protocol: new OpenLayers.Protocol.HTTP(
+                OpenLayers.Util.extend(options.protocol, {
                   url: MapServer.apiurl,
                   format: new OpenLayers.Format.GeoJSON(),
-                  params: {action:'map'},
-                }),
-                styleMap: new OpenLayers.StyleMap({
-                  "default": new OpenLayers.Style({
-                    graphicName: "circle",
-                    pointRadius: 3,
-                    fillOpacity: 0.25,
-                    fillColor: "#ffcc66",
-                    strokeColor: "#ff9933",
-                    strokeWidth: 1
-                  })
-                }),
-                renderers: ["Canvas", "SVG", "VML"]
-              }
-            );
+                  params: OpenLayers.Util.extend(options.protocol.params, {
+                    action:'map'}),
+                })),
+              styleMap: new OpenLayers.StyleMap({
+                "default": new OpenLayers.Style({
+                  graphicName: "circle",
+                  pointRadius: 3,
+                  fillOpacity: 0.25,
+                  fillColor: "#ffcc66",
+                  strokeColor: "#ff9933",
+                  strokeWidth: 1
+                })
+              }),
+              renderers: ["Canvas", "SVG", "VML"]
+            });
             OpenLayers.Layer.Vector.prototype.initialize.apply(this, [name, options]);
           },
 
@@ -87,14 +86,6 @@
         async.series([
           function(cb) {
             $(function () { cb(); });
-          },
-
-          function(cb) {
-            $.get(
-              "{% url appomatic_mapserver.views.mapserver %}",
-              {action: 'layers'},
-              function(d) { layerdefs = d; cb(); },
-              "json");
           },
 
           function(cb) {
@@ -119,10 +110,7 @@
               }
             });
 
-            map.addLayers([
-              new OpenLayers.Layer.OSM("Simple OSM Map"),
-              new MapServer.Layer.Db("IUUFishing", {})
-            ]);
+            map.addLayer(new OpenLayers.Layer.OSM("Simple OSM Map"));
 
             map.setCenter(
               new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
@@ -130,15 +118,34 @@
                 map.getProjectionObject()
               ), 5
             );
+
             cb();
           },
 
           function(cb) {
             $.get(
               "{% url appomatic_mapserver.views.mapserver %}",
-              {action: 'timerange'},
-              function(d) { data = d; cb(); },
+              {action: 'layers'},
+              function(d) { layerdefs = d; cb(); },
               "json");
+          },
+
+          function(cb) {
+            $.each(layerdefs, function (key, value) {
+               var constr = eval(value.type);
+               map.addLayer(new constr(key, value.options));
+            });
+
+            cb();
+          },
+
+          function(cb) {
+            $.get(
+              "{% url appomatic_mapserver.views.mapserver %}",
+               {action: 'timerange'},
+               function(d) { data = d; cb(); },
+               "json"
+            );
           },
 
           function(cb) {
