@@ -17,7 +17,7 @@
     <script type="text/javascript">
       var map, data, layerdefs;
 
-      var MapServer = {Layer:{}, Format:{}};
+      var MapServer = {Layer:{}, Format:{}, Protocol: {}};
 
       MapServer.apiurl = "{% url appomatic_mapserver.views.mapserver %}";
       MapServer.fileurl = "http://50.57.223.218:8080{{ MEDIA_URL }}";
@@ -95,6 +95,33 @@
         }
       });
 
+      MapServer.Protocol.MultiHTTP = OpenLayers.Class(OpenLayers.Protocol.HTTP, {
+        datasets: [], // [{url:"",params:{}}]
+        read: function(options) {
+          var self = this;
+          var response = null;
+          async.each(
+            this.datasets,
+            function (item, cb) {
+              suboptions = OpenLayers.Util.extend(OpenLayers.Util.extend({}, options), item);
+              suboptions.scope = self;
+              suboptions.callback = function (resp) {
+                if (response) {
+                  response.features = response.features.concat(resp.features);
+                } else {
+                  response = resp;
+                }
+                cb();
+              };
+              OpenLayers.Protocol.HTTP.prototype.read.call(self, suboptions);
+            },
+            function (err) {
+              options.callback.call(options.scope, response);
+            }
+          );
+        }
+      });
+
       MapServer.Layer.KmlDateDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
         CLASS_NAME: "MapServer.Layer.KmlDateDir",
 
@@ -108,16 +135,20 @@
           OpenLayers.Util.extend(options, {
             projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
             strategies: [new OpenLayers.Strategy.Fixed()],
-            protocol: new OpenLayers.Protocol.HTTP(
+            protocol: new MapServer.Protocol.MultiHTTP(
               OpenLayers.Util.extend(options.protocol, {
-                url: MapServer.fileurl + "vessel-detections/2013-01-04/doc.kml",
+                datasets: [
+                  {
+                    url: MapServer.fileurl + "vessel-detections/2013-01-28/doc.kml",
+                  },
+                  {
+                    url: MapServer.fileurl + "vessel-detections/2013-01-04/doc.kml"
+                  }
+                ],
                 format: new MapServer.Format.KML({
                   extractStyles: true, 
                   extractAttributes: true,
                   maxDepth: 1024
-                }),
-                params: OpenLayers.Util.extend(options.protocol.params, {
-                  action:'map'
                 }),
               })
             ),
