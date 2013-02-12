@@ -17,69 +17,112 @@
     <script type="text/javascript">
       var map, data, layerdefs;
 
-      var MapServer = {Layer:{}};
+      var MapServer = {Layer:{}, Format:{}};
 
       MapServer.apiurl = "{% url appomatic_mapserver.views.mapserver %}";
+      MapServer.fileurl = "http://50.57.223.218:8080{{ MEDIA_URL }}";
 
       MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
-          id: null,
+        CLASS_NAME: "MapServer.Layer.Db",
 
-          setTimeRange: function(min, max) {
-            this.minfilter.value = min;
-            this.maxfilter.value = max;
+        setTimeRange: function(min, max) {
+          this.minfilter.value = min;
+          this.maxfilter.value = max;
 
-            this.filterStrategy.setFilter(this.filter);
-            this.refresh({force:true});
-          },
+          this.filterStrategy.setFilter(this.filter);
+          this.refresh({force:true});
+        },
 
-          initialize: function(name, options) {
+        initialize: function(name, options) {
 
-            this.minfilter = new OpenLayers.Filter.Comparison({
-              type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
-              property: "datetime",
-              value: 0,
-            });
-            this.maxfilter = new OpenLayers.Filter.Comparison({
-              type: OpenLayers.Filter.Comparison.LESS_THAN_OR_EQUAL_TO,
-              property: "datetime",
-              value: 0,
-            });
-            this.filter = new OpenLayers.Filter.Logical({
-              type: OpenLayers.Filter.Logical.AND,
-              filters: [this.minfilter, this.maxfilter]
-            });
-            this.filterStrategy = new OpenLayers.Strategy.Filter({filter: this.filter, caching: false});
+          this.minfilter = new OpenLayers.Filter.Comparison({
+            type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
+            property: "datetime",
+            value: 0,
+          });
+          this.maxfilter = new OpenLayers.Filter.Comparison({
+            type: OpenLayers.Filter.Comparison.LESS_THAN_OR_EQUAL_TO,
+            property: "datetime",
+            value: 0,
+          });
+          this.filter = new OpenLayers.Filter.Logical({
+            type: OpenLayers.Filter.Logical.AND,
+            filters: [this.minfilter, this.maxfilter]
+          });
+          this.filterStrategy = new OpenLayers.Strategy.Filter({filter: this.filter, caching: false});
 
-            OpenLayers.Util.extend(options, {
-              projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
-              strategies: [
-                new OpenLayers.Strategy.BBOX({resFactor: 1}),
-                this.filterStrategy
-              ],
-              protocol: new OpenLayers.Protocol.HTTP(
-                OpenLayers.Util.extend(options.protocol, {
-                  url: MapServer.apiurl,
-                  format: new OpenLayers.Format.GeoJSON(),
-                  params: OpenLayers.Util.extend(options.protocol.params, {
-                    action:'map'}),
-                })),
-              styleMap: new OpenLayers.StyleMap({
-                "default": new OpenLayers.Style({
-                  graphicName: "circle",
-                  pointRadius: 3,
-                  fillOpacity: 0.25,
-                  fillColor: "#ffcc66",
-                  strokeColor: "#ff9933",
-                  strokeWidth: 1
-                })
-              }),
-              renderers: ["Canvas", "SVG", "VML"]
-            });
-            OpenLayers.Layer.Vector.prototype.initialize.apply(this, [name, options]);
-          },
-
-          CLASS_NAME: "MapServer.Layer.Db"
+          OpenLayers.Util.extend(options, {
+            projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
+            strategies: [
+              new OpenLayers.Strategy.BBOX({resFactor: 1}),
+              this.filterStrategy
+            ],
+            protocol: new OpenLayers.Protocol.HTTP(
+              OpenLayers.Util.extend(options.protocol, {
+                url: MapServer.apiurl,
+                format: new OpenLayers.Format.GeoJSON(),
+                params: OpenLayers.Util.extend(options.protocol.params, {
+                  action:'map'}),
+              })),
+            styleMap: new OpenLayers.StyleMap({
+              "default": new OpenLayers.Style({
+                graphicName: "circle",
+                pointRadius: 3,
+                fillOpacity: 0.25,
+                fillColor: "#ffcc66",
+                strokeColor: "#ff9933",
+                strokeWidth: 1
+              })
+            }),
+            renderers: ["Canvas", "SVG", "VML"]
+          });
+          OpenLayers.Layer.Vector.prototype.initialize.apply(this, [name, options]);
+        }
       });     
+
+      MapServer.Format.KML = OpenLayers.Class(OpenLayers.Format.KML, {
+        CLASS_NAME: "MapServer.Format.KML",
+        parseStyle: function(node) {
+          var style =  OpenLayers.Format.KML.prototype.parseStyle.call(this, node);
+          if (typeof style.externalGraphic != "undefined" && style.externalGraphic.match(new RegExp("(^/)|(://)")) == null) {
+            style.externalGraphic = this.baseUrl + style.externalGraphic;
+          }
+          return style;
+        }
+      });
+
+      MapServer.Layer.KmlDateDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
+        CLASS_NAME: "MapServer.Layer.KmlDateDir",
+
+        setTimeRange: function(min, max) {
+          this.protocol.params.timemin = min;
+          this.protocol.params.timemax = max;
+          this.refresh({force:true});
+        },
+
+        initialize: function(name, options) {
+          OpenLayers.Util.extend(options, {
+            projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
+            strategies: [new OpenLayers.Strategy.Fixed()],
+            protocol: new OpenLayers.Protocol.HTTP(
+              OpenLayers.Util.extend(options.protocol, {
+                url: MapServer.fileurl + "vessel-detections/2013-01-04/doc.kml",
+                format: new MapServer.Format.KML({
+                  baseUrl: MapServer.fileurl + "vessel-detections/2013-01-04/",
+                  extractStyles: true, 
+                  extractAttributes: true,
+                  maxDepth: 1024
+                }),
+                params: OpenLayers.Util.extend(options.protocol.params, {
+                  action:'map'
+                }),
+              })
+            ),
+            renderers: ["Canvas", "SVG", "VML"]
+          });
+          OpenLayers.Layer.Vector.prototype.initialize.apply(this, [name, options]);
+        }
+      });
 
 
       function init(){

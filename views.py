@@ -121,11 +121,14 @@ def mapserver(request):
                         }
                     }
                 },
-            # 'vessel-detections': {
-            #     'type': 'MapServer.Layer.KmlDateDir',
-            #     'label': 'Vessel detections',
-            #     'options': {
-            #         'directory': 'vessel-detections'
-            #         }
-            #     }
+            'Vessel detections': {
+                'type': 'MapServer.Layer.KmlDateDir',
+                'options': {
+                    'directory': 'vessel-detections',
+                    'protocol': {
+                        'params': {
+                            }
+                        }
+                    }
+                }
             }
