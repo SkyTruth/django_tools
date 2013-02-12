@@ -108,3 +108,15 @@ def mapserver(request):
             row = cur.fetchone()
 
             return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
+
+    if action == 'layers':
+            return {
+                'exactearth': {
+                    'type': 'Db',
+                    'id': 'ais_path', 
+                    'label': 'ExactEarth'},
+                'vessel-detections': {
+                    'type': 'KmlDateDir',
+                    'id': 'vessel-detections',
+                    'label': 'Vessel detections'
+                    }}

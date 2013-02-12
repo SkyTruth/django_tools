@@ -9,115 +9,152 @@
 
     <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/css/smoothness/jquery-ui-1.10.0.custom.min.css" />
 
+    <script src="{% get_static_prefix %}appomatic_mapserver/async.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/OpenLayers-2.12/OpenLayers.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/js/jquery-1.9.0.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/js/jquery-ui-1.10.0.custom.min.js"></script>
 
     <script type="text/javascript">
-      var map, layer;
+      var map, data, layerdefs;
+
+      var MapServer = {Layer:{}};
+
+      MapServer.apiurl = "{% url appomatic_mapserver.views.mapserver %}";
+
+      MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
+          id: null,
+
+          setTimeRange: function(min, max) {
+            this.minfilter.value = min;
+            this.maxfilter.value = max;
+
+            this.filterStrategy.setFilter(this.filter);
+            this.refresh({force:true});
+          },
+
+          initialize: function(name, options) {
+
+            this.minfilter = new OpenLayers.Filter.Comparison({
+              type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
+              property: "datetime",
+              value: 0,
+            });
+            this.maxfilter = new OpenLayers.Filter.Comparison({
+              type: OpenLayers.Filter.Comparison.LESS_THAN_OR_EQUAL_TO,
+              property: "datetime",
+              value: 0,
+            });
+            this.filter = new OpenLayers.Filter.Logical({
+              type: OpenLayers.Filter.Logical.AND,
+              filters: [this.minfilter, this.maxfilter]
+            });
+            this.filterStrategy = new OpenLayers.Strategy.Filter({filter: this.filter, caching: false});
+
+            OpenLayers.Util.extend(
+              options,
+              {
+                projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
+                strategies: [
+                  new OpenLayers.Strategy.BBOX({resFactor: 1}),
+                  this.filterStrategy
+                ],
+                protocol: new OpenLayers.Protocol.HTTP({
+                  url: MapServer.apiurl,
+                  format: new OpenLayers.Format.GeoJSON(),
+                  params: {action:'map'},
+                }),
+                styleMap: new OpenLayers.StyleMap({
+                  "default": new OpenLayers.Style({
+                    graphicName: "circle",
+                    pointRadius: 3,
+                    fillOpacity: 0.25,
+                    fillColor: "#ffcc66",
+                    strokeColor: "#ff9933",
+                    strokeWidth: 1
+                  })
+                }),
+                renderers: ["Canvas", "SVG", "VML"]
+              }
+            );
+            OpenLayers.Layer.Vector.prototype.initialize.apply(this, [name, options]);
+          },
+
+          CLASS_NAME: "MapServer.Layer.Db"
+      });     
+
+
       function init(){
-        map = new OpenLayers.Map('map', {
-          controls: [
-            new OpenLayers.Control.Navigation(),
-            new OpenLayers.Control.PanZoomBar(),
-            new OpenLayers.Control.LayerSwitcher({'ascending':false}),
-            new OpenLayers.Control.Permalink(),
-            new OpenLayers.Control.ScaleLine(),
-            new OpenLayers.Control.Permalink('permalink'),
-            new OpenLayers.Control.MousePosition(),
-            new OpenLayers.Control.OverviewMap(),
-            new OpenLayers.Control.KeyboardDefaults()
-          ]
-        });
+        async.series([
+          function(cb) {
+            $(function () { cb(); });
+          },
 
-        var minfilter = new OpenLayers.Filter.Comparison({
-          type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
-          property: "datetime",
-          value: 0,
-        });
+          function(cb) {
+            $.get(
+              "{% url appomatic_mapserver.views.mapserver %}",
+              {action: 'layers'},
+              function(d) { layerdefs = d; cb(); },
+              "json");
+          },
 
-        var maxfilter = new OpenLayers.Filter.Comparison({
-          type: OpenLayers.Filter.Comparison.LESS_THAN_OR_EQUAL_TO,
-          property: "datetime",
-          value: 0,
-        });
+          function(cb) {
+            map = new OpenLayers.Map('map', {
+              controls: [
+                new OpenLayers.Control.Navigation(),
+                new OpenLayers.Control.PanZoomBar(),
+                new OpenLayers.Control.LayerSwitcher({'ascending':false}),
+                new OpenLayers.Control.Permalink(),
+                new OpenLayers.Control.ScaleLine(),
+                new OpenLayers.Control.Permalink('permalink'),
+                new OpenLayers.Control.MousePosition(),
+                new OpenLayers.Control.OverviewMap(),
+                new OpenLayers.Control.KeyboardDefaults()
+              ],
+              setTimeRange: function (min, max) {
+                $.each(this.layers, function () {
+                  if (typeof this.setTimeRange != "undefined") {
+                    this.setTimeRange(min, max);
+                  }
+                });
+              }
+            });
 
+            map.addLayers([
+              new OpenLayers.Layer.OSM("Simple OSM Map"),
+              new MapServer.Layer.Db("IUUFishing", {})
+            ]);
 
-        filter = new OpenLayers.Filter.Logical({
-          type: OpenLayers.Filter.Logical.AND,
-          filters: [minfilter, maxfilter]
-        });
+            map.setCenter(
+              new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
+                new OpenLayers.Projection("EPSG:4326"),
+                map.getProjectionObject()
+              ), 5
+            );
+            cb();
+          },
 
-        var filterStrategy = new OpenLayers.Strategy.Filter({filter: filter, caching: false});
+          function(cb) {
+            $.get(
+              "{% url appomatic_mapserver.views.mapserver %}",
+              {action: 'timerange'},
+              function(d) { data = d; cb(); },
+              "json");
+          },
 
-        map.addLayers([
-          new OpenLayers.Layer.OSM("Simple OSM Map"),
-          new OpenLayers.Layer.Vector("Local data", {
-            projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
-            filter: filter,
-            strategies: [
-              new OpenLayers.Strategy.BBOX({resFactor: 1}),
-              filterStrategy
-            ],
-            protocol: new OpenLayers.Protocol.HTTP({
-              url: "{% url appomatic_mapserver.views.mapserver %}",
-              format: new OpenLayers.Format.GeoJSON(),
-              params: {action:'map'},
-            }),
-            styleMap: new OpenLayers.StyleMap({
-              "default": new OpenLayers.Style({
-                graphicName: "circle",
-                pointRadius: 3,
-                fillOpacity: 0.25,
-                fillColor: "#ffcc66",
-                strokeColor: "#ff9933",
-                strokeWidth: 1
-              })
-            }),
-            renderers: ["Canvas", "SVG", "VML"]
-          })
+          function(cb) {
+            map.setTimeRange(data.timemax-24*60*60, data.timemax);
+
+            $("#time-slider").slider({
+              range: true,
+              min: data.timemin,
+              max: data.timemax,
+              values: [data.timemax-24*60*60, data.timemax],
+              stop: function(event, ui) {
+                map.setTimeRange(ui.values[0], ui.values[1]);
+              }
+            });
+          }
         ]);
-
-        map.setCenter(
-          new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
-            new OpenLayers.Projection("EPSG:4326"),
-            map.getProjectionObject()
-          ), 5
-        );
-
-
-        $(function() {
-          $.get(
-            "{% url appomatic_mapserver.views.mapserver %}",
-            {action: 'timerange'},
-            function(data) {
-
-              minfilter.value = data.timemin;
-              maxfilter.value = data.timemax;
-
-              filterStrategy.setFilter(filter);
-              filterStrategy.layer.filter = filter;
-
-              $("#time-slider").slider({
-                range: true,
-                min: data.timemin,
-                max: data.timemax,
-                values: [data.timemax-24*60*60, data.timemax],
-                stop: function(event, ui) {
-                  minfilter.value = ui.values[0];
-                  maxfilter.value = ui.values[1];
-
-                  filterStrategy.setFilter(filter);
-                  filterStrategy.layer.filter = filter;
-
-                  filterStrategy.layer.refresh({force:true})
-                }
-              });
-            },
-            "json"
-          );
-        });
-
       }
     </script>
   </head>
