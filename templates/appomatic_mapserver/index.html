@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/css/smoothness/jquery-ui-1.10.0.custom.min.css" />
 
     <script src="{% get_static_prefix %}appomatic_mapserver/async.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/date.format.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/OpenLayers-2.12/OpenLayers.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/js/jquery-1.9.0.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/jquery-ui-1.10.0/js/jquery-ui-1.10.0.custom.min.js"></script>
@@ -106,9 +107,9 @@
               suboptions = OpenLayers.Util.extend(OpenLayers.Util.extend({}, options), item);
               suboptions.scope = self;
               suboptions.callback = function (resp) {
-                if (response) {
+                if (response && resp.features) {
                   response.features = response.features.concat(resp.features);
-                } else {
+                } else if (resp.features) {
                   response = resp;
                 }
                 cb();
@@ -116,6 +117,9 @@
               OpenLayers.Protocol.HTTP.prototype.read.call(self, suboptions);
             },
             function (err) {
+              if (!response) {
+                response = {code: OpenLayers.Protocol.Response.FAILURE};
+              }
               options.callback.call(options.scope, response);
             }
           );
@@ -126,8 +130,14 @@
         CLASS_NAME: "MapServer.Layer.KmlDateDir",
 
         setTimeRange: function(min, max) {
-          this.protocol.params.timemin = min;
-          this.protocol.params.timemax = max;
+          var epochToDate = function (e) { d = new Date(0); d.setUTCSeconds(e); return d; }
+
+          datasets = [];
+          for (t = min; t <= max + 24 * 60 * 60; t += 24*60*60) {
+             datasets.push({url: MapServer.fileurl + "vessel-detections/" + epochToDate(t).format("UTC:yyyy-mm-dd") + "/doc.kml"});
+          }
+          this.protocol.datasets = datasets;
+
           this.refresh({force:true});
         },
 
@@ -137,14 +147,6 @@
             strategies: [new OpenLayers.Strategy.Fixed()],
             protocol: new MapServer.Protocol.MultiHTTP(
               OpenLayers.Util.extend(options.protocol, {
-                datasets: [
-                  {
-                    url: MapServer.fileurl + "vessel-detections/2013-01-28/doc.kml",
-                  },
-                  {
-                    url: MapServer.fileurl + "vessel-detections/2013-01-04/doc.kml"
-                  }
-                ],
                 format: new MapServer.Format.KML({
                   extractStyles: true, 
                   extractAttributes: true,
