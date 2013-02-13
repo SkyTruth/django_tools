@@ -8,6 +8,7 @@
     <title>OpenLayers Basic OSM Example</title>
 
     <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/css/smoothness/jquery-ui-1.10.0.custom.min.css" />
+    <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/mapserver.css" />
 
     <script src="{% get_static_prefix %}appomatic_mapserver/libs/async.js"></script>
     <script src="{% get_static_prefix %}appomatic_mapserver/libs/date.format.js"></script>
@@ -28,7 +29,9 @@
 
   </head>
   <body>
-    <div id="time-slider" style="width:90%;"></div>
-    <div id="map" class="smallmap" style="position: absolute; left: 0; top: 40px; right: 0; bottom: 0;"></div>
+    <div id="time-slider-label-min"></div>
+    <div id="time-slider"></div>
+    <div id="time-slider-label-max"></div>
+    <div id="map"></div>
   </body>
 </html>

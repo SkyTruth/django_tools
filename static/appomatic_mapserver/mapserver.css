@@ -1,0 +1,29 @@
+#time-slider-label-min {
+  position: absolute;
+  left: 2pt;
+  top: 4pt;
+}
+
+#time-slider-label-max {
+  position: absolute;
+  right: 2pt;
+  top: 4pt;
+}
+
+
+
+#time-slider {
+  position: absolute;
+  left: 9em;
+  right: 9em;
+  top: 4pt;
+}
+
+#map {
+  position: absolute;
+  left: 0;
+  top: 2em;
+  right: 0;
+  bottom: 0;
+}
+

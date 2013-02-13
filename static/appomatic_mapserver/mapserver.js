@@ -5,6 +5,12 @@ MapServer.Layer = {};
 MapServer.Format = {};
 MapServer.Protocol = {};
 
+MapServer.epochToDate = function (e) {
+  d = new Date(0);
+  d.setUTCSeconds(e);
+  return d;
+}
+
 MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
   CLASS_NAME: "MapServer.Layer.Db",
 
@@ -144,11 +150,9 @@ MapServer.Layer.KmlDateDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
   CLASS_NAME: "MapServer.Layer.KmlDateDir",
 
   setTimeRange: function(min, max) {
-    var epochToDate = function (e) { d = new Date(0); d.setUTCSeconds(e); return d; }
-
     datasets = [];
     for (t = min; t <= max + 24 * 60 * 60; t += 24*60*60) {
-       datasets.push({url: MapServer.fileurl + "vessel-detections/" + epochToDate(t).format("UTC:yyyy-mm-dd") + "/doc.kml"});
+       datasets.push({url: MapServer.fileurl + "vessel-detections/" + MapServer.epochToDate(t).format("UTC:yyyy-mm-dd") + "/doc.kml"});
     }
     this.protocol.datasets = datasets;
 
@@ -246,12 +250,22 @@ MapServer.init = function () {
 
     function(cb) {
       map.setTimeRange(data.timemax-24*60*60, data.timemax);
+      $("#time-slider-label-min").html(
+        MapServer.epochToDate(data.timemax-24*60*60).format("UTC:yyyy-mm-dd HH:MM:ss"));
+      $("#time-slider-label-max").html(
+        MapServer.epochToDate(data.timemax).format("UTC:yyyy-mm-dd HH:MM:ss"));
 
       $("#time-slider").slider({
         range: true,
         min: data.timemin,
         max: data.timemax,
         values: [data.timemax-24*60*60, data.timemax],
+        slide: function(event, ui) {
+          $("#time-slider-label-min").html(
+            MapServer.epochToDate(ui.values[0]).format("UTC:yyyy-mm-dd HH:MM:ss"));
+          $("#time-slider-label-max").html(
+            MapServer.epochToDate(ui.values[1]).format("UTC:yyyy-mm-dd HH:MM:ss"));
+        },
         stop: function(event, ui) {
           map.setTimeRange(ui.values[0], ui.values[1]);
         }
