@@ -2,4 +2,4 @@
 *.pyc
 \#*
 .#*
-static/appomatic_mapserver/*
+static/appomatic_mapserver/libs/*

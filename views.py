@@ -59,7 +59,7 @@ def mapserver(request):
 
             sql = """
               select
-                mmsi,
+                ais_path.mmsi,
                 ST_AsText(
                   ST_Intersection(
                     ST_locate_between_measures(
@@ -67,9 +67,17 @@ def mapserver(request):
                       extract(epoch from %(timemin)s::timestamp),
                       extract(epoch from %(timemax)s::timestamp)
                     ),
-                    """ + bbox + """))
+                    """ + bbox + """)) as shape,
+                timemin,
+                timemax,
+                vessel.name,
+                vessel.type,
+                vessel.length,
+                vessel.url
               from
                 ais_path
+                left outer join vessel on
+                  ais_path.mmsi = vessel.mmsi
               where
                 tolerance = %(tolerance)s
                 and not (%(timemax)s < timemin or %(timemin)s > timemax)
@@ -82,14 +90,16 @@ def mapserver(request):
             cur.execute(sql, query)
 
             features = []
-            for mmsi, shape in cur:
-                #print "    ", str(shape)
+            for row in dictreader(cur):
+                #print "    ", str(row['shape'])
                 geometry = json.loads(
                     geojson.dumps(
-                        shapely.wkt.loads(str(shape))))
+                        shapely.wkt.loads(str(row['shape']))))
+                del row['shape']
+                row['datetime'] = datetimemin + 1
                 feature = {"type": "Feature",
                            "geometry": geometry,
-                           "properties": {'datetime': datetimemin + 1}}
+                           "properties": row}
                 features.append(feature)
 
             after = datetime.datetime.now()
