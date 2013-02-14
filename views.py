@@ -1,5 +1,6 @@
 import django.template
 import django.shortcuts
+import django.http
 import fcdjangoutils.jsonview
 import django.db
 import contextlib
@@ -7,6 +8,7 @@ import datetime
 import shapely.geometry
 import shapely.wkb
 import shapely.wkt
+import fastkml.kml
 import geojson
 import json
 import datetime
@@ -59,57 +61,131 @@ def mapserver(request):
 
             sql = """
               select
-                ais_path.mmsi,
-                ST_AsText(
-                  ST_Intersection(
-                    ST_locate_between_measures(
-                      line,
-                      extract(epoch from %(timemin)s::timestamp),
-                      extract(epoch from %(timemax)s::timestamp)
-                    ),
-                    """ + bbox + """)) as shape,
+                mmsi,
+                ST_AsText(shape) as shape,
                 timemin,
                 timemax,
-                vessel.name,
-                vessel.type,
-                vessel.length,
-                vessel.url
+                name,
+                type,
+                length,
+                url
               from
-                ais_path
-                left outer join vessel on
-                  ais_path.mmsi = vessel.mmsi
+                (select
+                   ais_path.mmsi,
+                   ST_AsText(
+                     ST_Intersection(
+                       ST_locate_between_measures(
+                         line,
+                         extract(epoch from %(timemin)s::timestamp),
+                         extract(epoch from %(timemax)s::timestamp)
+                       ),
+                       """ + bbox + """)) as shape,
+                   timemin,
+                   timemax,
+                   vessel.name,
+                   vessel.type,
+                   vessel.length,
+                   vessel.url
+                 from
+                   ais_path
+                   left outer join vessel on
+                     ais_path.mmsi = vessel.mmsi
+                 where
+                   tolerance = %(tolerance)s
+                   and not (%(timemax)s < timemin or %(timemin)s > timemax)
+                   and ST_Intersects(
+                     line,
+                     """ + bbox + """)) as a
               where
-                tolerance = %(tolerance)s
-                and not (%(timemax)s < timemin or %(timemin)s > timemax)
-                and ST_Intersects(
-                  line,
-                  """ + bbox + """)
+                not ST_IsEmpty(shape)
             """
         
             before = datetime.datetime.now()
             cur.execute(sql, query)
 
-            features = []
-            for row in dictreader(cur):
-                #print "    ", str(row['shape'])
-                geometry = json.loads(
-                    geojson.dumps(
-                        shapely.wkt.loads(str(row['shape']))))
-                del row['shape']
-                row['datetime'] = datetimemin + 1
-                feature = {"type": "Feature",
-                           "geometry": geometry,
-                           "properties": row}
-                features.append(feature)
 
-            after = datetime.datetime.now()
+            format = request.GET.get('format', 'geojson')
 
-            print "TIME:", after - before
-            print "TOLERANCE:", tolerance
-            print "RESULTS: ", cur.rowcount
+            if format == 'geojson':
+                features = []
+                for row in dictreader(cur):
+                    #print "    ", str(row['shape'])
+                    geometry = json.loads(
+                        geojson.dumps(
+                            shapely.wkt.loads(str(row['shape']))))
+                    del row['shape']
+                    row['datetime'] = datetimemin + 1
+                    feature = {"type": "Feature",
+                               "geometry": geometry,
+                               "properties": row}
+                    features.append(feature)
 
-            return {"type": "FeatureCollection",
-                    "features": features}
+                after = datetime.datetime.now()
+
+                print "TIME:", after - before
+                print "TOLERANCE:", tolerance
+                print "RESULTS: ", cur.rowcount
+
+                return {"type": "FeatureCollection",
+                        "features": features}
+
+            elif format == 'kml':
+
+                # def kmlify(rows):
+                #     kml = fastkml.kml.KML()
+                #     ns = '{http://www.opengis.net/kml/2.2}'
+                #     doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
+                #     kml.append(doc)
+
+                #     for row in rows:
+                #         if row['mmsi']:
+                #             if not row['name']:
+                #                 row['name'] = row['mmsi']
+                #             if not row['url']:
+                #                 row['url'] =  "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=" + row['mmsi']
+                #         placemark = fastkml.kml.Placemark(
+                #             ns, row['mmsi'], row['name'],
+                #             """<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>""" % row)
+                #         geom = shapely.wkt.loads(str(row['shape']))
+                #         placemark.geometry = geom
+                #         doc.append(placemark)
+
+                #     return kml.to_string(prettyprint=True)
+
+                # rows = list(dictreader(cur))
+
+                # import pdb
+                # pdb.set_trace()
+
+
+
+
+                kml = fastkml.kml.KML()
+                ns = '{http://www.opengis.net/kml/2.2}'
+                doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
+                kml.append(doc)
+
+                types = []
+                for row in dictreader(cur):
+                    if row['mmsi']:
+                        if not row['name']:
+                            row['name'] = row['mmsi']
+                        if not row['url']:
+                            row['url'] =  "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=" + row['mmsi']
+                    placemark = fastkml.kml.Placemark(
+                        ns, row['mmsi'], row['name'],
+                        """<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>""" % row)
+                    geom = shapely.wkt.loads(str(row['shape']))
+
+                    types.append(geom.geom_type)
+                    placemark.geometry = geom
+                    doc.append(placemark)
+
+                return django.http.HttpResponse(
+                    kml.to_string(prettyprint=True),
+                    mimetype="text/plain",
+                    status=200)
+
 
     if action == 'timerange':
         with contextlib.closing(django.db.connection.cursor()) as cur:

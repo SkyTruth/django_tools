@@ -1,5 +1,6 @@
 pip install geojson
 pip install Shapely
+pip install fastkml
 
 
 cd static/appomatic_mapserver/libs

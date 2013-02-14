@@ -4,12 +4,144 @@ var MapServer = {};
 MapServer.Layer = {};
 MapServer.Format = {};
 MapServer.Protocol = {};
+MapServer.Control = {};
 
 MapServer.epochToDate = function (e) {
   d = new Date(0);
   d.setUTCSeconds(e);
   return d;
 }
+
+MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
+  minimizeDiv: null,
+  maximizeDiv: null,
+  contentDiv: null,
+
+  initialize: function(options) {
+    OpenLayers.Control.prototype.initialize.apply(this, arguments);
+  },
+
+  destroy: function() {
+    this.map.events.un({buttonclick: this.onButtonClick, scope: this});
+    this.events.unregister("buttonclick", this, this.onButtonClick);
+    OpenLayers.Control.prototype.destroy.apply(this, arguments);
+  },
+
+  setMap: function(map) {
+    OpenLayers.Control.prototype.setMap.apply(this, arguments);
+    this.map.events.register("buttonclick", this, this.onButtonClick);
+  },
+
+  draw: function() {
+    OpenLayers.Control.prototype.draw.apply(this);
+    this.loadContents();
+    this.minimizeControl();
+    this.redraw();    
+    return this.div;
+  },
+
+  onButtonClick: function(evt) {
+    var button = evt.buttonElement;
+    if (button === this.minimizeDiv) {
+      this.minimizeControl();
+    } else if (button === this.maximizeDiv) {
+      this.maximizeControl();
+    } else if (button._layerSwitcher === this.id) {
+      if (button["for"]) {
+        button = document.getElementById(button["for"]);
+      }
+      if (!button.disabled) {
+        console.log(button);
+      }
+    }
+  },
+
+
+  redraw: function() {
+    return this.div; 
+  },
+
+  maximizeControl: function(e) {
+    this.div.style.width = "";
+    this.div.style.height = "";
+
+    this.showControls(false);
+
+    if (e != null) {
+      OpenLayers.Event.stop(e);                                            
+    }
+  },
+
+  minimizeControl: function(e) {
+    this.div.style.width = "0px";
+    this.div.style.height = "0px";
+
+    this.showControls(true);
+
+    if (e != null) {
+      OpenLayers.Event.stop(e);                                            
+    }
+  },
+
+  showControls: function(minimize) {
+    this.maximizeDiv.style.display = minimize ? "" : "none";
+    this.minimizeDiv.style.display = minimize ? "none" : "";
+    this.contentDiv.style.display = minimize ? "none" : "";
+  },
+
+  loadContents: function() {
+    var self = this;
+    this.contentDiv = $("<div class='content'><div><a href='javascript:void(0);' id='download-kml'>Download as KML</a></div></div>")[0];
+    $(this.contentDiv).find("#download-kml").click(function () {
+
+        
+      window.open(
+        MapServer.apiurl + "?" + $.param({
+          format: 'kml',
+          action: 'map',
+          table: 'ais_path',
+          datetime__gte: self.map.timemin,
+          datetime__lte: self.map.timemax,
+          bbox: self.map.getExtent().transform(
+            self.map.getProjection(),
+            new OpenLayers.Projection("EPSG:4326")).toBBOX()
+        })
+      );
+    });
+    $(this.div).append(this.contentDiv);
+
+
+    // maximize button div
+    var img = OpenLayers.Util.getImageLocation('layer-switcher-maximize.png');
+    this.maximizeDiv = OpenLayers.Util.createAlphaImageDiv(
+                                "OpenLayers_Control_MaximizeDiv", 
+                                null, 
+                                null, 
+                                img, 
+                                "absolute");
+    OpenLayers.Element.addClass(this.maximizeDiv, "maximizeDiv olButton");
+    this.maximizeDiv.style.display = "none";
+
+    this.div.appendChild(this.maximizeDiv);
+
+    // minimize button div
+    var img = OpenLayers.Util.getImageLocation('layer-switcher-minimize.png');
+    this.minimizeDiv = OpenLayers.Util.createAlphaImageDiv(
+                                "OpenLayers_Control_MinimizeDiv", 
+                                null, 
+                                null, 
+                                img, 
+                                "absolute");
+    OpenLayers.Element.addClass(this.minimizeDiv, "minimizeDiv olButton");
+    this.minimizeDiv.style.display = "none";
+
+    this.div.appendChild(this.minimizeDiv);
+  },
+
+  CLASS_NAME: "MapServer.Control.Menu"
+});
+
+
 
 MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
   CLASS_NAME: "MapServer.Layer.Db",
@@ -192,9 +324,12 @@ MapServer.init = function () {
           new OpenLayers.Control.Permalink('permalink'),
           new OpenLayers.Control.MousePosition(),
           new OpenLayers.Control.OverviewMap(),
-          new OpenLayers.Control.KeyboardDefaults()
+          new OpenLayers.Control.KeyboardDefaults(),
+          new MapServer.Control.Menu()
         ],
         setTimeRange: function (min, max) {
+          this.timemin = min;
+          this.timemax = max;
           $.each(this.layers, function () {
             if (typeof this.setTimeRange != "undefined") {
               this.setTimeRange(min, max);
