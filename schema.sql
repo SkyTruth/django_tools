@@ -2,15 +2,18 @@ create table ais_path as
  select
    mmsi,
    tolerance,
-   ST_Simplify(line, tolerance) as line,
+   case
+     when tolerance is null then line
+     else ST_Simplify(line, tolerance)
+   end as line,
    timemin,
    timemax
   from
     (select
        a.mmsi,
        st_makeline(a.location) as line,
-       min(a.datetime) AS timemin,
-       max(a.datetime) AS timemax
+       min(a.datetime) as timemin,
+       max(a.datetime) as timemax
      from
        (select
           ais.seqid,
@@ -25,10 +28,11 @@ create table ais_path as
         from ais
         order by
           ais.mmsi,
-          ais.datetime) a
+          ais.datetime) as a
      group by a.mmsi
-     having count(a.location) > 1) b,
-     (select 2^generate_series(-20,20) tolerance) c;
+     having count(a.location) > 1) as b,
+     (select 2^generate_series(-20,20) as tolerance
+      union select null as tolerance) as c;
 
 
 create index ais_path_line_idx on ais_path using gist (line);
