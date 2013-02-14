@@ -21,6 +21,8 @@
     <script type="text/javascript">
       $(function () {
         MapServer.apiurl = "{% url appomatic_mapserver.views.mapserver %}";
+        MapServer.exportkmlurl = "{% url appomatic_mapexport.views.kmlformat %}";
+        MapServer.exportcsvurl = "{% url appomatic_mapexport.views.csvformat %}";
         MapServer.fileurl = "http://50.57.223.218:8080{{ MEDIA_URL }}";
         MapServer.init();
       });

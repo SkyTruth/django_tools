@@ -91,15 +91,35 @@ MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
 
   loadContents: function() {
     var self = this;
-    this.contentDiv = $("<div class='content'><div><a href='javascript:void(0);' id='download-kml'>Download as KML</a></div></div>")[0];
-    $(this.contentDiv).find("#download-kml").click(function () {
-
-        
+    this.contentDiv = $("<div class='content'><div><a href='javascript:void(0);' id='download-kml'>Download as KML</a></div><div><a href='javascript:void(0);' id='download-fullkml'>Download as full KML</a></div><div><a href='javascript:void(0);' id='download-csv'>Download as CSV</a></div></div>")[0];
+    $(this.contentDiv).find("#download-kml").click(function () {        
       window.open(
         MapServer.apiurl + "?" + $.param({
           format: 'kml',
           action: 'map',
           table: 'ais_path',
+          datetime__gte: self.map.timemin,
+          datetime__lte: self.map.timemax,
+          bbox: self.map.getExtent().transform(
+            self.map.getProjection(),
+            new OpenLayers.Projection("EPSG:4326")).toBBOX()
+        })
+      );
+    });
+    $(this.contentDiv).find("#download-fullkml").click(function () {        
+      window.open(
+        MapServer.exportkmlurl + "?" + $.param({
+          datetime__gte: self.map.timemin,
+          datetime__lte: self.map.timemax,
+          bbox: self.map.getExtent().transform(
+            self.map.getProjection(),
+            new OpenLayers.Projection("EPSG:4326")).toBBOX()
+        })
+      );
+    });
+    $(this.contentDiv).find("#download-csv").click(function () {        
+      window.open(
+        MapServer.exportcsvurl + "?" + $.param({
           datetime__gte: self.map.timemin,
           datetime__lte: self.map.timemax,
           bbox: self.map.getExtent().transform(
