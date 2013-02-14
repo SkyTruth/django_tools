@@ -89,14 +89,13 @@ def mapserver(request):
               from
                 (select
                    ais_path.mmsi,
-                   ST_AsText(
-                     ST_Intersection(
-                       ST_locate_between_measures(
-                         line,
-                         extract(epoch from %(timemin)s::timestamp),
-                         extract(epoch from %(timemax)s::timestamp)
-                       ),
-                       """ + bbox + """)) as shape,
+                   ST_Intersection(
+                     ST_locate_between_measures(
+                       line,
+                       extract(epoch from %(timemin)s::timestamp),
+                       extract(epoch from %(timemax)s::timestamp)
+                     ),
+                     """ + bbox + """) as shape,
                    timemin,
                    timemax,
                     vessel.name,
@@ -119,14 +118,14 @@ def mapserver(request):
         
             cur.execute(sql, query)
             try:
-
                 format = request.GET.get('format', 'geojson')
                 if format == 'geojson':
                     features = []
                     for row in dictreader(cur):
+                        geometry = shapely.wkt.loads(str(row['shape']))
                         geometry = json.loads(
                             geojson.dumps(
-                                shapely.wkt.loads(str(row['shape']))))
+                                geometry))
                         del row['shape']
                         row['datetime'] = datetimemin + 1
                         feature = {"type": "Feature",
@@ -145,6 +144,7 @@ def mapserver(request):
 
                     types = []
                     for row in dictreader(cur):
+                        geometry = shapely.wkt.loads(str(row['shape']))
                         if row['mmsi']:
                             if not row['name']:
                                 row['name'] = row['mmsi']
@@ -153,10 +153,9 @@ def mapserver(request):
                         placemark = fastkml.kml.Placemark(
                             ns, row['mmsi'], row['name'],
                             """<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>""" % row)
-                        geom = shapely.wkt.loads(str(row['shape']))
 
-                        types.append(geom.geom_type)
-                        placemark.geometry = geom
+                        types.append(geometry.geom_type)
+                        placemark.geometry = geometry
                         doc.append(placemark)
 
                     return django.http.HttpResponse(
