@@ -35,7 +35,32 @@ def get_records(**args):
         if args.get('mmsi', None):
             where.append("ais.mmsi = %(mmsi)s")
         
-        sql = "select datetime, ais.mmsi as mmsi, latitude, longitude, true_heading, sog, cog, location, name, type, length, url from ais left join vessel on ais.mmsi = vessel.mmsi where " + " and ".join(where) + " order by ais.mmsi, datetime"
+        sql = """
+          select
+            datetime,
+            ais.mmsi
+            as
+            mmsi,
+            latitude,
+            longitude,
+            true_heading,
+            sog,
+            cog,
+            location,
+            name,
+            type,
+            length,
+            url
+          from
+            appomatic_mapdata_ais as ais
+            left join appomatic_mapdata_vessel as vessel on
+              ais.mmsi = vessel.mmsi
+          where
+            """ + " and ".join(where) + """
+          order by
+            ais.mmsi,
+            datetime
+        """
 
         cur.execute(sql, args);
             

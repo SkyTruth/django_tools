@@ -103,8 +103,8 @@ def mapserver(request):
                    vessel.length,
                    vessel.url
                  from
-                   ais_path
-                   left outer join vessel on
+                   appomatic_mapdata_aispath as ais_path
+                   left outer join appomatic_mapdata_vessel as vessel on
                      ais_path.mmsi = vessel.mmsi
                  where
                    """ + tolerancetest + """
@@ -183,7 +183,7 @@ def mapserver(request):
                 'options': {
                     'protocol': {
                         'params': {
-                            'table': 'ais_path'
+                            'table': 'ais_path',
                             }
                         }
                     }

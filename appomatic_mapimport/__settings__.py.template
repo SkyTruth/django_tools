@@ -1,0 +1,12 @@
+MAPIMPORT_EXACTEARTH = {
+    'host': 'clients.exactearth.com',
+    'port': 22,
+    'password': 'bAP8gugA',
+    'username': 'cust_skytruth_sftp'
+    }
+MAPIMPORT_KSAT = {
+    'host': 'ftp3.ksat.no',
+    'port': 22,
+    'password': '83hig89',
+    'username': 'skytruth'
+    }
