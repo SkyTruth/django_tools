@@ -45,6 +45,8 @@ class Command(django.core.management.base.BaseCommand):
                 cost 100;
             """)
 
+            cur.execute("drop trigger if exists appomatic_mapdata_ais_insert on appomatic_mapdata_ais")
+
             cur.execute("""
               create trigger appomatic_mapdata_ais_insert
                 before insert

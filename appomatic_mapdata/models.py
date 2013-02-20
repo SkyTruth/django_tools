@@ -43,7 +43,7 @@ class GeometryField(django.contrib.gis.db.models.GeometryField):
 
 class Vessel(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
-    mmsi = django.db.models.CharField(max_length=9, null=False, blank=False, unique=True)
+    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False, unique=True) # max_length *should* be 9, but we do get some odd data...
     name = django.db.models.CharField(max_length=128, null=True, blank=True)
     type = django.db.models.CharField(max_length=64, null=True, blank=True)
     length = django.db.models.IntegerField(null=True, blank=True)
