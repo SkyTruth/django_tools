@@ -1,6 +1,7 @@
 import django.db
 import contextlib
 import datetime
+import appomatic_mapdata.models
 
 def dictreader(cur):
     for row in cur:
@@ -37,10 +38,9 @@ def get_records(**args):
         
         sql = """
           select
+            src,
+            ais.mmsi as mmsi,
             datetime,
-            ais.mmsi
-            as
-            mmsi,
             latitude,
             longitude,
             true_heading,
@@ -49,8 +49,7 @@ def get_records(**args):
             location,
             name,
             type,
-            length,
-            url
+            length
           from
             appomatic_mapdata_ais as ais
             left join appomatic_mapdata_vessel as vessel on
@@ -65,4 +64,5 @@ def get_records(**args):
         cur.execute(sql, args);
             
         for row in dictreader(cur):
+            row['url'] = appomatic_mapdata.models.Ais.URL_PATTERN % row
             yield row

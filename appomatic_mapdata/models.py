@@ -68,9 +68,12 @@ class Ais(django.contrib.gis.db.models.Model):
 
     vessel = django.db.models.ForeignKey(Vessel, null=True, blank=True)
 
+
+    URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
+
     @property
     def url(self):
-        return "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=" + self.mmsi
+        return self.URL_PATTERN % {'mmsi': self.mmsi}
 
 
 class AisPath(django.contrib.gis.db.models.Model):
@@ -88,4 +91,4 @@ class AisPath(django.contrib.gis.db.models.Model):
 
     @property
     def url(self):
-        return "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=" + self.mmsi
+        return Ais.URL_PATTERN % {'mmsi': self.mmsi}
