@@ -14,9 +14,9 @@ class Command(django.core.management.base.BaseCommand):
             cur.execute("delete from appomatic_mapdata_aispath")
             cur.execute("""
               insert into
-                appomatic_mapdata_aispath
+                appomatic_mapdata_aispath (src, mmsi, timemin, timemax, tolerance, line)
               select
-                *
+                src, mmsi, timemin, timemax, tolerance, line
               from
                 appomatic_mapdata_ais_path_view
             """)

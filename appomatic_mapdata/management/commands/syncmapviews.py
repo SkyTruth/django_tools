@@ -46,7 +46,6 @@ class Command(django.core.management.base.BaseCommand):
             """)
 
             cur.execute("drop trigger if exists appomatic_mapdata_ais_insert on appomatic_mapdata_ais")
-
             cur.execute("""
               create trigger appomatic_mapdata_ais_insert
                 before insert
@@ -55,9 +54,11 @@ class Command(django.core.management.base.BaseCommand):
                 execute procedure appomatic_mapdata_ais_insert();
             """)
 
+            cur.execute("drop view if exists appomatic_mapdata_ais_path_view")
             cur.execute("""
-              create or replace view appomatic_mapdata_ais_path_view as
+              create view appomatic_mapdata_ais_path_view as
                select
+                 src,
                  mmsi,
                  tolerance,
                  case
@@ -68,15 +69,16 @@ class Command(django.core.management.base.BaseCommand):
                  timemax
                 from
                   (select
+                     a.src,
                      a.mmsi,
                      st_makeline(a.location) as line,
                      min(a.datetime) as timemin,
                      max(a.datetime) as timemax
                    from
                      (select
-                        ais.id,
-                        ais.datetime,
+                        ais.src,
                         ais.mmsi,
+                        ais.datetime,
                         ais.latitude,
                         ais.longitude,
                         ais.true_heading,
@@ -88,7 +90,7 @@ class Command(django.core.management.base.BaseCommand):
                       order by
                         ais.mmsi,
                         ais.datetime) as a
-                   group by a.mmsi
+                   group by a.src, a.mmsi
                    having count(a.location) > 1) as b,
                    (select 2^generate_series(-20,20) as tolerance
                     union select null as tolerance) as c;
