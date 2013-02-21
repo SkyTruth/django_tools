@@ -13,6 +13,7 @@ import geojson
 import json
 import datetime
 import math
+import appomatic_mapdata.models
 
 def index(request):
     return django.shortcuts.render_to_response(
@@ -84,8 +85,7 @@ def mapserver(request):
                 timemax,
                 name,
                 type,
-                length,
-                url
+                length
               from
                 (select
                    ais_path.mmsi,
@@ -100,8 +100,7 @@ def mapserver(request):
                    timemax,
                     vessel.name,
                    vessel.type,
-                   vessel.length,
-                   vessel.url
+                   vessel.length
                  from
                    appomatic_mapdata_aispath as ais_path
                    left outer join appomatic_mapdata_vessel as vessel on
@@ -122,6 +121,7 @@ def mapserver(request):
                 if format == 'geojson':
                     features = []
                     for row in dictreader(cur):
+                        row['url'] = appomatic_mapdata.models.Ais.URL_PATTERN % row
                         geometry = shapely.wkt.loads(str(row['shape']))
                         geometry = json.loads(
                             geojson.dumps(
@@ -171,7 +171,7 @@ def mapserver(request):
     if action == 'timerange':
         with contextlib.closing(django.db.connection.cursor()) as cur:
 
-            cur.execute("select min(datetime), max(datetime) from ais", )
+            cur.execute("select min(timemin), max(timemax) from appomatic_mapdata_aispath", )
             row = cur.fetchone()
 
             return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
