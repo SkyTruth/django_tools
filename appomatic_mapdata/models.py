@@ -56,7 +56,7 @@ class Vessel(django.contrib.gis.db.models.Model):
 class Ais(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
     src = django.db.models.CharField(max_length=128, null=False, blank=False)
-    mmsi = django.db.models.CharField(max_length=9, null=False, blank=False)
+    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False)
     datetime = django.db.models.DateTimeField(null=False, blank=False)
 
     latitude = django.db.models.FloatField(null=False, blank=False)
@@ -79,7 +79,7 @@ class Ais(django.contrib.gis.db.models.Model):
 class AisPath(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
     src = django.db.models.CharField(max_length=128, null=False, blank=False)
-    mmsi = django.db.models.CharField(max_length=9, null=False, blank=False)
+    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False)
 
     timemin = django.db.models.DateTimeField(null=False, blank=False)
     timemax = django.db.models.DateTimeField(null=False, blank=False)

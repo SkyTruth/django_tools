@@ -2,3 +2,4 @@
 *.pyc
 \#*
 .#*
+appomatic_mapdata/__settings__.py
