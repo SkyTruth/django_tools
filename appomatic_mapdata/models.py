@@ -92,3 +92,33 @@ class AisPath(django.contrib.gis.db.models.Model):
     @property
     def url(self):
         return Ais.URL_PATTERN % {'mmsi': self.mmsi}
+
+class Sar(django.contrib.gis.db.models.Model):
+    objects = django.contrib.gis.db.models.GeoManager()
+    src = django.db.models.CharField(max_length=128, null=False, blank=False)
+    datetime = django.db.models.DateTimeField(null=False, blank=False)
+
+    duration = django.db.models.IntegerField(null=True, blank=True)
+    BeamMode = django.db.models.CharField(max_length=8, null=False, blank=False)
+    Polarizations = django.db.models.CharField(max_length=8, null=False, blank=False)
+    ProductType = django.db.models.CharField(max_length=8, null=False, blank=False)
+    ImageID = django.db.models.IntegerField(null=True, blank=True)
+    Counter = django.db.models.IntegerField(null=True, blank=True)
+    ProcessessingID = django.db.models.IntegerField(null=True, blank=True)
+    Customer = django.db.models.CharField(max_length=16, null=False, blank=False)
+    FileType = django.db.models.CharField(max_length=16, null=False, blank=False)
+
+    name = django.db.models.CharField(max_length=128, null=False, blank=False)
+    latitude = django.db.models.FloatField(null=False, blank=False)
+    longitude = django.db.models.FloatField(null=False, blank=False)
+    location = GeometryField(null=False, blank=False)
+
+    Probability = django.db.models.IntegerField(null=True, blank=True)
+    DetectionId = django.db.models.CharField(max_length=128, null=False, blank=False)
+    ProductStartTime = django.db.models.DateTimeField(null=True, blank=True)
+    ProductStopTime = django.db.models.DateTimeField(null=True, blank=True)
+    Beam = django.db.models.FloatField(null=True, blank=True)
+    Length = django.db.models.FloatField(null=True, blank=True)
+    Type = django.db.models.CharField(max_length=128, null=False, blank=False)
+    Heading = django.db.models.FloatField(null=True, blank=True)
+    ProductId = django.db.models.CharField(max_length=128, null=False, blank=False)

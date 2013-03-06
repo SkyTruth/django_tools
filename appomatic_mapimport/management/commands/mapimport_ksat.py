@@ -71,12 +71,10 @@ class Command(django.core.management.base.BaseCommand):
                                             cur.execute("insert into appomatic_mapimport_downloaded (src, filename) values ('KSAT', %(filename)s)", {'filename': filename})
 
                                         except Exception, e:
-                                            raise
                                             print "    Error loading file " + str(e)
                                             cur.execute("rollback")
                                         else:
                                             cur.execute("commit")
 
                                 except Exception, e:
-                                    raise
                                     print "    Unable to open file " + str(e)
