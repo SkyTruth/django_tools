@@ -14,6 +14,10 @@ import json
 import datetime
 import math
 import appomatic_mapdata.models
+import os
+import os.path
+from django.conf import settings
+
 
 def index(request):
     return django.shortcuts.render_to_response(
@@ -176,6 +180,16 @@ def mapserver(request):
 
             return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
 
+    if action == 'kmldir':
+        directory = request.GET['directory']
+        datetimemin = datetime.datetime.utcfromtimestamp(int(request.GET['datetime__gte']))
+        datetimemax = datetime.datetime.utcfromtimestamp(int(request.GET['datetime__lte']))
+
+        return {'files': ["%s/%s/doc.kml" % (directory, kmldir.strftime("%Y-%m-%d %H:%M:%S"))
+                          for kmldir in (datetime.datetime.strptime(kmldir, "%Y-%m-%d %H:%M:%S")
+                                         for kmldir in os.listdir(os.path.join(settings.MEDIA_ROOT, directory)))
+                          if datetimemin < kmldir < datetimemax]}
+
     if action == 'layers':
         return {
             'ExactEarth': {
@@ -189,11 +203,11 @@ def mapserver(request):
                     }
                 },
             'Vessel detections': {
-                'type': 'MapServer.Layer.KmlDateDir',
+                'type': 'MapServer.Layer.KmlDir',
                 'options': {
-                    'directory': 'vessel-detections',
                     'protocol': {
                         'params': {
+                            'directory': 'vessel-detections',
                             }
                         }
                     }

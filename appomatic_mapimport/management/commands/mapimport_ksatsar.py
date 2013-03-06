@@ -83,7 +83,7 @@ class Command(django.core.management.base.BaseCommand):
                                         int(date[:4]), int(date[4:6]), int(date[6:8]),
                                         int(time[:2]), int(time[2:4]), int(time[4:6]))
 
-                                    localpath = os.path.join(KML_ROOT, fileinfo['datetime'].strftime("%Y-%m-%d.%H:%M:%S"))
+                                    localpath = os.path.join(KML_ROOT, fileinfo['datetime'].strftime("%Y-%m-%d %H:%M:%S"))
                                     try:
                                         os.makedirs(localpath)
                                     except:

@@ -298,17 +298,24 @@ MapServer.Protocol.MultiHTTP = OpenLayers.Class(OpenLayers.Protocol.HTTP, {
   }
 });
 
-MapServer.Layer.KmlDateDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
-  CLASS_NAME: "MapServer.Layer.KmlDateDir",
+MapServer.Layer.KmlDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
+  CLASS_NAME: "MapServer.Layer.KmlDir",
 
   setTimeRange: function(min, max) {
-    datasets = [];
-    for (t = min; t <= max + 24 * 60 * 60; t += 24*60*60) {
-       datasets.push({url: MapServer.fileurl + "vessel-detections/" + MapServer.epochToDate(t).format("UTC:yyyy-mm-dd") + "/doc.kml"});
-    }
-    this.protocol.datasets = datasets;
-
-    this.refresh({force:true});
+    var self = this;
+    $.get(
+      MapServer.apiurl,
+      OpenLayers.Util.extend({action: 'kmldir',
+                              datetime__gte: min,
+                              datetime__lte: max},
+                             self.options.protocol.params),
+      function(d) {
+        self.protocol.datasets = d.files.map(function (filename) {
+           return {url: MapServer.fileurl + filename}
+        });
+        self.refresh({force:true});
+      },
+      "json");
   },
 
   initialize: function(name, options) {
