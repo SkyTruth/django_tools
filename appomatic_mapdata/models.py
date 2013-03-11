@@ -129,6 +129,7 @@ class Region(django.contrib.gis.db.models.Model):
     class Meta:
         db_table = 'region'
 
+    src = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
     name = django.db.models.CharField(max_length=50, null=False, blank=False, db_index=True)
     code = django.db.models.CharField(max_length=20, null=False, blank=False, db_index=True)
     the_geom = GeometryField(null=True, blank=True)
