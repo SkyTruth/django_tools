@@ -10,6 +10,19 @@ class Command(django.core.management.base.BaseCommand):
  
     def handle(self, *args, **options):
         with contextlib.closing(django.db.connection.cursor()) as cur:
+            cur.execute("drop view if exists appomatic_mapdata_viirsfilteredview")
+            cur.execute("""
+              create view
+                appomatic_mapdata_viirsfilteredview as
+              select
+                v.*, r.code as regioncode, r.id as regionid, r.name as regionname
+              from
+                appomatic_mapdata_viirs as v
+                join region as r on
+                  ST_Contains(r.the_geom, v.location)
+              where
+                "Temperature" > 2073 -- 2073K = 1800C, stuff below that is probably natural fires
+            """)
             cur.execute("""
               create or replace function appomatic_mapdata_ais_insert()
                 returns trigger as

@@ -1,6 +1,8 @@
 import logging
 import re
 import csv
+import pytz
+import datetime
 
 # map of field names: {'output file field' : 'input file field'}
 field_map = {
@@ -40,6 +42,8 @@ def convert_row (row_in):
     # fix up datetime    
     dt = row_out.get('datetime')
     if dt:
-        row_out['datetime'] = "%s-%s-%s %s:%s:%s" % (dt[0:4],dt[4:6],dt[6:8],dt[9:11],dt[11:13],dt[13:15])
-        
+        row_out['datetime'] = datetime.datetime(int(dt[0:4]), int(dt[4:6]), int(dt[6:8]),
+                                                int(dt[9:11]), int(dt[11:13]), int(dt[13:15]),
+                                                tzinfo=pytz.utc)
+
     return row_out

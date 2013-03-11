@@ -6,6 +6,7 @@ import paramiko
 import sys
 import appomatic_mapimport.ksat
 import datetime
+import pytz
 from django.conf import settings
 
 
@@ -46,7 +47,7 @@ class Command(django.core.management.base.BaseCommand):
                                                 if 'lon' in row: row['lon'] = row['lon'] / 600000.0 # A AIS unit is 1/10000th of a minute (1/60th of a degree)
                                                 if 'lat' in row: row['lat'] = row['lat'] / 600000.0
                                                 if 'C' in row:
-                                                    row['C'] = datetime.datetime.fromtimestamp(int(row['C']))
+                                                    row['C'] = datetime.datetime.utcfromtimestamp(int(row['C'])).replace(tzinfo=pytz.utc)
                                                 else:
                                                     row['C'] = None
                                                 if 'S' in row:

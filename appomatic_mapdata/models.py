@@ -1,5 +1,6 @@
 import django.contrib.gis.db.models
 import django.db.models
+import dbarray
 
 # Hack to allow columns with no geom_type
 import django.contrib.gis.db.backends.postgis.operations
@@ -98,6 +99,11 @@ class Sar(django.contrib.gis.db.models.Model):
     src = django.db.models.CharField(max_length=128, null=False, blank=False)
     datetime = django.db.models.DateTimeField(null=False, blank=False)
 
+    name = django.db.models.CharField(max_length=128, null=False, blank=False)
+    latitude = django.db.models.FloatField(null=False, blank=False)
+    longitude = django.db.models.FloatField(null=False, blank=False)
+    location = GeometryField(null=False, blank=False)
+
     duration = django.db.models.IntegerField(null=True, blank=True)
     BeamMode = django.db.models.CharField(max_length=8, null=False, blank=False)
     Polarizations = django.db.models.CharField(max_length=8, null=False, blank=False)
@@ -108,11 +114,6 @@ class Sar(django.contrib.gis.db.models.Model):
     Customer = django.db.models.CharField(max_length=16, null=False, blank=False)
     FileType = django.db.models.CharField(max_length=16, null=False, blank=False)
 
-    name = django.db.models.CharField(max_length=128, null=False, blank=False)
-    latitude = django.db.models.FloatField(null=False, blank=False)
-    longitude = django.db.models.FloatField(null=False, blank=False)
-    location = GeometryField(null=False, blank=False)
-
     Probability = django.db.models.IntegerField(null=True, blank=True)
     DetectionId = django.db.models.CharField(max_length=128, null=False, blank=False)
     ProductStartTime = django.db.models.DateTimeField(null=True, blank=True)
@@ -122,3 +123,38 @@ class Sar(django.contrib.gis.db.models.Model):
     Type = django.db.models.CharField(max_length=128, null=False, blank=False)
     Heading = django.db.models.FloatField(null=True, blank=True)
     ProductId = django.db.models.CharField(max_length=128, null=False, blank=False)
+
+
+class Region(django.contrib.gis.db.models.Model):
+    class Meta:
+        db_table = 'region'
+
+    name = django.db.models.CharField(max_length=50, null=False, blank=False, db_index=True)
+    code = django.db.models.CharField(max_length=20, null=False, blank=False, db_index=True)
+    the_geom = GeometryField(null=True, blank=True)
+    simple_geom = GeometryField(null=True, blank=True)
+    kml = django.db.models.TextField(null=True, blank=True)
+
+class Event(django.contrib.gis.db.models.Model):
+    objects = django.contrib.gis.db.models.GeoManager()
+    src = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
+    datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True)
+
+    latitude = django.db.models.FloatField(null=False, blank=False, db_index=True)
+    longitude = django.db.models.FloatField(null=False, blank=False, db_index=True)
+    location = GeometryField(null=False, blank=False)
+
+    region = dbarray.IntegerArrayField(null=True, blank=True) # Really a set of foreign keys to Region
+
+    class Meta:
+        abstract = True
+
+class Viirs(Event):
+    name = django.db.models.CharField(max_length=128, null=False, blank=False)
+
+    RadiantOutput = django.db.models.FloatField(null=True, blank=True, db_index=True)
+    Temperature = django.db.models.FloatField(null=True, blank=True, db_index=True)
+    RadiativeHeat = django.db.models.FloatField(null=True, blank=True, db_index=True)
+    footprint = django.db.models.FloatField(null=True, blank=True, db_index=True)
+    SatZenithAngle = django.db.models.FloatField(null=True, blank=True)
+    SourceID = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
