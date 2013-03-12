@@ -165,6 +165,18 @@ class Command(django.core.management.base.BaseCommand):
 
         self.cur.execute("""
           select
+             min(a.max_score::integer) as min,
+             max(a.max_score::integer) as max
+           from  
+             appomatic_mapcluster_cluster a
+           where
+             a.score = a.max_score
+             and a.score >= %(size)s
+        """, {"size": size})
+        scoremin, scoremax = self.cur.next()
+
+        self.cur.execute("""
+          select
              """ + sqlcols + """
            from  
              appomatic_mapcluster_cluster a
@@ -195,7 +207,7 @@ class Command(django.core.management.base.BaseCommand):
             icon_style = fastkml.styles.IconStyle(
                 '{http://www.opengis.net/kml/2.2}',
                 "style-%s-%s-icon" % (timeperiod, seq),
-                scale=0.5 + 0.01 * row['count'],
+                scale=0.5 + 2 * (float(row['count'] - scoremin) / (scoremax - scoremin)),
                 icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
                 color=color)
             style.append_style(icon_style)
