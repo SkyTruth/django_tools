@@ -54,23 +54,25 @@ class Command(django.core.management.base.BaseCommand):
           limit 1
         """)
 
-        columns = dict((column.name, 
-          (name
-           for name, t in ((name, getattr(psycopg2, name))
-                           for name in ("Date",
-                                        "Time",
-                                        "Timestamp",
-                                        "DateFromTicks",
-                                        "TimeFromTicks",
-                                        "TimestampFromTicks",
-                                        "Binary",
-                                        "STRING",
-                                        "BINARY",
-                                        "NUMBER",
-                                        "DATETIME",
-                                        "ROWID"))
-           if column.type_code == t).next())
-         for column in self.cur.description)
+        columns = dict((name, ts[0])
+                       for (name, ts) in ((column.name, 
+                                           [name
+                                            for name, t in ((name, getattr(psycopg2, name))
+                                                            for name in ("Date",
+                                                                         "Time",
+                                                                         "Timestamp",
+                                                                         "DateFromTicks",
+                                                                         "TimeFromTicks",
+                                                                         "TimestampFromTicks",
+                                                                         "Binary",
+                                                                         "STRING",
+                                                                         "BINARY",
+                                                                         "NUMBER",
+                                                                         "DATETIME",
+                                                                         "ROWID"))
+                                            if column.type_code == t])
+                                          for column in self.cur.description)
+                       if ts)
 
         # Remove old data if any
         self.cur.execute("truncate table appomatic_mapcluster_cluster")
@@ -142,26 +144,27 @@ class Command(django.core.management.base.BaseCommand):
                    "ST_AsText(ST_Centroid(ST_Collect(b.location))) as shape"]
         description = []
         for name, t in columns.iteritems():
-            if t == "NUMBER":
-                sqlcols.append("min(c.%s) as %s_min" % (name, name))
-                sqlcols.append("max(c.%s) as %s_max" % (name, name))
-                sqlcols.append("avg(c.%s) as %s_avg" % (name, name))
-                sqlcols.append("stddev(c.%s) as %s_stddev" % (name, name))
-                description.append("<tr><th>%s (min)</th><td>%%(%s_min)s" % (name, name))
-                description.append("<tr><th>%s (max)</th><td>%%(%s_max)s" % (name, name))
-                description.append("<tr><th>%s (avg)</th><td>%%(%s_avg)s" % (name, name))
-                description.append("<tr><th>%s (stddev)</th><td>%%(%s_stddev)s" % (name, name))
-            elif t == "DATETIME":
-                sqlcols.append("min(c.%s) as %s_min" % (name, name))
-                sqlcols.append("max(c.%s) as %s_max" % (name, name))
-                sqlcols.append("to_timestamp(avg(extract('epoch' from c.%s))) as %s_avg" % (name, name))
-                sqlcols.append("stddev(extract('epoch' from c.%s)) * interval '1second' as %s_stddev" % (name, name))
-                description.append("<tr><th>%s (min)</th><td>%%(%s_min)s" % (name, name))
-                description.append("<tr><th>%s (max)</th><td>%%(%s_max)s" % (name, name))
-                description.append("<tr><th>%s (avg)</th><td>%%(%s_avg)s" % (name, name))
-                description.append("<tr><th>%s (stddev)</th><td>%%(%s_stddev)s" % (name, name))
+            if name == 'id': continue
+            if t == 'NUMBER':
+                sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
+                sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
+                sqlcols.append('avg(c."%s") as "%s_avg"' % (name, name))
+                sqlcols.append('stddev(c."%s") as "%s_stddev"' % (name, name))
+                description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
+                description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
+                description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
+                description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
+            elif t == 'DATETIME':
+                sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
+                sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
+                sqlcols.append('to_timestamp(avg(extract(\'epoch\' from c."%s"))) as "%s_avg"' % (name, name))
+                sqlcols.append('stddev(extract(\'epoch\' from c."%s")) * interval \'1second\' as "%s_stddev"' % (name, name))
+                description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
+                description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
+                description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
+                description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
         sqlcols = ', '.join(sqlcols)
-        description = "<h2>%(count)s</h2><table>" + ''.join(description) + "</table>"
+        description = '<h2>%(count)s</h2><table>' + ''.join(description) + '</table>'
 
         self.cur.execute("""
           select
