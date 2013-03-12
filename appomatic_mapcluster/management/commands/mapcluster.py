@@ -7,6 +7,7 @@ import shapely.wkb
 import shapely.wkt
 import fastkml.kml
 import fastkml.styles
+import psycopg2
 
 def dictreader(cur):
     for row in cur:
@@ -24,6 +25,32 @@ class Command(django.core.management.base.BaseCommand):
             div = (timeperiod-30) / (11*30.0) # Min time: 1 month, max time, 1 year
             color = "%02x%02x%02x%02x" % tuple(c[1]*div + c[0]*(1.0-div)
                                                for c in zip(mincolor, maxcolor))
+
+        self.cur.execute("""
+          select
+            *
+          from
+            """ + query + """ as a
+          limit 1
+        """)
+
+        columns = dict((column.name, 
+          (name
+           for name, t in ((name, getattr(psycopg2, name))
+                           for name in ("Date",
+                                        "Time",
+                                        "Timestamp",
+                                        "DateFromTicks",
+                                        "TimeFromTicks",
+                                        "TimestampFromTicks",
+                                        "Binary",
+                                        "STRING",
+                                        "BINARY",
+                                        "NUMBER",
+                                        "DATETIME",
+                                        "ROWID"))
+           if column.type_code == t).next())
+         for column in self.cur.description)
 
         # Remove old data if any
         self.cur.execute("truncate table appomatic_mapcluster_cluster")
@@ -94,36 +121,54 @@ class Command(django.core.management.base.BaseCommand):
                             ST_DWithin(a.glocation, b.glocation, 7500))
         """)
 
-        #### get cluster centroids
+
+        sqlcols = ["a.id",
+                   "a.max_score::integer as count",
+                   "ST_Y(ST_Centroid(ST_Collect(b.location))) as lat",
+                   "ST_X(ST_Centroid(ST_Collect(b.location))) as lng",
+                   "ST_AsText(ST_Centroid(ST_Collect(b.location))) as shape"]
+        description = []
+        for name, t in columns.iteritems():
+            if t == "NUMBER":
+                sqlcols.append("min(c.%s) as %s_min" % (name, name))
+                sqlcols.append("max(c.%s) as %s_max" % (name, name))
+                sqlcols.append("avg(c.%s) as %s_avg" % (name, name))
+                sqlcols.append("stddev(c.%s) as %s_stddev" % (name, name))
+                description.append("<tr><th>%s (min)</th><td>%%(%s_min)s" % (name, name))
+                description.append("<tr><th>%s (max)</th><td>%%(%s_max)s" % (name, name))
+                description.append("<tr><th>%s (avg)</th><td>%%(%s_avg)s" % (name, name))
+                description.append("<tr><th>%s (stddev)</th><td>%%(%s_stddev)s" % (name, name))
+            elif t == "DATETIME":
+                sqlcols.append("min(c.%s) as %s_min" % (name, name))
+                sqlcols.append("max(c.%s) as %s_max" % (name, name))
+                sqlcols.append("to_timestamp(avg(extract('epoch' from c.%s))) as %s_avg" % (name, name))
+                sqlcols.append("stddev(extract('epoch' from c.%s)) * interval '1second' as %s_stddev" % (name, name))
+                description.append("<tr><th>%s (min)</th><td>%%(%s_min)s" % (name, name))
+                description.append("<tr><th>%s (max)</th><td>%%(%s_max)s" % (name, name))
+                description.append("<tr><th>%s (avg)</th><td>%%(%s_avg)s" % (name, name))
+                description.append("<tr><th>%s (stddev)</th><td>%%(%s_stddev)s" % (name, name))
+        sqlcols = ', '.join(sqlcols)
+        description = "<h2>%(count)s</h2><table>" + ''.join(description) + "</table>"
+
         self.cur.execute("""
           select
-            max_score::integer as count, 
-            ST_Y((select
-                    ST_Centroid(ST_Collect(location)) as centroid
-                  from
-                    appomatic_mapcluster_cluster b
-                  where
-                    ST_DWithin(a.glocation, b.glocation, 7500))) as lat,
-            ST_X((select
-                    ST_Centroid(ST_Collect(location)) as centroid
-                  from
-                    appomatic_mapcluster_cluster b
-                  where
-                    ST_DWithin(a.glocation, b.glocation, 7500))) as lng,
-            ST_AsText((select
-                    ST_Centroid(ST_Collect(location)) as centroid
-                  from
-                    appomatic_mapcluster_cluster b
-                  where
-                    ST_DWithin(a.glocation, b.glocation, 7500))) as shape
-          from  
-            appomatic_mapcluster_cluster a
-          where
-            score = max_score
-            and score >= 4
-          order by
-            max_score desc
+             """ + sqlcols + """
+           from  
+             appomatic_mapcluster_cluster a
+             join appomatic_mapcluster_cluster b on
+               ST_DWithin(a.glocation, b.glocation, 7500)
+             join """ + query + """ as c on
+               b.reportnum = c.id
+           where
+             a.score = a.max_score
+             and a.score >= 4
+           group by
+             a.id,
+             a.max_score
+           order by
+             a.max_score desc
         """)
+
 
         folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', 'timeperiod-%s' % (timeperiod,), '%s days' % (timeperiod,), '')
         doc.append(folder)
@@ -139,7 +184,7 @@ class Command(django.core.management.base.BaseCommand):
                 color=color)
             style.append_style(icon_style)
             doc.append_style(style)
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, seq), "",  """<h2>%(count)s</h2>""" % row)
+            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, seq), "", description % row)
             placemark.geometry = shapely.wkt.loads(str(row['shape']))
             placemark.styleUrl = "#style-%s-%s" % (timeperiod, seq)
             folder.append(placemark)
