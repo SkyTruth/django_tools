@@ -143,9 +143,15 @@ class Event(django.contrib.gis.db.models.Model):
 
     latitude = django.db.models.FloatField(null=False, blank=False, db_index=True)
     longitude = django.db.models.FloatField(null=False, blank=False, db_index=True)
-    location = GeometryField(null=False, blank=False)
+    location = GeometryField(null=False, blank=False, db_index=True)
 
     region = dbarray.IntegerArrayField(null=True, blank=True) # Really a set of foreign keys to Region
+
+    class Meta:
+        abstract = True
+
+class GeographyEvent(Event):
+    glocation = GeometryField(null=False, blank=False, geography=True, db_index=True)
 
     class Meta:
         abstract = True
