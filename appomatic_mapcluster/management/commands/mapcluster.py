@@ -8,21 +8,41 @@ import shapely.wkt
 import fastkml.kml
 import fastkml.styles
 import psycopg2
+import optparse
+import datetime
 
 def dictreader(cur):
     for row in cur:
         yield dict(zip([col[0] for col in cur.description], row))
 
+
 class Command(django.core.management.base.BaseCommand):
     help = 'Calculates and exports clusters of events'
+    args = '<query> <filename>'
 
-    def extract_clusters(self, query, timeperiod, doc):
+    option_list = django.core.management.base.BaseCommand.option_list + (
+        optparse.make_option('--size',
+            action='store',
+            dest='size',
+            default=4,
+            help='Minimum cluster size for a cluster to be included.'),
+        optparse.make_option('--period',
+            action='append',
+            dest='periods',
+            default=[],
+            help='Time period to cluster over, start and end dates separated by a colon, e.g. 2013-01-01:2013-02-01. This option can be given multiple times to give multiple date ranges.'),
+        )
+
+    def extract_clusters(self, query, size, timeperiod, doc):
         if timeperiod is None:
             color = "ff00ffff"
         else:
             mincolor = (255, 00, 255, 00)
             maxcolor = (255, 00, 00, 255)
-            div = (timeperiod-30) / (11*30.0) # Min time: 1 month, max time, 1 year
+             # Min time: 1 month, max time, 1 year
+            div = ((timeperiod[1] - timeperiod[0]).days-30) / (11*30.0)
+            if div < 0.0: div = 0.0
+            if div > 1.0: div = 1.0
             color = "%02x%02x%02x%02x" % tuple(c[1]*div + c[0]*(1.0-div)
                                                for c in zip(mincolor, maxcolor))
 
@@ -57,17 +77,10 @@ class Command(django.core.management.base.BaseCommand):
 
         #### Select the area and timeframe to work with, set SRID (to Albers Conic Equal Area - Florida NAD83) and store in cluster table
         filter = "true"
-        args = {}
+        args = {"period_min":timeperiod[0], "period_max":timeperiod[1]}
         if timeperiod is not None:
             filter = """
-              %(timeperiod)s >= extract(
-                day
-                from
-                  (select
-                     max(datetime)
-                   from
-                     """ + query + """ as a)
-                  - datetime)
+              datetime >= %(period_min)s and datetime <= %(period_max)s 
             """
             args["timeperiod"] = timeperiod
         self.cur.execute("""
@@ -161,16 +174,19 @@ class Command(django.core.management.base.BaseCommand):
                b.reportnum = c.id
            where
              a.score = a.max_score
-             and a.score >= 4
+             and a.score >= %(size)s
            group by
              a.id,
              a.max_score
            order by
              a.max_score desc
-        """)
+        """, {"size": size})
 
 
-        folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', 'timeperiod-%s' % (timeperiod,), '%s days' % (timeperiod,), '')
+        folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
+                                    'timeperiod-%s-%s' % (timeperiod[0].strftime("%s"), timeperiod[1].strftime("%s")),
+                                    '%s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d")),
+                                    '')
         doc.append(folder)
 
         seq = 0
@@ -253,7 +269,7 @@ class Command(django.core.management.base.BaseCommand):
                 subfolder.append(placemark)
 
 
-    def extract_kml(self, query):
+    def extract_kml(self, query, size, periods):
         kml = fastkml.kml.KML()
         ns = '{http://www.opengis.net/kml/2.2}'
         doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
@@ -261,22 +277,40 @@ class Command(django.core.management.base.BaseCommand):
 
         self.cur.execute("truncate table appomatic_mapcluster_cluster")
 
-        for timeperiod in (None, 12*30, 6*30, 3*30):
-            self.extract_clusters(query, timeperiod, doc)
+        for timeperiod in periods:
+            self.extract_clusters(query, size, timeperiod, doc)
 
         self.extract_reports(query, doc)
 
         return kml.to_string(prettyprint=True)
 
 
-    def handle(self, query, filename, *args, **options):
+    def handle2(self, query, filename, size = 4, periods = [], *args, **options):
+        periods = [(datetime.datetime.strptime(start, '%Y-%m-%d'),
+                    datetime.datetime.strptime(end, '%Y-%m-%d'))
+                   for start, end in (period.split(":")
+                                      for period in periods)]
+        if not periods:
+            now = datetime.datetime.now()
+            periods = [(now - datetime.timedelta(timeperiod), now)
+                       for timeperiod in (12*30, 6*30, 3*30, 30)]
+    
         try:
             with contextlib.closing(django.db.connection.cursor()) as cur:
                 self.cur = cur
 
                 with open(filename, "w") as f:
-                    f.write(self.extract_kml(query).encode('utf-8'))
+                    f.write(self.extract_kml(query, size, periods).encode('utf-8'))
         except Exception, e:
             print e
             import traceback
             traceback.print_exc()
+
+    def handle(self, *args, **options):
+        try:
+            return self.handle2(*args, **options)
+        except Exception, e:
+            print type(e), e
+            import traceback
+            traceback.print_exc()
+            raise
