@@ -23,20 +23,34 @@ class Command(django.core.management.base.BaseCommand):
 
         self.cur.execute("""
           select
-            src,
-            name,
-            code,
-            ST_AsText(the_geom) as the_geom
+            distinct src
           from
             region
         """)
+        srcs = [row[0] for row in self.cur]
 
-        for row in dictreader(self.cur):
-            keys = row.keys()
-            keys.sort()
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(code)s" % row, "", "%(name)s (%(code)s, from %(src)s)" % row)
-            placemark.geometry = shapely.wkt.loads(str(row['the_geom']))
-            doc.append(placemark)
+        for src in srcs:
+            folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', src, src)
+            doc.append(folder)
+
+            self.cur.execute("""
+              select
+                src,
+                name,
+                code,
+                ST_AsText(the_geom) as the_geom
+              from
+                region
+              where
+                src = %(src)s
+            """, {'src': src})
+
+            for row in dictreader(self.cur):
+                keys = row.keys()
+                keys.sort()
+                placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(code)s" % row, "%(name)s" % row, "%(name)s (%(code)s, from %(src)s)" % row)
+                placemark.geometry = shapely.wkt.loads(str(row['the_geom']))
+                folder.append(placemark)
 
         return kml.to_string(prettyprint=True)
 
