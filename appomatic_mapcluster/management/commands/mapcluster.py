@@ -33,7 +33,7 @@ class Command(django.core.management.base.BaseCommand):
             help='Time period to cluster over, start and end dates separated by a colon, e.g. 2013-01-01:2013-02-01. This option can be given multiple times to give multiple date ranges.'),
         )
 
-    def extract_clusters(self, query, size, timeperiod, doc):
+    def extract_clusters(self, query, size, timeperiod):
         if timeperiod is None:
             color = "ff00ffff"
         else:
@@ -197,30 +197,41 @@ class Command(django.core.management.base.BaseCommand):
              a.max_score desc
         """, {"size": size})
 
+        seq = 0
+        for row in dictreader(self.cur):
+            yield {
+                "seq": seq,
+                "color": color,
+                "columns": columns,
+                "scoremin": scoremin,
+                "scoremax": scoremax,
+                "description": description,
+                "row": row
+                }
+            seq += 1
 
+
+    def extract_clusters_kml(self, query, size, timeperiod, doc):
         folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
                                     'timeperiod-%s-%s' % (timeperiod[0].strftime("%s"), timeperiod[1].strftime("%s")),
                                     '%s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d")),
                                     '')
         doc.append(folder)
 
-        seq = 0
-        for row in dictreader(self.cur):
-            style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s-%s" % (timeperiod, seq))
+        for info in self.extract_clusters(query, size, timeperiod):
+            style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s-%s" % (timeperiod, info['seq']))
             icon_style = fastkml.styles.IconStyle(
                 '{http://www.opengis.net/kml/2.2}',
-                "style-%s-%s-icon" % (timeperiod, seq),
-                scale=0.5 + 2 * (float(row['count'] - scoremin) / (scoremax - scoremin)),
+                "style-%s-%s-icon" % (timeperiod, info['seq']),
+                scale=0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin'])),
                 icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
-                color=color)
+                color=info['color'])
             style.append_style(icon_style)
             doc.append_style(style)
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, seq), "", description % row)
-            placemark.geometry = shapely.wkt.loads(str(row['shape']))
-            placemark.styleUrl = "#style-%s-%s" % (timeperiod, seq)
+            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, info['seq']), "", info['description'] % info['row'])
+            placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
+            placemark.styleUrl = "#style-%s-%s" % (timeperiod, info['seq'])
             folder.append(placemark)
-            seq += 1
-
 
 
     def extract_reports(self, query, doc):
@@ -283,7 +294,6 @@ class Command(django.core.management.base.BaseCommand):
                 placemark.styleUrl = "#style-%s" % (grouping,)
                 subfolder.append(placemark)
 
-
     def extract_kml(self, query, size, periods):
         kml = fastkml.kml.KML()
         ns = '{http://www.opengis.net/kml/2.2}'
@@ -293,7 +303,7 @@ class Command(django.core.management.base.BaseCommand):
         self.cur.execute("truncate table appomatic_mapcluster_cluster")
 
         for timeperiod in periods:
-            self.extract_clusters(query, size, timeperiod, doc)
+            self.extract_clusters_kml(query, size, timeperiod, doc)
 
         self.extract_reports(query, doc)
 
