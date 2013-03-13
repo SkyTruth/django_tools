@@ -10,6 +10,7 @@ import fastkml.styles
 import psycopg2
 import optparse
 import datetime
+import csv
 
 def dictreader(cur):
     for row in cur:
@@ -21,6 +22,11 @@ class Command(django.core.management.base.BaseCommand):
     args = '<query> <filename>'
 
     option_list = django.core.management.base.BaseCommand.option_list + (
+        optparse.make_option('--format',
+            action='store',
+            dest='format',
+            default='kml',
+            help='Export format. Supported formats: kml, csv.'),
         optparse.make_option('--size',
             action='store',
             dest='size',
@@ -310,8 +316,6 @@ class Command(django.core.management.base.BaseCommand):
         doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
         kml.append(doc)
 
-        self.cur.execute("truncate table appomatic_mapcluster_cluster")
-
         for timeperiod in periods:
             self.extract_clusters_kml(query, size, timeperiod, doc)
 
@@ -320,7 +324,28 @@ class Command(django.core.management.base.BaseCommand):
         return kml.to_string(prettyprint=True)
 
 
-    def handle2(self, query, filename, size = 4, periods = [], *args, **options):
+    def extract_clusters_csv(self, query, size, timeperiod, doc):
+        for info in self.extract_clusters(query, size, timeperiod):
+            point = shapely.wkt.loads(str(info['row']['shape']))
+            info['row']['longitude'] = point.x
+            info['row']['latitude'] = point.y
+            info['row']['periodstart'] = timeperiod[0]
+            info['row']['periodend'] = timeperiod[1]
+            del info['row']['shape']
+
+            if self.columns is None:
+                self.columns = info['row'].keys()
+                self.columns.sort()
+                doc.writerow(self.columns)
+
+            doc.writerow([info['row'][col] for col in self.columns])
+
+    def extract_csv(self, query, size, periods, doc):
+        self.columns = None
+        for timeperiod in periods:
+            self.extract_clusters_csv(query, size, timeperiod, doc)
+
+    def handle2(self, query, filename, format='kml', size = 4, periods = [], *args, **options):
         periods = [(datetime.datetime.strptime(start, '%Y-%m-%d'),
                     datetime.datetime.strptime(end, '%Y-%m-%d'))
                    for start, end in (period.split(":")
@@ -333,9 +358,13 @@ class Command(django.core.management.base.BaseCommand):
         try:
             with contextlib.closing(django.db.connection.cursor()) as cur:
                 self.cur = cur
-
                 with open(filename, "w") as f:
-                    f.write(self.extract_kml(query, size, periods).encode('utf-8'))
+                    if format == 'kml':
+                        f.write(self.extract_kml(query, size, periods).encode('utf-8'))
+                    elif format == 'csv':
+                        self.extract_csv(query, size, periods, csv.writer(f))
+                    else:
+                        raise Exception("Unsupported format")
         except Exception, e:
             print e
             import traceback
