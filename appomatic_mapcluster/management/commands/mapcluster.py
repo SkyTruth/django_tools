@@ -35,9 +35,16 @@ class Command(django.core.management.base.BaseCommand):
             help='Export format. Supported formats: kml, csv.'),
         optparse.make_option('--size',
             action='store',
+            type='int',
             dest='size',
             default=4,
-            help='Minimum cluster size for a cluster to be included.'),
+            help='Minimum cluster size (number of events) for a cluster to be included in the output.'),
+        optparse.make_option('--radius',
+            action='store',
+            type='int',
+            dest='radius',
+            default=7500,
+            help='Cluster radius in meters within which events are included in the cluster.'),
         optparse.make_option('--period',
             action='append',
             dest='periods',
@@ -125,7 +132,7 @@ class Command(django.core.management.base.BaseCommand):
                                        for column in self.cur.description)
                     if ts)
 
-    def extract_clusters(self, query, size, timeperiod):
+    def extract_clusters(self, query, size, radius, timeperiod):
         if timeperiod is None:
             color = "ff00ffff"
         else:
@@ -143,14 +150,15 @@ class Command(django.core.management.base.BaseCommand):
         # Remove old data if any
         self.cur.execute("truncate table appomatic_mapcluster_cluster")
 
-        #### Select the area and timeframe to work with, set SRID (to Albers Conic Equal Area - Florida NAD83) and store in cluster table
+        #### Select the timeframe to work with
         filter = "true"
-        args = {"period_min":timeperiod[0], "period_max":timeperiod[1]}
+        args = {}
         if timeperiod is not None:
             filter = """
               datetime >= %(period_min)s and datetime <= %(period_max)s 
             """
-            args["timeperiod"] = timeperiod
+            args["period_min"] = timeperiod[0]
+            args["period_max"] = timeperiod[1]
         self.cur.execute("""
           insert into appomatic_mapcluster_cluster (
             reportnum, src, datetime, latitude, longitude, location, glocation)
@@ -168,7 +176,7 @@ class Command(django.core.management.base.BaseCommand):
             """ + filter, args)
 
         # Create buffer
-        # self.cur.execute("update appomatic_mapcluster_cluster set buffer = st_buffer(location, 7500)")
+        # self.cur.execute("update appomatic_mapcluster_cluster set buffer = st_buffer(location, %(radius)s)", {"radius": radius})
 
         ### Compute score - all reports in buffer 
         ### Tack on the reportnum after the decimal place on the score
@@ -185,9 +193,9 @@ class Command(django.core.management.base.BaseCommand):
                       from
                         appomatic_mapcluster_cluster b
                       where
-                        ST_DWithin(a.glocation, b.glocation, 7500))
+                        ST_DWithin(a.glocation, b.glocation, %(radius)s))
                      || '.' || reportnum)::double precision
-        """)
+        """, {"radius": radius})
 
         ### Set max_score equal to the highest score in the buffer 
         self.cur.execute("""
@@ -199,8 +207,8 @@ class Command(django.core.management.base.BaseCommand):
                           from
                             appomatic_mapcluster_cluster b
                           where
-                            ST_DWithin(a.glocation, b.glocation, 7500))
-        """)
+                            ST_DWithin(a.glocation, b.glocation, %(radius)s))
+        """, {"radius": radius})
 
 
         sqlcols = ["a.id",
@@ -229,7 +237,7 @@ class Command(django.core.management.base.BaseCommand):
            from  
              appomatic_mapcluster_cluster a
              join appomatic_mapcluster_cluster b on
-               ST_DWithin(a.glocation, b.glocation, 7500)
+               ST_DWithin(a.glocation, b.glocation, %(radius)s)
              join """ + query + """ as c on
                b.reportnum = c.id
            where
@@ -240,7 +248,7 @@ class Command(django.core.management.base.BaseCommand):
              a.max_score
            order by
              a.max_score desc
-        """, {"size": size})
+        """, {"size": size, "radius": radius})
 
         seq = 0
         for row in dictreader(self.cur):
@@ -256,22 +264,36 @@ class Command(django.core.management.base.BaseCommand):
                 }
             seq += 1
 
-    def extract_reports(self, query):
+    def extract_reports(self, query, periods):
         columns = self.extract_columns(query)
 
         description = self.template_report_description(columns)
         name = self.template_report_name(columns)
+
+        #### Select the timeframe to work with
+        filter = "true"
+        args = {}
+        if periods:
+            q = []
+            for ind, timeperiod in enumerate(periods):
+                q.append("datetime >= %%(period%s_min)s and datetime <= %%(period%s_max)s" % (ind, ind))
+                args["period%s_min" % (ind,)] = timeperiod[0]
+                args["period%s_max" % (ind,)] = timeperiod[1]
+            filter = '(%s)' % ' or '.join(q)
 
         self.cur.execute("""
           select
             distinct grouping
           from
             """ + query + """ as a
-        """)
+          where
+        """ + filter, args)
         groupings = [[row[0]] for row in self.cur]
 
         for grouping in groupings:
             def getRows():
+                groupargs = {"grouping": grouping[0]}
+                groupargs.update(args)
                 self.cur.execute("""
                   select
                     *,
@@ -279,8 +301,8 @@ class Command(django.core.management.base.BaseCommand):
                   from
                     """ + query + """ as a 
                   where
-                    grouping = %(grouping)s;
-                """, {"grouping": grouping[0]})
+                    grouping = %(grouping)s and
+                """ + filter, groupargs)
 
                 for row in dictreader(self.cur):
                     yield {'row': row, 'description': description, 'name': name}
@@ -288,7 +310,7 @@ class Command(django.core.management.base.BaseCommand):
         return groupings
 
 
-    def extract_reports_kml(self, query, doc):
+    def extract_reports_kml(self, query, periods, doc):
         folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', 'All reports', 'Reports', '')
         doc.append(folder)
 
@@ -303,7 +325,7 @@ class Command(django.core.management.base.BaseCommand):
             "http://maps.google.com/mapfiles/kml/shapes/target.png",
             "http://maps.google.com/mapfiles/kml/shapes/triangle.png"]
 
-        groupings = self.extract_reports(query)
+        groupings = self.extract_reports(query, periods)
 
         for ind, (typename, rows) in enumerate(groupings):
             style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % (typename,))
@@ -327,19 +349,23 @@ class Command(django.core.management.base.BaseCommand):
 
 
 
-    def extract_clusters_kml(self, query, size, timeperiod, doc):
+    def extract_clusters_kml(self, query, size, radius, timeperiod, doc):
         folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
                                     'timeperiod-%s-%s' % (timeperiod[0].strftime("%s"), timeperiod[1].strftime("%s")),
                                     '%s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d")),
                                     '')
         doc.append(folder)
 
-        for info in self.extract_clusters(query, size, timeperiod):
+        for info in self.extract_clusters(query, size, radius, timeperiod):
             style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s-%s" % (timeperiod, info['seq']))
+            if info['scoremax'] - info['scoremin']:
+                scale = 0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin']))
+            else:
+                scale = 1.0
             icon_style = fastkml.styles.IconStyle(
                 '{http://www.opengis.net/kml/2.2}',
                 "style-%s-%s-icon" % (timeperiod, info['seq']),
-                scale=0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin'])),
+                scale=scale,
                 icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
                 color=info['color'])
             style.append_style(icon_style)
@@ -350,22 +376,22 @@ class Command(django.core.management.base.BaseCommand):
             folder.append(placemark)
 
 
-    def extract_kml(self, query, size, periods):
+    def extract_kml(self, query, size, radius, periods):
         kml = fastkml.kml.KML()
         ns = '{http://www.opengis.net/kml/2.2}'
         doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
         kml.append(doc)
 
         for timeperiod in periods:
-            self.extract_clusters_kml(query, size, timeperiod, doc)
+            self.extract_clusters_kml(query, size, radius, timeperiod, doc)
 
-        self.extract_reports_kml(query, doc)
+        self.extract_reports_kml(query, periods, doc)
 
         return kml.to_string(prettyprint=True)
 
 
-    def extract_clusters_csv(self, query, size, timeperiod, doc):
-        for info in self.extract_clusters(query, size, timeperiod):
+    def extract_clusters_csv(self, query, radius, size, timeperiod, doc):
+        for info in self.extract_clusters(query, radius, size, timeperiod):
             point = shapely.wkt.loads(str(info['row']['shape']))
             info['row']['longitude'] = point.x
             info['row']['latitude'] = point.y
@@ -380,12 +406,12 @@ class Command(django.core.management.base.BaseCommand):
 
             doc.writerow([info['row'][col] for col in self.columns])
 
-    def extract_csv(self, query, size, periods, doc):
+    def extract_csv(self, query, size, radius, periods, doc):
         self.columns = None
         for timeperiod in periods:
-            self.extract_clusters_csv(query, size, timeperiod, doc)
+            self.extract_clusters_csv(query, size, radius, timeperiod, doc)
 
-    def handle2(self, query, filename, template=None, format='kml', size = 4, periods = [], *args, **options):
+    def handle2(self, query, filename, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **options):
         if template:
             with open(os.path.expanduser(template)) as f:
                 l = {}
@@ -407,9 +433,9 @@ class Command(django.core.management.base.BaseCommand):
                 self.cur = cur
                 with open(filename, "w") as f:
                     if format == 'kml':
-                        f.write(self.extract_kml(query, size, periods).encode('utf-8'))
+                        f.write(self.extract_kml(query, size, radius, periods).encode('utf-8'))
                     elif format == 'csv':
-                        self.extract_csv(query, size, periods, csv.writer(f))
+                        self.extract_csv(query, size, radius, periods, csv.writer(f))
                     else:
                         raise Exception("Unsupported format")
         except Exception, e:
