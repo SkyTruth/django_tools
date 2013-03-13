@@ -213,8 +213,8 @@ class Command(django.core.management.base.BaseCommand):
 
         sqlcols = ["a.id",
                    "a.max_score::integer as count",
-                   "ST_Y(ST_Centroid(ST_Collect(b.location))) as lat",
-                   "ST_X(ST_Centroid(ST_Collect(b.location))) as lng",
+                   "ST_Y(ST_Centroid(ST_Collect(b.location))) as latitude",
+                   "ST_X(ST_Centroid(ST_Collect(b.location))) as longitude",
                    "ST_AsText(ST_Centroid(ST_Collect(b.location))) as shape"]
         sqlcols.extend(self.sql_cluster_columns(columns))
         sqlcols = ', '.join(sqlcols)
@@ -297,6 +297,8 @@ class Command(django.core.management.base.BaseCommand):
                 self.cur.execute("""
                   select
                     *,
+                    ST_X(location) as longitude,
+                    ST_Y(location) as latitude,
                     ST_AsText(location) as shape
                   from
                     """ + query + """ as a 
@@ -392,9 +394,6 @@ class Command(django.core.management.base.BaseCommand):
 
     def extract_clusters_csv(self, query, radius, size, timeperiod, doc):
         for info in self.extract_clusters(query, radius, size, timeperiod):
-            point = shapely.wkt.loads(str(info['row']['shape']))
-            info['row']['longitude'] = point.x
-            info['row']['latitude'] = point.y
             info['row']['periodstart'] = timeperiod[0]
             info['row']['periodend'] = timeperiod[1]
             del info['row']['shape']
