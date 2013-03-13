@@ -11,6 +11,7 @@ import psycopg2
 import optparse
 import datetime
 import csv
+import os.path
 
 def dictreader(cur):
     for row in cur:
@@ -22,6 +23,11 @@ class Command(django.core.management.base.BaseCommand):
     args = '<query> <filename>'
 
     option_list = django.core.management.base.BaseCommand.option_list + (
+        optparse.make_option('--template',
+            action='store',
+            dest='template',
+            default=None,
+            help='Tempplate file for descriptions'),
         optparse.make_option('--format',
             action='store',
             dest='format',
@@ -39,6 +45,86 @@ class Command(django.core.management.base.BaseCommand):
             help='Time period to cluster over, start and end dates separated by a colon, e.g. 2013-01-01:2013-02-01. This option can be given multiple times to give multiple date ranges.'),
         )
 
+    def template_cluster_name(self, columns):
+        return ""
+
+    def template_cluster_description(self, columns):
+        columnnames = columns.keys()
+        columnnames.sort()
+        description = []
+        for name in columnnames:
+            t = columns[name]
+            if name == 'id': continue
+            if t == 'NUMBER':
+                description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
+                description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
+                description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
+                description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
+            elif t == 'DATETIME':
+                description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
+                description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
+                description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
+                description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
+        return '<h2>%(count)s</h2><table>' + ''.join(description) + '</table>'
+
+    def template_report_name(self, columns):
+        return ""
+
+    def template_report_description(self, columns):
+        columnnames = columns.keys()
+        columnnames.sort()
+        description = []
+        for name in columnnames:
+            if name == 'id': continue
+            description.append('<tr><th>%s</th><td>%%(%s)s' % (name, name))
+        return '<h2>%(id)s</h2><table>' + ''.join(description) + '</table>'
+
+    def sql_cluster_columns(self, columns):
+        sqlcols = []
+        for name, t in columns.iteritems():
+            if name == 'id': continue
+            if t == 'NUMBER':
+                sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
+                sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
+                sqlcols.append('avg(c."%s") as "%s_avg"' % (name, name))
+                sqlcols.append('stddev(c."%s") as "%s_stddev"' % (name, name))
+            elif t == 'DATETIME':
+                sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
+                sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
+                sqlcols.append('to_timestamp(avg(extract(\'epoch\' from c."%s"))) as "%s_avg"' % (name, name))
+                sqlcols.append('stddev(extract(\'epoch\' from c."%s")) * interval \'1second\' as "%s_stddev"' % (name, name))
+        return sqlcols
+
+
+    def extract_columns(self, query):
+        self.cur.execute("""
+          select
+            *
+          from
+            """ + query + """ as a
+          limit 1
+        """)
+
+        return dict((name, ts[0])
+                    for (name, ts) in ((column.name, 
+                                        [name
+                                         for name, t in ((name, getattr(psycopg2, name))
+                                                         for name in ("Date",
+                                                                      "Time",
+                                                                      "Timestamp",
+                                                                      "DateFromTicks",
+                                                                      "TimeFromTicks",
+                                                                      "TimestampFromTicks",
+                                                                      "Binary",
+                                                                      "STRING",
+                                                                      "BINARY",
+                                                                      "NUMBER",
+                                                                      "DATETIME",
+                                                                      "ROWID"))
+                                         if column.type_code == t])
+                                       for column in self.cur.description)
+                    if ts)
+
     def extract_clusters(self, query, size, timeperiod):
         if timeperiod is None:
             color = "ff00ffff"
@@ -52,33 +138,7 @@ class Command(django.core.management.base.BaseCommand):
             color = "%02x%02x%02x%02x" % tuple(c[1]*div + c[0]*(1.0-div)
                                                for c in zip(mincolor, maxcolor))
 
-        self.cur.execute("""
-          select
-            *
-          from
-            """ + query + """ as a
-          limit 1
-        """)
-
-        columns = dict((name, ts[0])
-                       for (name, ts) in ((column.name, 
-                                           [name
-                                            for name, t in ((name, getattr(psycopg2, name))
-                                                            for name in ("Date",
-                                                                         "Time",
-                                                                         "Timestamp",
-                                                                         "DateFromTicks",
-                                                                         "TimeFromTicks",
-                                                                         "TimestampFromTicks",
-                                                                         "Binary",
-                                                                         "STRING",
-                                                                         "BINARY",
-                                                                         "NUMBER",
-                                                                         "DATETIME",
-                                                                         "ROWID"))
-                                            if column.type_code == t])
-                                          for column in self.cur.description)
-                       if ts)
+        columns = self.extract_columns(query)
 
         # Remove old data if any
         self.cur.execute("truncate table appomatic_mapcluster_cluster")
@@ -148,29 +208,8 @@ class Command(django.core.management.base.BaseCommand):
                    "ST_Y(ST_Centroid(ST_Collect(b.location))) as lat",
                    "ST_X(ST_Centroid(ST_Collect(b.location))) as lng",
                    "ST_AsText(ST_Centroid(ST_Collect(b.location))) as shape"]
-        description = []
-        for name, t in columns.iteritems():
-            if name == 'id': continue
-            if t == 'NUMBER':
-                sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
-                sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
-                sqlcols.append('avg(c."%s") as "%s_avg"' % (name, name))
-                sqlcols.append('stddev(c."%s") as "%s_stddev"' % (name, name))
-                description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
-                description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
-                description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
-                description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
-            elif t == 'DATETIME':
-                sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
-                sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
-                sqlcols.append('to_timestamp(avg(extract(\'epoch\' from c."%s"))) as "%s_avg"' % (name, name))
-                sqlcols.append('stddev(extract(\'epoch\' from c."%s")) * interval \'1second\' as "%s_stddev"' % (name, name))
-                description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
-                description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
-                description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
-                description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
+        sqlcols.extend(self.sql_cluster_columns(columns))
         sqlcols = ', '.join(sqlcols)
-        description = '<h2>%(count)s</h2><table>' + ''.join(description) + '</table>'
 
         self.cur.execute("""
           select
@@ -211,12 +250,18 @@ class Command(django.core.management.base.BaseCommand):
                 "columns": columns,
                 "scoremin": scoremin,
                 "scoremax": scoremax,
-                "description": description,
+                "description": self.template_cluster_description(columns),
+                "name": self.template_cluster_name(columns),
                 "row": row
                 }
             seq += 1
 
     def extract_reports(self, query):
+        columns = self.extract_columns(query)
+
+        description = self.template_report_description(columns)
+        name = self.template_report_name(columns)
+
         self.cur.execute("""
           select
             distinct grouping
@@ -238,12 +283,7 @@ class Command(django.core.management.base.BaseCommand):
                 """, {"grouping": grouping[0]})
 
                 for row in dictreader(self.cur):
-                    keys = row.keys()
-                    keys.sort()
-                    description = '<table>%s</table>' % (
-                        '\n'.join('<tr><th>%s</th><td>%%(%s)s</td></tr>' % (key, key)
-                                  for key in keys))
-                    yield {'row': row, 'description': description}
+                    yield {'row': row, 'description': description, 'name': name}
             grouping.append(getRows())
         return groupings
 
@@ -280,7 +320,7 @@ class Command(django.core.management.base.BaseCommand):
             folder.append(subfolder)
 
             for info in rows:
-                placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(id)s" % info['row'], "", info['description'] % info['row'])
+                placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(id)s" % info['row'], info['name'] % info['row'], info['description'] % info['row'])
                 placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
                 placemark.styleUrl = "#style-%s" % (typename,)
                 subfolder.append(placemark)
@@ -304,7 +344,7 @@ class Command(django.core.management.base.BaseCommand):
                 color=info['color'])
             style.append_style(icon_style)
             doc.append_style(style)
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, info['seq']), "", info['description'] % info['row'])
+            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
             placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
             placemark.styleUrl = "#style-%s-%s" % (timeperiod, info['seq'])
             folder.append(placemark)
@@ -345,7 +385,14 @@ class Command(django.core.management.base.BaseCommand):
         for timeperiod in periods:
             self.extract_clusters_csv(query, size, timeperiod, doc)
 
-    def handle2(self, query, filename, format='kml', size = 4, periods = [], *args, **options):
+    def handle2(self, query, filename, template=None, format='kml', size = 4, periods = [], *args, **options):
+        if template:
+            with open(os.path.expanduser(template)) as f:
+                l = {}
+                exec f in l
+                for key, value in l.iteritems():
+                    setattr(type(self), key, value) # hackety hack...
+
         periods = [(datetime.datetime.strptime(start, '%Y-%m-%d'),
                     datetime.datetime.strptime(end, '%Y-%m-%d'))
                    for start, end in (period.split(":")
