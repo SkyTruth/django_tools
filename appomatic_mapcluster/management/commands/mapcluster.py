@@ -210,6 +210,76 @@ class Command(django.core.management.base.BaseCommand):
                 }
             seq += 1
 
+    def extract_reports(self, query):
+        self.cur.execute("""
+          select
+            distinct grouping
+          from
+            """ + query + """ as a
+        """)
+        groupings = [[row[0]] for row in self.cur]
+
+        for grouping in groupings:
+            def getRows():
+                self.cur.execute("""
+                  select
+                    *,
+                    ST_AsText(location) as shape
+                  from
+                    """ + query + """ as a 
+                  where
+                    grouping = %(grouping)s;
+                """, {"grouping": grouping[0]})
+
+                for row in dictreader(self.cur):
+                    keys = row.keys()
+                    keys.sort()
+                    description = '<table>%s</table>' % (
+                        '\n'.join('<tr><th>%s</th><td>%%(%s)s</td></tr>' % (key, key)
+                                  for key in keys))
+                    yield {'row': row, 'description': description}
+            grouping.append(getRows())
+        return groupings
+
+
+    def extract_reports_kml(self, query, doc):
+        folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', 'All reports', 'Reports', '')
+        doc.append(folder)
+
+        icons = [
+            "http://maps.google.com/mapfiles/kml/shapes/open-diamond.png",
+            "http://maps.google.com/mapfiles/kml/shapes/placemark_circle_highlight.png",
+            "http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png",
+            "http://maps.google.com/mapfiles/kml/shapes/placemark_square_highlight.png",
+            "http://maps.google.com/mapfiles/kml/shapes/placemark_square.png",
+            "http://maps.google.com/mapfiles/kml/shapes/polygon.png",
+            "http://maps.google.com/mapfiles/kml/shapes/star.png",
+            "http://maps.google.com/mapfiles/kml/shapes/target.png",
+            "http://maps.google.com/mapfiles/kml/shapes/triangle.png"]
+
+        groupings = self.extract_reports(query)
+
+        for ind, (typename, rows) in enumerate(groupings):
+            style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % (typename,))
+            icon_style = fastkml.styles.IconStyle(
+                '{http://www.opengis.net/kml/2.2}',
+                "style-%s-icon" % (typename,),
+                scale=0.5,
+                icon_href=icons[ind % len(icons)])
+            style.append_style(icon_style)
+            doc.append_style(style)
+
+        for (typename, rows) in groupings:
+            subfolder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', typename, typename)
+            folder.append(subfolder)
+
+            for info in rows:
+                placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(id)s" % info['row'], "", info['description'] % info['row'])
+                placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
+                placemark.styleUrl = "#style-%s" % (typename,)
+                subfolder.append(placemark)
+
+
 
     def extract_clusters_kml(self, query, size, timeperiod, doc):
         folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
@@ -234,66 +304,6 @@ class Command(django.core.management.base.BaseCommand):
             folder.append(placemark)
 
 
-    def extract_reports(self, query, doc):
-        folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', 'All reports', 'Reports', '')
-        doc.append(folder)
-
-        icons = [
-            "http://maps.google.com/mapfiles/kml/shapes/open-diamond.png",
-            "http://maps.google.com/mapfiles/kml/shapes/placemark_circle_highlight.png",
-            "http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png",
-            "http://maps.google.com/mapfiles/kml/shapes/placemark_square_highlight.png",
-            "http://maps.google.com/mapfiles/kml/shapes/placemark_square.png",
-            "http://maps.google.com/mapfiles/kml/shapes/polygon.png",
-            "http://maps.google.com/mapfiles/kml/shapes/star.png",
-            "http://maps.google.com/mapfiles/kml/shapes/target.png",
-            "http://maps.google.com/mapfiles/kml/shapes/triangle.png"]
-
-
-        self.cur.execute("""
-          select
-            distinct grouping
-          from
-            """ + query + """ as a
-        """)
-        groupings = [row[0] for row in self.cur]
-
-        for ind, typename in enumerate(groupings):
-            style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % (typename,))
-            icon_style = fastkml.styles.IconStyle(
-                '{http://www.opengis.net/kml/2.2}',
-                "style-%s-icon" % (typename,),
-                scale=0.5,
-                icon_href=icons[ind % len(icons)])
-            style.append_style(icon_style)
-            doc.append_style(style)
-
-        for grouping in groupings:
-            subfolder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', grouping, grouping)
-            folder.append(subfolder)
-
-            #### Extract all selected reports from Mysql for import into GE
-            self.cur.execute("""
-              select
-                *,
-                ST_AsText(location) as shape
-              from
-                """ + query + """ as a 
-              where
-                grouping = %(grouping)s;
-            """, {"grouping": grouping})
-
-            for row in dictreader(self.cur):
-                keys = row.keys()
-                keys.sort()
-                description = '<table>%s</table>' % (
-                    '\n'.join('<tr><th>%s</th><td>%s</td></tr>' % (key, row[key])
-                              for key in keys))
-                placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(id)s" % row, "", description)
-                placemark.geometry = shapely.wkt.loads(str(row['shape']))
-                placemark.styleUrl = "#style-%s" % (grouping,)
-                subfolder.append(placemark)
-
     def extract_kml(self, query, size, periods):
         kml = fastkml.kml.KML()
         ns = '{http://www.opengis.net/kml/2.2}'
@@ -305,7 +315,7 @@ class Command(django.core.management.base.BaseCommand):
         for timeperiod in periods:
             self.extract_clusters_kml(query, size, timeperiod, doc)
 
-        self.extract_reports(query, doc)
+        self.extract_reports_kml(query, doc)
 
         return kml.to_string(prettyprint=True)
 
