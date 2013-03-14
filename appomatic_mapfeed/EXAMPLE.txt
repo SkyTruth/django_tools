@@ -1,0 +1,11 @@
+To set up a new feed source (and do an initial load)
+
+appomatic mapfeed \
+  --template=~/apps/appomatic_mapfeed/template.py \
+  "viirs" \
+  "(select v.* from appomatic_mapdata_viirs as v join region as r on r.name='Gulf Of Mexico' and st_contains(r.the_geom, v.location) order by id)"
+
+
+To update a feed
+
+appomatic mapfeed "viirs"
