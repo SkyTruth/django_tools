@@ -210,9 +210,8 @@ class Command(django.core.management.base.BaseCommand):
                             ST_DWithin(a.glocation, b.glocation, %(radius)s))
         """, {"radius": radius})
 
-
         sqlcols = ["a.id",
-                   "a.max_score::integer as count",
+                   "floor(a.max_score) as count",
                    "ST_Y(ST_Centroid(ST_Collect(b.location))) as latitude",
                    "ST_X(ST_Centroid(ST_Collect(b.location))) as longitude",
                    "ST_AsText(ST_Centroid(ST_Collect(b.location))) as shape"]
@@ -221,8 +220,8 @@ class Command(django.core.management.base.BaseCommand):
 
         self.cur.execute("""
           select
-             min(a.max_score::integer) as min,
-             max(a.max_score::integer) as max
+             min(floor(a.max_score)) as min,
+             max(floor(a.max_score)) as max
            from  
              appomatic_mapcluster_cluster a
            where
@@ -352,29 +351,31 @@ class Command(django.core.management.base.BaseCommand):
 
 
     def extract_clusters_kml(self, query, size, radius, timeperiod, doc):
+        timeperiodstr = "%s-%s" % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
+
         folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
-                                    'timeperiod-%s-%s' % (timeperiod[0].strftime("%s"), timeperiod[1].strftime("%s")),
+                                    'timeperiod-%s' % timeperiodstr,
                                     '%s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d")),
                                     '')
         doc.append(folder)
 
         for info in self.extract_clusters(query, size, radius, timeperiod):
-            style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s-%s" % (timeperiod, info['seq']))
+            style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s-%s" % (timeperiodstr, info['seq']))
             if info['scoremax'] - info['scoremin']:
                 scale = 0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin']))
             else:
                 scale = 1.0
             icon_style = fastkml.styles.IconStyle(
                 '{http://www.opengis.net/kml/2.2}',
-                "style-%s-%s-icon" % (timeperiod, info['seq']),
+                "style-%s-%s-icon" % (timeperiodstr, info['seq']),
                 scale=scale,
                 icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
                 color=info['color'])
             style.append_style(icon_style)
             doc.append_style(style)
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiod, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
+            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiodstr, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
             placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
-            placemark.styleUrl = "#style-%s-%s" % (timeperiod, info['seq'])
+            placemark.styleUrl = "#style-%s-%s" % (timeperiodstr, info['seq'])
             folder.append(placemark)
 
 
