@@ -1,0 +1,6 @@
+appomatic mapcluster \
+  --template=~/template.py \
+  --size=1 \
+  --period=2013-01-01:2013-03-31 \
+  "(select r.name as grouping, v.* from appomatic_mapdata_viirs as v join region as r on st_contains(r.the_geom, v.location) and r.name='Nigeria' where v.\"Temperature\" > 2073)" \
+  ~/cluster.kml
