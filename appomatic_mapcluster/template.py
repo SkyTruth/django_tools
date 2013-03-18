@@ -19,7 +19,7 @@ def template_report_name(self, columns):
     return ""
 
 def template_report_description(self, columns):
-    return u"""Flare Detection: %(Temperature)s°C<br>
+    return u"""<em style='white-space: nowrap;'>Flare Detection: %(Temperature)s°C @ %(SourceID)s:%(id)s</em><br>
 %(datetime)s<br>
 %(latitude)sN %(longitude)sE<br>
 <br>
