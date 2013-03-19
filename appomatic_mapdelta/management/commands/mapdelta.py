@@ -167,11 +167,6 @@ class Command(django.core.management.base.BaseCommand):
              score = ceil(log(2, min_distance::numeric))
         """)
 
-        sqlcols = ["score",
-                   "count(*) as count",
-                   "st_astext(st_union(st_buffer(glocation, min_distance)::geometry)) as shape"]
-        sqlcols.extend(self.sql_group_columns(columns))
-        sqlcols = ', '.join(sqlcols)
 
         self.cur.execute("""
           select
@@ -183,26 +178,67 @@ class Command(django.core.management.base.BaseCommand):
         scoremin, scoremax = self.cur.next()
 
 
+        self.cur.execute("""
+          insert into
+            appomatic_mapdelta_grouping (score, full_geom, cropped_geom)
+          select
+            score,
+            st_union(st_buffer(glocation, min_distance)::geometry),
+            st_union(st_buffer(glocation, min_distance)::geometry)
+          from
+            appomatic_mapdelta_event a
+          group by
+            score
+        """)
+
+        self.cur.execute("""
+          update
+            appomatic_mapdelta_grouping a
+          set
+            cropped_geom = st_difference(
+              a.full_geom,
+              (select
+                 st_union(b.full_geom)
+               from
+                 appomatic_mapdelta_grouping b
+               where
+                 b.score < a.score))
+          where
+            a.score > %(scoremin)s;
+        """, {"scoremin": scoremin})
+
+
+        sqlcols = ["a.score",
+                   "count(*) as count",
+                   "st_astext(b.cropped_geom) as shape"]
+        sqlcols.extend(self.sql_group_columns(columns))
+        sqlcols = ', '.join(sqlcols)
+
+
         mincolor = (255, 00, 255, 00)
-        maxcolor = (255, 00, 00, 255)
+        maxcolor = (32, 00, 32, 00)
         scorecolors = {}
         for score in xrange(scoremin, scoremax + 1):
             if scoremax - scoremin == 0:
                 div = 1
             else:
-                div = (score - scoremin) / (scoremax - scoremin)
+                div = float(score - scoremin) / float(scoremax - scoremin)
             scorecolors[score] = "%02x%02x%02x%02x" % tuple(c[1]*div + c[0]*(1.0-div)
                                                for c in zip(mincolor, maxcolor))
+        print scorecolors
+
 
         self.cur.execute("""
           select
              """ + sqlcols + """
            from  
              appomatic_mapdelta_event a
+             join appomatic_mapdelta_grouping b on
+               a.score = b.score
              join """ + query + """ as c on
                a.reportnum = c.id
            group by
-             a.score
+             a.score, b.cropped_geom
            order by
              a.score desc
         """)
@@ -326,12 +362,17 @@ class Command(django.core.management.base.BaseCommand):
                 outline = 1,
                 color=info['color'])
             style.append_style(poly_style)
+            line_style = fastkml.styles.LineStyle(
+                '{http://www.opengis.net/kml/2.2}',
+                "style-%s-%s-line" % (timeperiodstr, info['seq']),
+                color=info['color'])
+            style.append_style(line_style)
             doc.append_style(style)
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiodstr, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
+            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "placemark-%s-%s" % (timeperiodstr, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
             placemark.geometry = fastkml.geometry.Geometry(
                 '{http://www.opengis.net/kml/2.2}',
                 geometry = shapely.wkt.loads(str(info['row']['shape'])),
-                altitude_mode = "relativeToGround", tessellate=True)
+                altitude_mode = "clampToGround", tessellate=True)
             placemark.styleUrl = "#style-%s-%s" % (timeperiodstr, info['seq'])
             folder.append(placemark)
 
