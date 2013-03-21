@@ -108,7 +108,7 @@ def feed(request, format):
         result = '\n'.join("%(title)s @ %(lat)sN %(lng)sE, %(incident_datetime)s (%(tags)s)" % DictWrapper(entry) for entry in entries)
         
 
-    contentTypes = {'kml': 'application/kml', 'rss': 'application/rss+xml', 'csv': 'text/csv', 'txt': 'text/plain'}
+    contentTypes = {'kml': 'application/kml', 'rss': 'application/atom+xml', 'csv': 'text/csv', 'txt': 'text/plain'}
 
     response = django.http.HttpResponse(result, content_type=contentTypes[format])
 
