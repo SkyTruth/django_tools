@@ -5,6 +5,8 @@ import appomatic_feedserver.models
 import shapely
 import shapely.wkt
 import fastkml.kml
+import datetime
+import uuid
 
 import django.db.backends.postgresql_psycopg2.base
 import django.db.models.fields
@@ -93,13 +95,20 @@ def feed(request, format):
         
         result = kml.to_string(prettyprint=True).encode('utf-8')
     elif format == 'rss':
-        pass
+        result = django.template.loader.get_template(
+            'appomatic_feedserver/feed.rss'
+            ).render(
+            django.template.RequestContext(
+                    request,
+                    {"entries": entries,
+                     "now": datetime.datetime.now(),
+                     "id": uuid.uuid4().urn}))
     else: # elif format == 'txt':
         format = 'txt'
         result = '\n'.join("%(title)s @ %(lat)sN %(lng)sE, %(incident_datetime)s (%(tags)s)" % DictWrapper(entry) for entry in entries)
         
 
-    contentTypes = {'kml': 'application/kml', 'csv': 'text/csv', 'txt': 'text/plain'}
+    contentTypes = {'kml': 'application/kml', 'rss': 'application/rss+xml', 'csv': 'text/csv', 'txt': 'text/plain'}
 
     response = django.http.HttpResponse(result, content_type=contentTypes[format])
 

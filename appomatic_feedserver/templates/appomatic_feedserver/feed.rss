@@ -1,0 +1,30 @@
+{% load static %}<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" 
+  xmlns:georss="http://www.georss.org/georss">
+  <title>Skytruth Alerts</title>
+  <subtitle>Environmental incident alert system from SkyTruth</subtitle>
+  <link href="http://alerts.skytruth.org/"/>
+  <link rel="self" href="{{site_url}}{% url 'appomatic_feedserver.views.feed' format='rss' %}"/>
+  <updated>{{now|date:'c'}}Z</updated>
+  <author>
+    <name>Skytruth</name>
+    <email>info@skytruth.org</email>
+  </author>
+  <id>{{id}}</id>
+
+  {% for entry in entries %}
+    <entry>
+      <title>{{entry.title}}</title>
+      <link rel="alternate" href="{{entry.link}}"/>
+      <id>urn:uuid:{{entry.id}}</id>
+      <updated>{{entry.published|date:'c'}}Z</updated>
+      <published>{{entry.published|date:'c'}}Z</published>
+      <summary>{{entry.summary}}</summary>
+      <content type="html">{{entry.content}}</content>
+      <georss:point>{{entry.lat}} {{entry.lng}}</georss:point> 
+      {% for tag in entry.tags %}
+        <category scheme="http://alerts.skytruth.org/atom/ns#" term="{{tag}}"></category>
+      {% endfor %}
+    </entry>
+  {% endfor %}
+</feed>

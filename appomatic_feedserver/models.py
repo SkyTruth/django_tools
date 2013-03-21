@@ -2,6 +2,7 @@ import django.contrib.gis.db.models
 import django.db.models
 import appomatic_mapdata.models
 import dbarray
+import uuid
 
 class Feedtag(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
