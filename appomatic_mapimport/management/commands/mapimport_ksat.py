@@ -44,6 +44,9 @@ class Command(django.core.management.base.BaseCommand):
 
                                             for row in appomatic_mapimport.ksat.convert(file):
                                                 # Why doesn't gpsdecode do scaling???
+                                                if 'speed' in row: row['speed'] = row['speed'] / 10.0 # A AIS speed unit is 1/10 of a knot
+                                                if 'heading' in row: row['heading'] = row['heading'] / 10.0 # A AIS cog unit is 1/10 of a degree
+                                                if 'course' in row: row['course'] = row['course'] / 10.0 # A AIS cog unit is 1/10 of a degree
                                                 if 'lon' in row: row['lon'] = row['lon'] / 600000.0 # A AIS unit is 1/10000th of a minute (1/60th of a degree)
                                                 if 'lat' in row: row['lat'] = row['lat'] / 600000.0
                                                 if 'C' in row:

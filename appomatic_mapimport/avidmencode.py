@@ -1,3 +1,5 @@
+# From http://gpsd.berlios.de/AIVDM.html
+
 import bitstring
 
 def nmea_checksum(str):

@@ -46,4 +46,10 @@ def convert_row (row_in):
                                                 int(dt[9:11]), int(dt[11:13]), int(dt[13:15]),
                                                 tzinfo=pytz.utc)
 
+    if row_out['cog'] and float(row_out['cog']) > 360: print row_out['cog']
+
+    if row_out['true_heading']: row_out['true_heading'] = float(row_out['true_heading']) / 10.0
+    if row_out['cog']: row_out['cog'] = float(row_out['cog']) / 10.0
+    if row_out['sog']: row_out['sog'] = float(row_out['sog']) / 10.0
+
     return row_out
