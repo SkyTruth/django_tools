@@ -29,6 +29,7 @@ class Feedsource(django.contrib.gis.db.models.Model):
 
 class Feedentry(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
+    id = django.db.models.CharField(max_length=255, primary_key=True)
 
     title = django.db.models.CharField(max_length=255)
     link = django.db.models.CharField(max_length=255, blank=True)

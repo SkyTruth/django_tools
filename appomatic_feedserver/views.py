@@ -7,6 +7,11 @@ import shapely.wkt
 import fastkml.kml
 import datetime
 import uuid
+import geojson
+import fcdjangoutils.jsonview
+import appomatic_mapdata.models
+import csv
+import StringIO
 
 import django.db.backends.postgresql_psycopg2.base
 import django.db.models.fields
@@ -94,9 +99,73 @@ def feed(request, format):
             doc.append(placemark)
         
         result = kml.to_string(prettyprint=True).encode('utf-8')
-    elif format == 'rss':
+    elif format == 'geojson':
+        features = []
+        for entry in entries:
+            geometry = fcdjangoutils.jsonview.from_json(
+                geojson.dumps(
+                    shapely.wkt.loads(
+                        entry.the_geom.wkt)))
+            feature = {"type": "Feature",
+                       "geometry": geometry,
+                       "properties": {'id': entry.id,
+                                      'title': entry.title,
+                                      'link': entry.link,
+                                      'summary': entry.summary,
+                                      'content': entry.content,
+                                      'source': entry.source.name,
+                                      'kml_url': entry.kml_url,
+                                      'incident_datetime': entry.incident_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                                      'published': entry.published.strftime('%Y-%m-%d %H:%M:%S'),
+                                      'regions': [{'src': region.src,
+                                                   'name': region.name,
+                                                   'code': region.code}
+                                                  for region in appomatic_mapdata.models.Region.objects.filter(id__in = entry.regions)],
+                                      'tags': entry.tags,
+                                      'source_item_id': entry.source_item_id
+                                      }}
+            features.append(feature)
+        result = fcdjangoutils.jsonview.to_json(
+            {"type": "FeatureCollection",
+             "features": features})
+    elif format == 'csv':
+        f = StringIO.StringIO()
+        writer = csv.writer(f)
+        writer.writerow(['id',
+                         'lat',
+                         'lng',
+                         'title',
+                         'link',
+                         'summary',
+                         'content',
+                         'source',
+                         'kml_url',
+                         'incident_datetime',
+                         'published',
+                         'regions',
+                         'tags',
+                         'source_item_id'])
+        for entry in entries:
+            writer.writerow([entry.id,
+                             entry.lat,
+                             entry.lng,
+                             entry.title,
+                             entry.link,
+                             entry.summary,
+                             entry.content,
+                             entry.source.name,
+                             entry.kml_url,
+                             entry.incident_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                             entry.published.strftime('%Y-%m-%d %H:%M:%S'),
+                             ','.join(region.code
+                                      for region in appomatic_mapdata.models.Region.objects.filter(id__in = entry.regions)),
+                             ','.join(entry.tags),
+                             entry.source_item_id
+                             ])    
+        result = f.getvalue()
+    elif format == 'atom':
         result = django.template.loader.get_template(
-            'appomatic_feedserver/feed.rss'
+            'appomatic_feedserver/feed.atom'
             ).render(
             django.template.RequestContext(
                     request,
@@ -108,7 +177,7 @@ def feed(request, format):
         result = '\n'.join("%(title)s @ %(lat)sN %(lng)sE, %(incident_datetime)s (%(tags)s)" % DictWrapper(entry) for entry in entries)
         
 
-    contentTypes = {'kml': 'application/kml', 'rss': 'application/atom+xml', 'csv': 'text/csv', 'txt': 'text/plain'}
+    contentTypes = {'kml': 'application/kml', 'atom': 'application/atom+xml', 'geojson': 'application/json', 'csv': 'text/csv', 'txt': 'text/plain'}
 
     response = django.http.HttpResponse(result, content_type=contentTypes[format])
 
