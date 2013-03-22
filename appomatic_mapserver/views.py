@@ -21,12 +21,6 @@ import uuid
 from django.conf import settings
 
 
-def index(request):
-    return django.shortcuts.render_to_response(
-        'appomatic_mapserver/index.html',
-        {},
-        context_instance=django.template.RequestContext(request))
-
 def dictreader(cur):
     for row in cur:
         yield dict(zip([col[0] for col in cur.description], row))
@@ -45,6 +39,43 @@ class MapGroup(object):
     def __init__(self, row, rows):
         self.row = row
         self.rows = rows
+
+class MapTemplate(object):
+    implementations = {}
+
+    def __new__(cls, urlquery, *arg, **kw):
+        if cls is MapTemplate:
+            type = urlquery.get('template', 'appomatic_mapserver.views.MapTemplateSimple')
+            return cls.implementations[type](urlquery, *arg, **kw)
+        else:
+            return object.__new__(cls, *arg, **kw)
+
+    class __metaclass__(type):
+        def __init__(cls, name, bases, members):
+            type.__init__(cls, name, bases, members)
+            if name != "MapTemplate":
+                MapTemplate.implementations[members.get('__module__', '__main__') + "." + name] = cls
+
+class MapTemplateSimple(MapTemplate):
+    def row_name(self, row):
+        return ""
+
+    def row_description(self, row):
+        header = "<h2>%(name)s</h2>"
+        if "url" in row:
+            header = "<h2><a href='%(url)s'>%(name)s</a></h2>"
+        cols = [col for col in row.keys() if col not in ("shape", "location")]
+        cols.sort()
+        template = header + '<table>%s</table>' % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
+        return template % row
+
+    def group_name(self, row):
+        return "%(name)s" % row
+
+    def group_description(self, row):
+        return ""
+    
+ 
 
 class MapRenderer(object):
     implementations = {}
@@ -72,8 +103,8 @@ class MapRenderer(object):
         pass
 
 
-    def get_row_template(self):
-        return "<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>"
+    def get_template(self):
+        return MapTemplate(self.urlquery)
 
     def get_map_data(self):
         if 'type' in self.urlquery and 'table' in self.urlquery:
@@ -175,17 +206,20 @@ class MapRendererKml(MapRenderer):
         doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
         kml.append(doc)
 
+        template = self.get_template()
+
         def add_features(folder, rows):
             for row in rows:
                 if isinstance(row, MapGroup):
-                    subfolder = fastkml.kml.Folder(ns, "group-%s" % row.row.get('id', uuid.uuid4()), row.row['name'], '')
+                    subfolder = fastkml.kml.Folder(ns, "group-%s" % row.row.get('id', uuid.uuid4()), template.group_name(row.row), template.group_description(row.row))
                     folder.append(subfolder)
                     add_features(subfolder, row.rows)
                 else:
                     geometry = shapely.wkt.loads(str(row['shape']))
                     placemark = fastkml.kml.Placemark(
-                        ns, row['name'], row['name'],
-                        self.get_row_template() % row)
+                        ns, row['name'],
+                        self.get_template().row_name(row),
+                        self.get_template().row_description(row))
 
                     placemark.geometry = geometry
                     folder.append(placemark)
@@ -406,3 +440,10 @@ def mapserver(request):
 
     if action == 'layers':
         return renderer.get_layers()
+
+
+def index(request):
+    return django.shortcuts.render_to_response(
+        'appomatic_mapserver/index.html',
+        {},
+        context_instance=django.template.RequestContext(request))
