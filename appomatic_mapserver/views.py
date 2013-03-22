@@ -75,7 +75,23 @@ class MapTemplateSimple(MapTemplate):
     def group_description(self, row):
         return ""
     
- 
+    def row_kml_style(self, row):
+        id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))
+        try:
+            c = min(float(row['sog']), 15) * 17
+        except:
+            c = 0
+        color = 'ff00%02x%02x' % (c, 255-c)
+        style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % id)
+        style.append_style( fastkml.styles.IconStyle(
+            '{http://www.opengis.net/kml/2.2}',
+            "style-item-%s-icon" % id,
+            icon_href = "http://alerts.skytruth.org/markers/vessel_direction.png",
+            #  <hotSpot x="16" y="3" xunits="pixels" yunits="pixels"/>
+            heading = row.get('cog', 0),
+            color = color))
+        return style
+
 
 class MapRenderer(object):
     implementations = {}
@@ -220,7 +236,7 @@ class MapRendererKml(MapRenderer):
                         ns, row['name'],
                         self.get_template().row_name(row),
                         self.get_template().row_description(row))
-
+                    placemark.append_style(template.row_kml_style(row))
                     placemark.geometry = geometry
                     folder.append(placemark)
         add_features(doc, self.get_map_data())
@@ -299,6 +315,9 @@ class MapSource(object):
                     row['name'] = row['mmsi']
                 if not row.get('url', None):
                     row['url'] = appomatic_mapdata.models.Ais.URL_PATTERN % row
+
+                row['itu_url'] = appomatic_mapdata.models.Ais.URL_PATTERN_ITU % row
+
             if not row.get('mmsi', None):
                 row['mmsi'] = ''
             if not row.get('name', None):
@@ -309,6 +328,8 @@ class MapSource(object):
                 row['type'] = ''
             if not row.get('length', None):
                 row['length'] = ''
+
+
             yield row
 
 class TolerancePathMap(MapSource):

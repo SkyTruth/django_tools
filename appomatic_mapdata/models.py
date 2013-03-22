@@ -109,8 +109,8 @@ class Ais(Event):
 
     vessel = django.db.models.ForeignKey(Vessel, null=True, blank=True)
 
-
     URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
+    URL_PATTERN_ITU = "http://www.itu.int/cgi-bin/htsh/mars/ship_search.sh?sh_mmsi=%(mmsi)s"
 
     @property
     def url(self):
