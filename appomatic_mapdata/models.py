@@ -42,6 +42,10 @@ django.contrib.gis.db.backends.postgis.operations.PostGISOperations.geo_db_type 
 class GeometryField(django.contrib.gis.db.models.GeometryField):
     geom_type = None
 
+
+
+
+
 class Vessel(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
     mmsi = django.db.models.CharField(max_length=16, null=False, blank=False, unique=True) # max_length *should* be 9, but we do get some odd data...
@@ -52,47 +56,6 @@ class Vessel(django.contrib.gis.db.models.Model):
     @property
     def url(self):
         return "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=" + self.mmsi
-
-
-class Ais(django.contrib.gis.db.models.Model):
-    objects = django.contrib.gis.db.models.GeoManager()
-    src = django.db.models.CharField(max_length=128, null=False, blank=False)
-    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False)
-    datetime = django.db.models.DateTimeField(null=False, blank=False)
-
-    latitude = django.db.models.FloatField(null=False, blank=False)
-    longitude = django.db.models.FloatField(null=False, blank=False)
-    true_heading = django.db.models.FloatField(null=True, blank=True)
-    sog = django.db.models.FloatField(null=True, blank=True)
-    cog = django.db.models.FloatField(null=True, blank=True)
-    location = GeometryField(null=False, blank=False)
-
-    vessel = django.db.models.ForeignKey(Vessel, null=True, blank=True)
-
-
-    URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
-
-    @property
-    def url(self):
-        return self.URL_PATTERN % {'mmsi': self.mmsi}
-
-
-class AisPath(django.contrib.gis.db.models.Model):
-    objects = django.contrib.gis.db.models.GeoManager()
-    src = django.db.models.CharField(max_length=128, null=False, blank=False)
-    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False)
-
-    timemin = django.db.models.DateTimeField(null=False, blank=False)
-    timemax = django.db.models.DateTimeField(null=False, blank=False)
-    
-    tolerance = django.db.models.FloatField(null=True, blank=True)
-    line = GeometryField(null=False, blank=False)
-
-    vessel = django.db.models.ForeignKey(Vessel, null=True, blank=True)
-
-    @property
-    def url(self):
-        return Ais.URL_PATTERN % {'mmsi': self.mmsi}
 
 class Region(django.contrib.gis.db.models.Model):
     class Meta:
@@ -119,6 +82,50 @@ class Event(django.contrib.gis.db.models.Model):
     class Meta:
         abstract = True
 
+class Path(django.contrib.gis.db.models.Model):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+    src = django.db.models.CharField(max_length=128, null=False, blank=False)
+
+    timemin = django.db.models.DateTimeField(null=False, blank=False)
+    timemax = django.db.models.DateTimeField(null=False, blank=False)
+    
+    tolerance = django.db.models.FloatField(null=True, blank=True)
+    line = GeometryField(null=False, blank=False)
+
+    region = dbarray.IntegerArrayField(null=True, blank=True) # Really a set of foreign keys to Region
+
+    class Meta:
+        abstract = True
+
+
+class Ais(Event):
+    objects = django.contrib.gis.db.models.GeoManager()
+    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False)
+
+    true_heading = django.db.models.FloatField(null=True, blank=True)
+    sog = django.db.models.FloatField(null=True, blank=True)
+    cog = django.db.models.FloatField(null=True, blank=True)
+
+    vessel = django.db.models.ForeignKey(Vessel, null=True, blank=True)
+
+
+    URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
+
+    @property
+    def url(self):
+        return self.URL_PATTERN % {'mmsi': self.mmsi}
+
+
+class AisPath(Path):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+    mmsi = django.db.models.CharField(max_length=16, null=False, blank=False)
+    vessel = django.db.models.ForeignKey(Vessel, null=True, blank=True)
+
+    @property
+    def url(self):
+        return Ais.URL_PATTERN % {'mmsi': self.mmsi}
 
 class Sar(Event):
     name = django.db.models.CharField(max_length=128, null=False, blank=False)

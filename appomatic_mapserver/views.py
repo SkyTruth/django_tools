@@ -92,13 +92,24 @@ class MapRenderer(object):
 
     def get_layers(self):
         return {
-            'ExactEarth': {
+            'ExactEarthPath': {
                 'type': 'MapServer.Layer.Db',
                 'options': {
                     'protocol': {
                         'params': {
                             'type': 'appomatic_mapserver.views.TolerancePathMap',
                             'table': 'appomatic_mapdata_aispath',
+                            }
+                        }
+                    }
+                },
+            'ExactEarthMarkers': {
+                'type': 'MapServer.Layer.Db',
+                'options': {
+                    'protocol': {
+                        'params': {
+                            'type': 'appomatic_mapserver.views.EventMap',
+                            'table': 'appomatic_mapdata_ais',
                             }
                         }
                     }
