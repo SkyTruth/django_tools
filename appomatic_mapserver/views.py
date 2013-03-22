@@ -16,6 +16,7 @@ import math
 import appomatic_mapdata.models
 import os
 import os.path
+import re
 from django.conf import settings
 
 
@@ -79,6 +80,12 @@ class Map(object):
             "lonmax": max(lon1, lon2),
             "latmax": max(lat1, lat2)
             }
+
+    def get_table(self):
+        table = self.request.GET["table"]
+        if not re.search("^[a-z_]*$", table):
+            raise Exception("SQL injections are so not cool. Try again.")
+        return table
 
     def get_bboxsql(self):
         bboxmin = "ST_Point(%(lonmin)s, %(latmin)s)"
@@ -207,7 +214,7 @@ class TolerancePathMap(Map):
                vessel.type,
                vessel.length
              from
-               appomatic_mapdata_aispath as ais_path
+               """ + self.get_table() + """ as ais_path
                left outer join appomatic_mapdata_vessel as vessel on
                  ais_path.mmsi = vessel.mmsi
              where
@@ -226,6 +233,30 @@ class TolerancePathMap(Map):
                 yield row
         finally:
             print "TOLERANCE:", query['tolerance']
+            print "RESULTS: ", self.cur.rowcount
+
+class EventMap(Map):
+    def get_map_data_raw(self):
+        query = self.get_query()
+        bboxsql = self.get_bboxsql()
+
+        sql = """
+          select
+            *,
+            ST_AsText(location) as shape
+          from
+            """ + self.get_table() + """
+          where
+            not (%(timemax)s < datetime or %(timemin)s > datetime)
+            and ST_Contains(
+              """ + bboxsql['bbox'] + """, location)
+        """
+
+        self.cur.execute(sql, query)
+        try:
+            for row in dictreader(self.cur):
+                yield row
+        finally:
             print "RESULTS: ", self.cur.rowcount
 
 
@@ -266,19 +297,30 @@ def mapserver(request):
                     'protocol': {
                         'params': {
                             'type': 'appomatic_mapserver.views.TolerancePathMap',
-                            'table': 'ais_path',
+                            'table': 'appomatic_mapdata_aispath',
                             }
                         }
                     }
                 },
-            'Vessel detections': {
-                'type': 'MapServer.Layer.KmlDir',
+            'Sar': {
+                'type': 'MapServer.Layer.Db',
                 'options': {
                     'protocol': {
                         'params': {
-                            'directory': 'vessel-detections',
+                            'type': 'appomatic_mapserver.views.EventMap',
+                            'table': 'appomatic_mapdata_sar',
                             }
                         }
                     }
-                }
+                },
+            # 'Vessel detections': {
+            #     'type': 'MapServer.Layer.KmlDir',
+            #     'options': {
+            #         'protocol': {
+            #             'params': {
+            #                 'directory': 'vessel-detections',
+            #                 }
+            #             }
+            #         }
+            #     }
             }

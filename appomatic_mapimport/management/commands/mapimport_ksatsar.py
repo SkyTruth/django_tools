@@ -164,7 +164,7 @@ class Command(django.core.management.base.BaseCommand):
                                                               %(name)s,
                                                               %(latitude)s,
                                                               %(longitude)s,
-                                                              %(location)s,
+                                                              st_setsrid(st_geomfromtext(%(location)s), 4326),
                                                               %(Probability)s,
                                                               %(DetectionId)s,
                                                               %(ProductStartTime)s,
