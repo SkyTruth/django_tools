@@ -44,12 +44,12 @@ def print_time(fn):
 class MapRenderer(object):
     implementations = {}
 
-    def __new__(cls, request, *arg, **kw):
+    def __new__(cls, urlquery, *arg, **kw):
         if cls is MapRenderer:
-            type = request.GET.get('format', 'appomatic_mapserver.views.MapRendererGeojson')
-            return cls.implementations[type](request, *arg, **kw)
+            type = urlquery.get('format', 'appomatic_mapserver.views.MapRendererGeojson')
+            return cls.implementations[type](urlquery, *arg, **kw)
         else:
-            return object.__new__(cls, request, *arg, **kw)
+            return object.__new__(cls, urlquery, *arg, **kw)
 
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
@@ -57,11 +57,11 @@ class MapRenderer(object):
             if name != "MapRenderer":
                 MapRenderer.implementations[members.get('__module__', '__main__') + "." + name] = cls
 
-    def __init__(self, request):
-        self.request = request
+    def __init__(self, urlquery):
+        self.urlquery = urlquery
 
     def __enter__(self):
-        self.map = MapSource(self.request).__enter__()
+        self.map = MapSource(self.urlquery).__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
@@ -125,12 +125,12 @@ class MapRendererKml(MapRenderer):
 class MapSource(object):
     implementations = {}
 
-    def __new__(cls, request, *arg, **kw):
+    def __new__(cls, urlquery, *arg, **kw):
         if cls is MapSource:
-            type = request.GET.get('type', 'tolerance_path')
-            return cls.implementations[type](request, *arg, **kw)
+            type = urlquery.get('type', 'tolerance_path')
+            return cls.implementations[type](urlquery, *arg, **kw)
         else:
-            return object.__new__(cls, request, *arg, **kw)
+            return object.__new__(cls, urlquery, *arg, **kw)
 
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
@@ -138,8 +138,8 @@ class MapSource(object):
             if name != "MapSource":
                 MapSource.implementations[members.get('__module__', '__main__') + "." + name] = cls
 
-    def __init__(self, request):
-        self.request = request
+    def __init__(self, urlquery):
+        self.urlquery = urlquery
 
     def __enter__(self):
         self.cur = django.db.connection.cursor()
@@ -149,9 +149,9 @@ class MapSource(object):
         self.cur.close()
 
     def get_query(self):
-        datetimemin = int(self.request.GET['datetime__gte'])
-        datetimemax = int(self.request.GET['datetime__lte'])
-        lon1,lat1,lon2,lat2 = [float(coord) for coord in self.request.GET['bbox'].split(",")]
+        datetimemin = int(self.urlquery['datetime__gte'])
+        datetimemax = int(self.urlquery['datetime__lte'])
+        lon1,lat1,lon2,lat2 = [float(coord) for coord in self.urlquery['bbox'].split(",")]
         return {
             "timeminstamp": datetimemin,
             "timemaxstamp": datetimemax,
@@ -164,7 +164,7 @@ class MapSource(object):
             }
 
     def get_table(self):
-        table = self.request.GET["table"]
+        table = self.urlquery["table"]
         if not re.search("^[a-z_]*$", table):
             raise Exception("SQL injections are so not cool. Try again.")
         return table
@@ -205,7 +205,7 @@ class TolerancePathMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
-        if self.request.GET.get('full', 'false') == 'true':
+        if self.urlquery.get('full', 'false') == 'true':
             return None
         else:
             self.cur.execute("select " + bboxsql['bboxdiag'] + " / 100", query)
@@ -304,7 +304,7 @@ def mapserver(request):
 
 
     if action == 'map':
-        with MapRenderer(request) as map:
+        with MapRenderer(dict(request.GET.iteritems())) as map:
             return map.get_map()
 
     if action == 'timerange':
