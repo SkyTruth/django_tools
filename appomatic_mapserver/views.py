@@ -17,6 +17,7 @@ import appomatic_mapdata.models
 import os
 import os.path
 import re
+import uuid
 from django.conf import settings
 
 
@@ -40,6 +41,10 @@ def print_time(fn):
             print "TIME:", after - before
     return print_time
 
+class MapGroup(object):
+    def __init__(self, row, rows):
+        self.row = row
+        self.rows = rows
 
 class MapRenderer(object):
     implementations = {}
@@ -61,65 +66,126 @@ class MapRenderer(object):
         self.urlquery = urlquery
 
     def __enter__(self):
-        self.map = MapSource(self.urlquery).__enter__()
         return self
 
     def __exit__(self, type, value, traceback):
-        self.map.__exit__(type, value, traceback)
+        pass
 
 
     def get_row_template(self):
         return "<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>"
 
+    def get_map_data(self):
+        if 'type' in self.urlquery and 'table' in self.urlquery:
+            with MapSource(self.urlquery) as map:
+                for row in map.get_map_data():
+                    yield row
+        else:
+            for name, layer in self.get_layers().iteritems():
+                def rows():
+                    urlquery = dict(self.urlquery)
+                    urlquery.update(layer['options']['protocol']['params'])
+                    with MapSource(urlquery) as map:
+                        for row in map.get_map_data():
+                            yield row
+                yield MapGroup({"name": name}, rows())
+
+    def get_layers(self):
+        return {
+            'ExactEarth': {
+                'type': 'MapServer.Layer.Db',
+                'options': {
+                    'protocol': {
+                        'params': {
+                            'type': 'appomatic_mapserver.views.TolerancePathMap',
+                            'table': 'appomatic_mapdata_aispath',
+                            }
+                        }
+                    }
+                },
+            'Sar': {
+                'type': 'MapServer.Layer.Db',
+                'options': {
+                    'protocol': {
+                        'params': {
+                            'type': 'appomatic_mapserver.views.EventMap',
+                            'table': 'appomatic_mapdata_sar',
+                            }
+                        }
+                    }
+                },
+            # 'Vessel detections': {
+            #     'type': 'MapServer.Layer.KmlDir',
+            #     'options': {
+            #         'protocol': {
+            #             'params': {
+            #                 'directory': 'vessel-detections',
+            #                 }
+            #             }
+            #         }
+            #     }
+            }
+
 
 class MapRendererGeojson(MapRenderer):
     def get_map(self):
-        query = self.map.get_query()
-
         features = []
-        for row in self.map.get_map_data():
-            geometry = shapely.wkt.loads(str(row['shape']))
-            geometry = fcdjangoutils.jsonview.from_json(
-                geojson.dumps(
-                    geometry))
-            del row['shape']
-            row['datetime'] = query['timeminstamp'] + 1
-            feature = {"type": "Feature",
-                       "geometry": geometry,
-                       "properties": row}
-            features.append(feature)
 
-        return django.http.HttpResponse(
+        def add_features(rows):
+            for row in rows:
+                if isinstance(row, MapGroup):
+                    add_features(row.rows)
+                else:
+                    geometry = shapely.wkt.loads(str(row['shape']))
+                    geometry = fcdjangoutils.jsonview.from_json(
+                        geojson.dumps(
+                            geometry))
+                    del row['shape']
+                    feature = {"type": "Feature",
+                               "geometry": geometry,
+                               "properties": row}
+                    features.append(feature)
+
+        add_features(self.get_map_data())
+
+        res = django.http.HttpResponse(
             fcdjangoutils.jsonview.to_json(
                 {"type": "FeatureCollection",
                  "features": features}),
             mimetype="application/json",
             status=200)
+        res['Content-disposition'] = 'attachment; filename=export.geojson'
+        return res
 
 class MapRendererKml(MapRenderer):
     def get_map(self):
-        query = self.map.get_query()
-
         kml = fastkml.kml.KML()
         ns = '{http://www.opengis.net/kml/2.2}'
         doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
         kml.append(doc)
 
-        types = []
-        for row in self.map.get_map_data():
-            geometry = shapely.wkt.loads(str(row['shape']))
-            placemark = fastkml.kml.Placemark(
-                ns, row['name'], row['name'],
-                self.get_row_template() % row)
+        def add_features(folder, rows):
+            for row in rows:
+                if isinstance(row, MapGroup):
+                    subfolder = fastkml.kml.Folder(ns, "group-%s" % row.row.get('id', uuid.uuid4()), row.row['name'], '')
+                    folder.append(subfolder)
+                    add_features(subfolder, row.rows)
+                else:
+                    geometry = shapely.wkt.loads(str(row['shape']))
+                    placemark = fastkml.kml.Placemark(
+                        ns, row['name'], row['name'],
+                        self.get_row_template() % row)
 
-            types.append(geometry.geom_type)
-            placemark.geometry = geometry
-            doc.append(placemark)
+                    placemark.geometry = geometry
+                    folder.append(placemark)
+        add_features(doc, self.get_map_data())
 
-        return django.http.HttpResponse(
+        res = django.http.HttpResponse(
             kml.to_string(prettyprint=True),
             mimetype="application/vnd.google-earth.kml+xml",
             status=200)
+        res['Content-disposition'] = 'attachment; filename=export.kml'
+        return res
 
 
 class MapSource(object):
@@ -229,6 +295,7 @@ class TolerancePathMap(MapSource):
           select
             mmsi,
             ST_AsText(shape) as shape,
+            extract(epoch from timemin) as datetime,
             timemin,
             timemax,
             name,
@@ -279,6 +346,7 @@ class EventMap(MapSource):
         sql = """
           select
             *,
+            extract(epoch from datetime) as datetime,
             ST_AsText(location) as shape
           from
             """ + self.get_table() + """
@@ -302,10 +370,10 @@ def mapserver(request):
     print "GET MAP" + repr(request.GET)
     action = request.GET.get('action', 'map')
 
+    renderer = MapRenderer(dict(request.GET.iteritems()))
 
     if action == 'map':
-        with MapRenderer(dict(request.GET.iteritems())) as map:
-            return map.get_map()
+        return renderer.get_map()
 
     if action == 'timerange':
         with contextlib.closing(django.db.connection.cursor()) as cur:
@@ -326,37 +394,4 @@ def mapserver(request):
                           if datetimemin < kmldir < datetimemax]}
 
     if action == 'layers':
-        return {
-            'ExactEarth': {
-                'type': 'MapServer.Layer.Db',
-                'options': {
-                    'protocol': {
-                        'params': {
-                            'type': 'appomatic_mapserver.views.TolerancePathMap',
-                            'table': 'appomatic_mapdata_aispath',
-                            }
-                        }
-                    }
-                },
-            'Sar': {
-                'type': 'MapServer.Layer.Db',
-                'options': {
-                    'protocol': {
-                        'params': {
-                            'type': 'appomatic_mapserver.views.EventMap',
-                            'table': 'appomatic_mapdata_sar',
-                            }
-                        }
-                    }
-                },
-            # 'Vessel detections': {
-            #     'type': 'MapServer.Layer.KmlDir',
-            #     'options': {
-            #         'protocol': {
-            #             'params': {
-            #                 'directory': 'vessel-detections',
-            #                 }
-            #             }
-            #         }
-            #     }
-            }
+        return renderer.get_layers()

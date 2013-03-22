@@ -96,8 +96,8 @@ MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
       window.open(
         MapServer.apiurl + "?" + $.param({
           format: 'appomatic_mapserver.views.MapRendererKml',
+          full: 'true',
           action: 'map',
-          table: 'appomatic_mapserver_aispath',
           datetime__gte: self.map.timemin,
           datetime__lte: self.map.timemax,
           bbox: self.map.getExtent().transform(
