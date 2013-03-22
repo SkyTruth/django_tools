@@ -40,11 +40,93 @@ def print_time(fn):
             print "TIME:", after - before
     return print_time
 
-class Map(object):
+
+class MapRenderer(object):
     implementations = {}
 
     def __new__(cls, request, *arg, **kw):
-        if cls is Map:
+        if cls is MapRenderer:
+            type = request.GET.get('format', 'appomatic_mapserver.views.MapRendererGeojson')
+            return cls.implementations[type](request, *arg, **kw)
+        else:
+            return object.__new__(cls, request, *arg, **kw)
+
+    class __metaclass__(type):
+        def __init__(cls, name, bases, members):
+            type.__init__(cls, name, bases, members)
+            if name != "MapRenderer":
+                MapRenderer.implementations[members.get('__module__', '__main__') + "." + name] = cls
+
+    def __init__(self, request):
+        self.request = request
+
+    def __enter__(self):
+        self.map = MapSource(self.request).__enter__()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.map.__exit__(type, value, traceback)
+
+
+    def get_row_template(self):
+        return "<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>"
+
+
+class MapRendererGeojson(MapRenderer):
+    def get_map(self):
+        query = self.map.get_query()
+
+        features = []
+        for row in self.map.get_map_data():
+            geometry = shapely.wkt.loads(str(row['shape']))
+            geometry = fcdjangoutils.jsonview.from_json(
+                geojson.dumps(
+                    geometry))
+            del row['shape']
+            row['datetime'] = query['timeminstamp'] + 1
+            feature = {"type": "Feature",
+                       "geometry": geometry,
+                       "properties": row}
+            features.append(feature)
+
+        return django.http.HttpResponse(
+            fcdjangoutils.jsonview.to_json(
+                {"type": "FeatureCollection",
+                 "features": features}),
+            mimetype="application/json",
+            status=200)
+
+class MapRendererKml(MapRenderer):
+    def get_map(self):
+        query = self.map.get_query()
+
+        kml = fastkml.kml.KML()
+        ns = '{http://www.opengis.net/kml/2.2}'
+        doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
+        kml.append(doc)
+
+        types = []
+        for row in self.map.get_map_data():
+            geometry = shapely.wkt.loads(str(row['shape']))
+            placemark = fastkml.kml.Placemark(
+                ns, row['name'], row['name'],
+                self.get_row_template() % row)
+
+            types.append(geometry.geom_type)
+            placemark.geometry = geometry
+            doc.append(placemark)
+
+        return django.http.HttpResponse(
+            kml.to_string(prettyprint=True),
+            mimetype="application/vnd.google-earth.kml+xml",
+            status=200)
+
+
+class MapSource(object):
+    implementations = {}
+
+    def __new__(cls, request, *arg, **kw):
+        if cls is MapSource:
             type = request.GET.get('type', 'tolerance_path')
             return cls.implementations[type](request, *arg, **kw)
         else:
@@ -53,8 +135,8 @@ class Map(object):
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
             type.__init__(cls, name, bases, members)
-            if name != "Map":
-                Map.implementations[members.get('__module__', '__main__') + "." + name] = cls
+            if name != "MapSource":
+                MapSource.implementations[members.get('__module__', '__main__') + "." + name] = cls
 
     def __init__(self, request):
         self.request = request
@@ -99,9 +181,6 @@ class Map(object):
             "bboxdiag": bboxdiag
             }
 
-    def get_row_template(self):
-        return "<h2><a href='%(url)s'>%(name)s</a></h2><table><tr><th>MMSI</th><td>%(mmsi)s</td></tr><tr><th>Type</th><td>%(type)s</td></tr><tr><th>Length</th><td>%(length)s</td></tr></table>"
-
     def get_map_data(self):
         for row in self.get_map_data_raw():
             if row.get('mmsi', None):
@@ -109,62 +188,19 @@ class Map(object):
                     row['name'] = row['mmsi']
                 if not row.get('url', None):
                     row['url'] = appomatic_mapdata.models.Ais.URL_PATTERN % row
+            if not row.get('mmsi', None):
+                row['mmsi'] = ''
+            if not row.get('name', None):
+                row['name'] = ''
+            if not row.get('url', None):
+                row['url'] = ''
+            if not row.get('type', None):
+                row['type'] = ''
+            if not row.get('length', None):
+                row['length'] = ''
             yield row
 
-    def get_map_geojson(self):
-        query = self.get_query()
-
-        features = []
-        for row in self.get_map_data():
-            geometry = shapely.wkt.loads(str(row['shape']))
-            geometry = json.loads(
-                geojson.dumps(
-                    geometry))
-            del row['shape']
-            row['datetime'] = query['timeminstamp'] + 1
-            feature = {"type": "Feature",
-                       "geometry": geometry,
-                       "properties": row}
-            features.append(feature)
-
-        return {"type": "FeatureCollection",
-                "features": features}
-
-    def get_map_kml(self):
-        query = self.get_query()
-
-        kml = fastkml.kml.KML()
-        ns = '{http://www.opengis.net/kml/2.2}'
-        doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
-        kml.append(doc)
-
-        types = []
-        for row in self.get_map_data():
-            geometry = shapely.wkt.loads(str(row['shape']))
-            placemark = fastkml.kml.Placemark(
-                ns, row['name'], row['name'],
-                self.get_row_template() % row)
-
-            types.append(geometry.geom_type)
-            placemark.geometry = geometry
-            doc.append(placemark)
-
-        return django.http.HttpResponse(
-            kml.to_string(prettyprint=True),
-            mimetype="text/plain",
-            status=200)
-
-
-    def get_map(self):
-        query = self.get_query()
-
-        format = self.request.GET.get('format', 'geojson')
-        if format == 'geojson':
-            return self.get_map_geojson()
-        elif format == 'kml':
-            return self.get_map_kml()
-
-class TolerancePathMap(Map):
+class TolerancePathMap(MapSource):
     def get_tolerance(self):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
@@ -235,7 +271,7 @@ class TolerancePathMap(Map):
             print "TOLERANCE:", query['tolerance']
             print "RESULTS: ", self.cur.rowcount
 
-class EventMap(Map):
+class EventMap(MapSource):
     def get_map_data_raw(self):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
@@ -268,7 +304,7 @@ def mapserver(request):
 
 
     if action == 'map':
-        with Map(request) as map:
+        with MapRenderer(request) as map:
             return map.get_map()
 
     if action == 'timerange':
