@@ -18,6 +18,7 @@ import os
 import os.path
 import re
 import uuid
+import appomatic_mapserver.models
 from django.conf import settings
 
 
@@ -46,9 +47,7 @@ class MapTemplate(object):
 
     def __new__(cls, urlquery, *arg, **kw):
         if cls is MapTemplate:
-            type = urlquery.get('template', 'appomatic_mapserver.views.MapTemplateSimple')
-            print "XXXXXX", urlquery, type
-
+            type = urlquery.get('template', 'appomatic_mapserver.views.MapTemplateCog')
             return cls.implementations[type](urlquery, *arg, **kw)
         else:
             return object.__new__(cls, *arg, **kw)
@@ -80,6 +79,17 @@ class MapTemplateSimple(MapTemplate):
     
     def row_kml_style(self, row):
         id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))
+        style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % id)
+        style.append_style(fastkml.styles.IconStyle(
+            '{http://www.opengis.net/kml/2.2}',
+            "style-item-%s-icon" % id,
+            icon_href = "http://alerts.skytruth.org/markers/red-x.png"
+            ))
+        return style
+
+class MapTemplateCog(MapTemplateSimple):
+    def row_kml_style(self, row):
+        id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))
         try:
             c = min(float(row['sog']), 15) * 17
         except:
@@ -93,17 +103,6 @@ class MapTemplateSimple(MapTemplate):
             #  <hotSpot x="16" y="3" xunits="pixels" yunits="pixels"/>
             heading = row.get('cog', 0),
             color = color))
-        return style
-
-class MapTemplateSar(MapTemplateSimple):
-    def row_kml_style(self, row):
-        id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))
-        style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % id)
-        style.append_style(fastkml.styles.IconStyle(
-            '{http://www.opengis.net/kml/2.2}',
-            "style-item-%s-icon" % id,
-            icon_href = "http://alerts.skytruth.org/markers/red-x.png"
-            ))
         return style
 
 class MapRenderer(object):
@@ -125,6 +124,7 @@ class MapRenderer(object):
     def __init__(self, urlquery):
         self.urlquery = urlquery
         self.template = MapTemplate(self.urlquery)
+        self.application = appomatic_mapserver.models.Application.objects.get(slug=self.urlquery['application'])
 
     def __enter__(self):
         return self
@@ -143,52 +143,7 @@ class MapRenderer(object):
                 yield MapLayer(urlquery)
 
     def get_layer_defs(self):
-        return {
-            'ExactEarthPath': {
-                'type': 'MapServer.Layer.Db',
-                'options': {
-                    'protocol': {
-                        'params': {
-                            'type': 'appomatic_mapserver.views.TolerancePathMap',
-                            'table': 'appomatic_mapdata_aispath',
-                            }
-                        }
-                    }
-                },
-            'ExactEarthMarkers': {
-                'type': 'MapServer.Layer.Db',
-                'options': {
-                    'protocol': {
-                        'params': {
-                            'type': 'appomatic_mapserver.views.EventMap',
-                            'table': 'appomatic_mapdata_ais',
-                            }
-                        }
-                    }
-                },
-            'Sar': {
-                'type': 'MapServer.Layer.Db',
-                'options': {
-                    'protocol': {
-                        'params': {
-                            'type': 'appomatic_mapserver.views.EventMap',
-                            'template': 'appomatic_mapserver.views.MapTemplateSar',
-                            'table': 'appomatic_mapdata_sar',
-                            }
-                        }
-                    }
-                },
-            # 'Vessel detections': {
-            #     'type': 'MapServer.Layer.KmlDir',
-            #     'options': {
-            #         'protocol': {
-            #             'params': {
-            #                 'directory': 'vessel-detections',
-            #                 }
-            #             }
-            #         }
-            #     }
-            }
+        return self.application.layer_defs
 
 
 class MapRendererGeojson(MapRenderer):
@@ -430,11 +385,13 @@ class EventMap(MapSource):
 
 @fcdjangoutils.jsonview.json_view
 @print_time
-def mapserver(request):
+def mapserver(request, application):
     print "GET MAP" + repr(request.GET)
     action = request.GET.get('action', 'map')
 
-    renderer = MapRenderer(dict(request.GET.iteritems()))
+    urlquery = dict(request.GET.iteritems())
+    urlquery['application'] = application
+    renderer = MapRenderer(urlquery)
 
     if action == 'map':
         return renderer.get_map()
@@ -461,8 +418,14 @@ def mapserver(request):
         return renderer.get_layer_defs()
 
 
+def application(request, application):
+    return django.shortcuts.render_to_response(
+        'appomatic_mapserver/application.html',
+        {'application': appomatic_mapserver.models.Application.objects.get(slug=application)},
+        context_instance=django.template.RequestContext(request))
+
 def index(request):
     return django.shortcuts.render_to_response(
         'appomatic_mapserver/index.html',
-        {},
+        {'applications': appomatic_mapserver.models.Application.objects.all()},
         context_instance=django.template.RequestContext(request))
