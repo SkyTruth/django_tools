@@ -92,6 +92,16 @@ class MapTemplateSimple(MapTemplate):
             color = color))
         return style
 
+class MapTemplateSar(MapTemplateSimple):
+    def row_kml_style(self, row):
+        id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))
+        style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % id)
+        style.append_style(fastkml.styles.IconStyle(
+            '{http://www.opengis.net/kml/2.2}',
+            "style-item-%s-icon" % id,
+            icon_href = "http://alerts.skytruth.org/markers/red-x.png"
+            ))
+        return style
 
 class MapRenderer(object):
     implementations = {}
@@ -167,6 +177,7 @@ class MapRenderer(object):
                     'protocol': {
                         'params': {
                             'type': 'appomatic_mapserver.views.EventMap',
+                            'template': 'appomatic_mapserver.views.MapTemplateSar',
                             'table': 'appomatic_mapdata_sar',
                             }
                         }
