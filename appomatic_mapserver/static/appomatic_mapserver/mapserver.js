@@ -91,7 +91,7 @@ MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
 
   loadContents: function() {
     var self = this;
-    this.contentDiv = $("<div class='content'><div><a href='javascript:void(0);' id='download-kml'>Download as KML</a></div><div><a href='javascript:void(0);' id='download-fullkml'>Download as full KML</a></div><div><a href='javascript:void(0);' id='download-csv'>Download as CSV</a></div></div>")[0];
+    this.contentDiv = $("<div class='content'><div><a href='javascript:void(0);' id='download-kml'>Download as KML</a></div><div><a href='javascript:void(0);' id='download-fullkml'>Download as KML (old)</a></div><div><a href='javascript:void(0);' id='download-csv'>Download as CSV</a></div></div>")[0];
     $(this.contentDiv).find("#download-kml").click(function () {        
       window.open(
         MapServer.apiurl + "?" + $.param({
