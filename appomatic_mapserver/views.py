@@ -35,10 +35,11 @@ def print_time(fn):
             print "TIME:", after - before
     return print_time
 
-class MapGroup(object):
-    def __init__(self, row, rows):
-        self.row = row
-        self.rows = rows
+class MapLayer(object):
+    def __init__(self, urlquery):
+        self.urlquery = urlquery
+        self.template = MapTemplate(urlquery)
+        self.source = MapSource(urlquery)
 
 class MapTemplate(object):
     implementations = {}
@@ -46,6 +47,8 @@ class MapTemplate(object):
     def __new__(cls, urlquery, *arg, **kw):
         if cls is MapTemplate:
             type = urlquery.get('template', 'appomatic_mapserver.views.MapTemplateSimple')
+            print "XXXXXX", urlquery, type
+
             return cls.implementations[type](urlquery, *arg, **kw)
         else:
             return object.__new__(cls, *arg, **kw)
@@ -121,6 +124,7 @@ class MapRenderer(object):
 
     def __init__(self, urlquery):
         self.urlquery = urlquery
+        self.template = MapTemplate(self.urlquery)
 
     def __enter__(self):
         return self
@@ -128,26 +132,17 @@ class MapRenderer(object):
     def __exit__(self, type, value, traceback):
         pass
 
-
-    def get_template(self):
-        return MapTemplate(self.urlquery)
-
-    def get_map_data(self):
-        if 'type' in self.urlquery and 'table' in self.urlquery:
-            with MapSource(self.urlquery) as map:
-                for row in map.get_map_data():
-                    yield row
-        else:
-            for name, layer in self.get_layers().iteritems():
-                def rows():
-                    urlquery = dict(self.urlquery)
-                    urlquery.update(layer['options']['protocol']['params'])
-                    with MapSource(urlquery) as map:
-                        for row in map.get_map_data():
-                            yield row
-                yield MapGroup({"name": name}, rows())
-
     def get_layers(self):
+        if 'type' in self.urlquery and 'table' in self.urlquery:
+            yield MapLayer(self.urlquery)
+        else:
+            for name, layer in self.get_layer_defs().iteritems():
+                urlquery = dict(self.urlquery)
+                urlquery.update(layer['options']['protocol']['params'])
+                urlquery['name'] = name
+                yield MapLayer(urlquery)
+
+    def get_layer_defs(self):
         return {
             'ExactEarthPath': {
                 'type': 'MapServer.Layer.Db',
@@ -200,11 +195,9 @@ class MapRendererGeojson(MapRenderer):
     def get_map(self):
         features = []
 
-        def add_features(rows):
-            for row in rows:
-                if isinstance(row, MapGroup):
-                    add_features(row.rows)
-                else:
+        for layer in self.get_layers():
+            with layer.source as source:
+                for row in source.get_map_data():
                     geometry = shapely.wkt.loads(str(row['shape']))
                     geometry = fcdjangoutils.jsonview.from_json(
                         geojson.dumps(
@@ -214,8 +207,6 @@ class MapRendererGeojson(MapRenderer):
                                "geometry": geometry,
                                "properties": row}
                     features.append(feature)
-
-        add_features(self.get_map_data())
 
         res = django.http.HttpResponse(
             fcdjangoutils.jsonview.to_json(
@@ -233,24 +224,20 @@ class MapRendererKml(MapRenderer):
         doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
         kml.append(doc)
 
-        template = self.get_template()
+        for layer in self.get_layers():
+            folder = fastkml.kml.Folder(ns, "group-%s" % layer.urlquery.get('name', str(uuid.uuid4())))
+            doc.append(folder)
 
-        def add_features(folder, rows):
-            for row in rows:
-                if isinstance(row, MapGroup):
-                    subfolder = fastkml.kml.Folder(ns, "group-%s" % row.row.get('id', uuid.uuid4()), template.group_name(row.row), template.group_description(row.row))
-                    folder.append(subfolder)
-                    add_features(subfolder, row.rows)
-                else:
+            with layer.source as source:
+                for row in source.get_map_data():
                     geometry = shapely.wkt.loads(str(row['shape']))
                     placemark = fastkml.kml.Placemark(
                         ns, row['name'],
-                        self.get_template().row_name(row),
-                        self.get_template().row_description(row))
-                    placemark.append_style(template.row_kml_style(row))
+                        layer.template.row_name(row),
+                        layer.template.row_description(row))
+                    placemark.append_style(layer.template.row_kml_style(row))
                     placemark.geometry = geometry
                     folder.append(placemark)
-        add_features(doc, self.get_map_data())
 
         res = django.http.HttpResponse(
             kml.to_string(prettyprint=True),
@@ -471,7 +458,7 @@ def mapserver(request):
                           if datetimemin < kmldir < datetimemax]}
 
     if action == 'layers':
-        return renderer.get_layers()
+        return renderer.get_layer_defs()
 
 
 def index(request):
