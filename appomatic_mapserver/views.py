@@ -142,6 +142,17 @@ class MapRenderer(object):
                 urlquery['name'] = name
                 yield MapLayer(urlquery)
 
+    def get_timeframe(self):
+        timeframe = {'timemin': None, 'timemax':None}
+        for layer in self.get_layers():
+            with layer.source as source:
+                new = source.get_timeframe()
+                if timeframe['timemin'] is None or timeframe['timemin'] > new['timemin']:
+                    timeframe['timemin'] = new['timemin']
+                if timeframe['timemax'] is None or timeframe['timemax'] < new['timemax']:
+                    timeframe['timemax'] = new['timemax']
+        return timeframe
+
     def get_layer_defs(self):
         return self.application.layer_defs
 
@@ -357,6 +368,13 @@ class TolerancePathMap(MapSource):
             print "TOLERANCE:", query['tolerance']
             print "RESULTS: ", self.cur.rowcount
 
+
+    def get_timeframe(self):
+        self.cur.execute("select min(timemin), max(timemax) from " + self.get_table())
+        row = self.cur.fetchone()
+        return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
+
+
 class EventMap(MapSource):
     def get_map_data_raw(self):
         query = self.get_query()
@@ -382,6 +400,11 @@ class EventMap(MapSource):
         finally:
             print "RESULTS: ", self.cur.rowcount
 
+    def get_timeframe(self):
+        self.cur.execute("select min(datetime), max(datetime) from " + self.get_table())
+        row = self.cur.fetchone()
+        return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
+
 
 @fcdjangoutils.jsonview.json_view
 @print_time
@@ -396,13 +419,11 @@ def mapserver(request, application):
     if action == 'map':
         return renderer.get_map()
 
+    if action == 'layers':
+        return renderer.get_layer_defs()
+
     if action == 'timerange':
-        with contextlib.closing(django.db.connection.cursor()) as cur:
-
-            cur.execute("select min(timemin), max(timemax) from appomatic_mapdata_aispath", )
-            row = cur.fetchone()
-
-            return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
+        return renderer.get_timeframe()
 
     if action == 'kmldir':
         directory = request.GET['directory']
@@ -413,9 +434,6 @@ def mapserver(request, application):
                           for kmldir in (datetime.datetime.strptime(kmldir, "%Y-%m-%d %H:%M:%S")
                                          for kmldir in os.listdir(os.path.join(settings.MEDIA_ROOT, directory)))
                           if datetimemin < kmldir < datetimemax]}
-
-    if action == 'layers':
-        return renderer.get_layer_defs()
 
 
 def application(request, application):
