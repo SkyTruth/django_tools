@@ -1,6 +1,15 @@
 import django.db.models
 import fcdjangoutils.fields
 
+def set_path(d, path, value):
+    node = d
+    for item in path[:-1]:
+        if item not in node:
+            node[item] = {}
+        node = node[item]
+    node[path[-1]] = value
+
+
 class Application(django.db.models.Model):
     slug = django.db.models.SlugField(max_length=1024, primary_key=True)
     name = django.db.models.CharField(max_length=1024, unique=True)
@@ -32,29 +41,29 @@ class Layer(django.db.models.Model):
         choices=TYPES_LIST,
         default='appomatic_mapserver.views.TolerancePathMap')
 
-    OPTIONS_PROTOCOL_PARAMS_TYPES = {
+    BACKEND_TYPES = {
         'appomatic_mapserver.views.TolerancePathMap': 'Simplified path',
         'appomatic_mapserver.views.EventMap': 'Event list'
     }
-    OPTIONS_PROTOCOL_PARAMS_TYPES_LIST = OPTIONS_PROTOCOL_PARAMS_TYPES.items()
-    OPTIONS_PROTOCOL_PARAMS_TYPES_LIST.sort()
-    options_protocol_params_type = django.db.models.CharField(
+    BACKEND_TYPES_LIST = BACKEND_TYPES.items()
+    BACKEND_TYPES_LIST.sort()
+    backend_type = django.db.models.CharField(
         max_length=1024,
-        choices=OPTIONS_PROTOCOL_PARAMS_TYPES_LIST,
+        choices=BACKEND_TYPES_LIST,
         default='appomatic_mapserver.views.TolerancePathMap')
 
-    OPTIONS_PROTOCOL_PARAMS_TEMPLATES = {
+    TEMPLATES = {
         'appomatic_mapserver.views.MapTemplateSimple': 'Simple template',
         'appomatic_mapserver.views.MapTemplateCog': 'Template for events with COG'
     }
-    OPTIONS_PROTOCOL_PARAMS_TEMPLATES_LIST = OPTIONS_PROTOCOL_PARAMS_TEMPLATES.items()
-    OPTIONS_PROTOCOL_PARAMS_TEMPLATES_LIST.sort()
-    options_protocol_params_template = django.db.models.CharField(
+    TEMPLATES_LIST = TEMPLATES.items()
+    TEMPLATES_LIST.sort()
+    template = django.db.models.CharField(
         max_length=1024,
-        choices=OPTIONS_PROTOCOL_PARAMS_TEMPLATES_LIST,
+        choices=TEMPLATES_LIST,
         default='appomatic_mapserver.views.MapTemplateCog')
 
-    options_protocol_params_table = django.db.models.CharField(max_length=1024)
+    query = django.db.models.CharField(max_length=1024)
 
     definition = fcdjangoutils.fields.JsonField(blank=True)
 
@@ -62,16 +71,11 @@ class Layer(django.db.models.Model):
     def layer_def(self):
         definition = self.definition or {}
 
-        for member in ('type', 'options_protocol_params_type', 'options_protocol_params_template', 'options_protocol_params_table'):
-            value = getattr(self, member)
-            member = member.split('_')
+        for name in ('name', 'slug', 'type'):
+            definition[name] = getattr(self, name)
 
-            node = definition
-            for item in member[:-1]:
-                if item not in node:
-                    node[item] = {}
-                node = node[item]
-            node[member[-1]] = value
+        # This is sent back to the server from the front-end and is used to find this layer object again
+        set_path(definition, ['options', 'protocol', 'params', 'layer'], self.slug)
 
         return definition
 

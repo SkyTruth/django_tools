@@ -39,18 +39,22 @@ def print_time(fn):
 class MapLayer(object):
     def __init__(self, urlquery):
         self.urlquery = urlquery
-        self.template = MapTemplate(urlquery)
-        self.source = MapSource(urlquery)
+        self.layerdef = appomatic_mapserver.models.Layer.objects.get(slug=self.urlquery['layer'], application__slug=self.urlquery['application'])
+        self.template = MapTemplate(self, urlquery)
+        self.source = MapSource(self, urlquery)
 
 class MapTemplate(object):
     implementations = {}
 
-    def __new__(cls, urlquery, *arg, **kw):
+    def __new__(cls, layer, urlquery, *arg, **kw):
         if cls is MapTemplate:
-            type = urlquery.get('template', 'appomatic_mapserver.views.MapTemplateCog')
-            return cls.implementations[type](urlquery, *arg, **kw)
+            return cls.implementations[layer.layerdef.template](layer, urlquery, *arg, **kw)
         else:
-            return object.__new__(cls, *arg, **kw)
+            return object.__new__(cls, layer, urlquery, *arg, **kw)
+
+    def __init__(self, layer, urlquery, *arg, **kw):
+        self.layer = layer
+        self.urlquery = urlquery
 
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
@@ -123,7 +127,6 @@ class MapRenderer(object):
 
     def __init__(self, urlquery):
         self.urlquery = urlquery
-        self.template = MapTemplate(self.urlquery)
         self.application = appomatic_mapserver.models.Application.objects.get(slug=self.urlquery['application'])
 
     def __enter__(self):
@@ -133,7 +136,7 @@ class MapRenderer(object):
         pass
 
     def get_layers(self):
-        if 'type' in self.urlquery and 'table' in self.urlquery:
+        if 'layer' in self.urlquery:
             yield MapLayer(self.urlquery)
         else:
             for name, layer in self.get_layer_defs().iteritems():
@@ -216,12 +219,11 @@ class MapRendererKml(MapRenderer):
 class MapSource(object):
     implementations = {}
 
-    def __new__(cls, urlquery, *arg, **kw):
+    def __new__(cls, layer, urlquery, *arg, **kw):
         if cls is MapSource:
-            type = urlquery.get('type', 'tolerance_path')
-            return cls.implementations[type](urlquery, *arg, **kw)
+            return cls.implementations[layer.layerdef.backend_type](layer, urlquery, *arg, **kw)
         else:
-            return object.__new__(cls, urlquery, *arg, **kw)
+            return object.__new__(cls, layer, urlquery, *arg, **kw)
 
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
@@ -229,7 +231,8 @@ class MapSource(object):
             if name != "MapSource":
                 MapSource.implementations[members.get('__module__', '__main__') + "." + name] = cls
 
-    def __init__(self, urlquery):
+    def __init__(self, layer, urlquery):
+        self.layer = layer
         self.urlquery = urlquery
 
     def __enter__(self):
@@ -255,10 +258,7 @@ class MapSource(object):
             }
 
     def get_table(self):
-        table = self.urlquery["table"]
-        if not re.search("^[a-z_]*$", table):
-            raise Exception("SQL injections are so not cool. Try again.")
-        return table
+        return self.layer.layerdef.query
 
     def get_bboxsql(self):
         bboxmin = "ST_Point(%(lonmin)s, %(latmin)s)"
@@ -370,7 +370,7 @@ class TolerancePathMap(MapSource):
 
 
     def get_timeframe(self):
-        self.cur.execute("select min(timemin), max(timemax) from " + self.get_table())
+        self.cur.execute("select min(timemin), max(timemax) from " + self.get_table() + " as a")
         row = self.cur.fetchone()
         return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
 
@@ -386,12 +386,18 @@ class EventMap(MapSource):
             extract(epoch from datetime) as datetime,
             ST_AsText(location) as shape
           from
-            """ + self.get_table() + """
+            """ + self.get_table() + """ as a
           where
             not (%(timemax)s < datetime or %(timemin)s > datetime)
             and ST_Contains(
               """ + bboxsql['bbox'] + """, location)
+          order by
+            a.datetime desc
         """
+
+        if 'limit' in self.urlquery:
+            sql += "limit %(limit)s"
+            query['limit'] = self.urlquery['limit']
 
         self.cur.execute(sql, query)
         try:
@@ -401,7 +407,7 @@ class EventMap(MapSource):
             print "RESULTS: ", self.cur.rowcount
 
     def get_timeframe(self):
-        self.cur.execute("select min(datetime), max(datetime) from " + self.get_table())
+        self.cur.execute("select min(datetime), max(datetime) from " + self.get_table() + " as a")
         row = self.cur.fetchone()
         return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
 
