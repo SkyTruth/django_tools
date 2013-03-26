@@ -95,7 +95,7 @@ MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
     $(this.contentDiv).find("#download-kml").click(function () {        
       window.open(
         MapServer.apiurl + "?" + $.param({
-          format: 'appomatic_mapserver.views.MapRendererKml',
+          format: 'appomatic_mapserver.maprenderers.MapRendererKml',
           full: 'true',
           action: 'map',
           datetime__gte: self.map.timemin,

@@ -42,8 +42,8 @@ class Layer(django.db.models.Model):
         default='appomatic_mapserver.views.TolerancePathMap')
 
     BACKEND_TYPES = {
-        'appomatic_mapserver.views.TolerancePathMap': 'Simplified path',
-        'appomatic_mapserver.views.EventMap': 'Event list'
+        'appomatic_mapserver.mapsources.TolerancePathMap': 'Simplified path',
+        'appomatic_mapserver.mapsources.EventMap': 'Event list'
     }
     BACKEND_TYPES_LIST = BACKEND_TYPES.items()
     BACKEND_TYPES_LIST.sort()
@@ -53,8 +53,8 @@ class Layer(django.db.models.Model):
         default='appomatic_mapserver.views.TolerancePathMap')
 
     TEMPLATES = {
-        'appomatic_mapserver.views.MapTemplateSimple': 'Simple template',
-        'appomatic_mapserver.views.MapTemplateCog': 'Template for events with COG'
+        'appomatic_mapserver.maptemplates.MapTemplateSimple': 'Simple template',
+        'appomatic_mapserver.maptemplates.MapTemplateCog': 'Template for events with COG'
     }
     TEMPLATES_LIST = TEMPLATES.items()
     TEMPLATES_LIST.sort()
