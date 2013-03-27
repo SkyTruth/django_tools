@@ -18,8 +18,9 @@ class MapSource(object):
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
             type.__init__(cls, name, bases, members)
-            if name != "MapSource":
-                MapSource.implementations[members.get('__module__', '__main__') + "." + name] = cls
+            module = members.get('__module__', '__main__')
+            if name != "MapSource" or module != "appomatic_mapserver.mapsources":
+                MapSource.implementations[module + "." + name] = cls
 
     def __init__(self, layer, urlquery):
         self.layer = layer
@@ -87,6 +88,7 @@ class MapSource(object):
             yield row
 
 class TolerancePathMap(MapSource):
+    name = 'Simplified path'
     def get_tolerance(self):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
@@ -166,6 +168,7 @@ class TolerancePathMap(MapSource):
 
 
 class EventMap(MapSource):
+    name = 'Event list'
     def get_map_data_raw(self):
         query = self.get_query()
         bboxsql = self.get_bboxsql()

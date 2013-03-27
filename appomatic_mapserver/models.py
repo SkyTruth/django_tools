@@ -1,5 +1,8 @@
 import django.db.models
 import fcdjangoutils.fields
+import appomatic_mapserver.mapsources
+import appomatic_mapserver.maptemplates
+import django.utils.functional
 
 def set_path(d, path, value):
     node = d
@@ -41,31 +44,37 @@ class Layer(django.db.models.Model):
         choices=TYPES_LIST,
         default='appomatic_mapserver.views.TolerancePathMap')
 
-    BACKEND_TYPES = {
-        'appomatic_mapserver.mapsources.TolerancePathMap': 'Simplified path',
-        'appomatic_mapserver.mapsources.EventMap': 'Event list'
-    }
-    BACKEND_TYPES_LIST = BACKEND_TYPES.items()
-    BACKEND_TYPES_LIST.sort()
     backend_type = django.db.models.CharField(
         max_length=1024,
-        choices=BACKEND_TYPES_LIST,
+        choices=[],
         default='appomatic_mapserver.views.TolerancePathMap')
 
-    TEMPLATES = {
-        'appomatic_mapserver.maptemplates.MapTemplateSimple': 'Simple template',
-        'appomatic_mapserver.maptemplates.MapTemplateCog': 'Template for events with COG'
-    }
-    TEMPLATES_LIST = TEMPLATES.items()
-    TEMPLATES_LIST.sort()
     template = django.db.models.CharField(
         max_length=1024,
-        choices=TEMPLATES_LIST,
+        choices=[],
         default='appomatic_mapserver.views.MapTemplateCog')
 
     query = django.db.models.CharField(max_length=1024)
 
     definition = fcdjangoutils.fields.JsonField(blank=True)
+
+    def __init__(self, *args, **kwargs):
+        super(Layer, self).__init__(*args, **kwargs)
+
+        def get_backend_types():
+            types = [(id, obj.name)
+                          for (id, obj) in appomatic_mapserver.mapsources.MapSource.implementations.iteritems()]
+            types.sort()
+            return types
+        def get_templates():
+            templates = [(id, obj.name)
+                         for (id, obj) in appomatic_mapserver.maptemplates.MapTemplate.implementations.iteritems()]
+            templates.sort()
+            return templates
+
+        self._meta.get_field_by_name('backend_type')[0]._choices = django.utils.functional.lazy(get_backend_types, list)()
+        self._meta.get_field_by_name('template')[0]._choices = django.utils.functional.lazy(get_templates, list)()
+
 
     @property
     def layer_def(self):

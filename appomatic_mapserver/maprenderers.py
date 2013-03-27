@@ -21,7 +21,8 @@ class MapRenderer(object):
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
             type.__init__(cls, name, bases, members)
-            if name != "MapRenderer":
+            module = members.get('__module__', '__main__')
+            if name != "MapRenderer" or module != "appomatic_mapserver.maprenderers":
                 MapRenderer.implementations[members.get('__module__', '__main__') + "." + name] = cls
 
     def __init__(self, urlquery):

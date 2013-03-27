@@ -18,10 +18,12 @@ class MapTemplate(object):
     class __metaclass__(type):
         def __init__(cls, name, bases, members):
             type.__init__(cls, name, bases, members)
-            if name != "MapTemplate":
-                MapTemplate.implementations[members.get('__module__', '__main__') + "." + name] = cls
+            module = members.get('__module__', '__main__')
+            if name != "MapTemplate" or module != "appomatic_mapserver.maptemplates":
+                MapTemplate.implementations[module + "." + name] = cls
 
 class MapTemplateSimple(MapTemplate):
+    name = 'Simple template'
     def row_name(self, row):
         return ""
 
@@ -51,6 +53,7 @@ class MapTemplateSimple(MapTemplate):
         return style
 
 class MapTemplateCog(MapTemplateSimple):
+    name = 'Template for events with COG'
     def row_kml_style(self, row):
         id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))
         try:
