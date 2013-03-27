@@ -24,23 +24,26 @@ class MapTemplate(object):
 
 class MapTemplateSimple(MapTemplate):
     name = 'Simple template'
-    def row_name(self, row):
-        return ""
+    def row_generate_text(self, row):
+        row['name'] = ""
 
-    def row_description(self, row):
         header = "<h2>%(name)s</h2>"
         if "url" in row:
             header = "<h2><a href='%(url)s'>%(name)s</a></h2>"
         cols = [col for col in row.keys() if col not in ("shape", "location")]
         cols.sort()
         template = header + '<table>%s</table>' % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
-        return template % row
+        row['description'] = template % row
 
-    def group_name(self, row):
-        return "%(name)s" % row
-
-    def group_description(self, row):
-        return ""
+        row['style'] = {
+          "graphicName": "circle",
+          "fillOpacity": 1.0,
+          "fillColor": "#0000ff",
+          "strokeOpacity": 1.0,
+          "strokeColor": "#ff0000",
+          "strokeWidth": 1,
+          "pointRadius": 3,
+          }
     
     def row_kml_style(self, row):
         id = row.get('id', row.get('name', row.get('mmsi', str(uuid.uuid4()))))

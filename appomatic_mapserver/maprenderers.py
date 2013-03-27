@@ -67,6 +67,7 @@ class MapRendererGeojson(MapRenderer):
         for layer in self.get_layers():
             with layer.source as source:
                 for row in source.get_map_data():
+                    layer.template.row_generate_text(row)
                     geometry = shapely.wkt.loads(str(row['shape']))
                     geometry = fcdjangoutils.jsonview.from_json(
                         geojson.dumps(
@@ -99,11 +100,12 @@ class MapRendererKml(MapRenderer):
 
             with layer.source as source:
                 for row in source.get_map_data():
+                    layer.template.row_generate_text(row)
                     geometry = shapely.wkt.loads(str(row['shape']))
                     placemark = fastkml.kml.Placemark(
                         ns, row['name'],
-                        layer.template.row_name(row),
-                        layer.template.row_description(row))
+                        row['name'],
+                        row['description'])
                     placemark.append_style(layer.template.row_kml_style(row))
                     placemark.geometry = geometry
                     folder.append(placemark)

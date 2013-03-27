@@ -206,14 +206,9 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
             action:'map'}),
         })),
       styleMap: new OpenLayers.StyleMap({
-        "default": new OpenLayers.Style({
-          graphicName: "circle",
-          pointRadius: 3,
-          fillOpacity: 0.25,
-          fillColor: "#ffcc66",
-          strokeColor: "#ff9933",
-          strokeWidth: 1
-        })
+          "default": new OpenLayers.Style({}, {createSymbolizer: function(feature) {
+              return OpenLayers.Util.extend(OpenLayers.Util.extend({}, this.defaultStyle), feature.data.style);
+          }})
       }),
       renderers: ["Canvas", "SVG", "VML"]
     });
@@ -237,7 +232,7 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
       var popup = new OpenLayers.Popup.FramedCloud("popup",
         new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom),
         null,
-        Mustache.render("<h2><a href='{{url}}'>{{name}}</a></h2><table><tr><th>MMSI</th><td>{{mmsi}}</td></tr><tr><th>Type</th><td>{{type}}</td></tr><tr><th>Length</th><td>{{length}}</td></tr></table>", attrs),
+        attrs.description,
         null,
         true
       );

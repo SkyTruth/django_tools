@@ -1,6 +1,7 @@
 import appomatic_mapdata.models
 import datetime
 import django.db
+import math
 
 def dictreader(cur):
     for row in cur:
