@@ -319,9 +319,10 @@ def extract_reports_kml(cur, query, periods, doc):
 def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
     timeperiodstr = "%s-%s" % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
 
+    foldername = 'Clusters %s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
     folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
-                                'timeperiod-%s' % timeperiodstr,
-                                '%s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d")),
+                                 django.template.defaultfilters.slugify(foldername),
+                                foldername,
                                 '')
     doc.append(folder)
 
