@@ -236,11 +236,12 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
       }
       var popup = new OpenLayers.Popup.FramedCloud("popup",
         new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom),
-        null,
+        new OpenLayers.Size(400,300),
         attrs.description,
         null,
         true
       );
+      popup.autoSize = false;
       feature.popup = popup;
       this.map.addPopup(popup);
     },
