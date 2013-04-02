@@ -1,3 +1,28 @@
+#eventlist {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#eventlist img {
+  max-width: 16px;
+  max-height: 16px;
+  margin-left: -20px;
+  float: left;
+}
+
+#eventlist .item {
+  font-size: 10pt;
+  padding-left: 20px;
+}
+
+#eventlist a {
+  text-decoration: none;
+}
+
+#eventlist a:hover {
+  text-decoration: underline;
+}
+
 #time-slider-label-min {
   position: absolute;
   left: 2pt;
@@ -19,9 +44,17 @@
   top: 4pt;
 }
 
-#map {
+#eventlist {
   position: absolute;
   left: 0;
+  top: 2em;
+  width: 20em;
+  bottom: 0;
+}
+
+#map {
+  position: absolute;
+  left: 20em;
   top: 2em;
   right: 0;
   bottom: 0;
