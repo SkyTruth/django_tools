@@ -403,7 +403,7 @@ def decodePeriod(period):
 def extract(name, query, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **options):
     if template:
         with open(os.path.expanduser(template)) as f:
-            exec f
+            exec f in globals()
 
     if periods:
         periods = [decodePeriod(period)
