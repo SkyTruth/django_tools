@@ -345,10 +345,16 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
         folder.append(placemark)
 
 
-def extract_kml(cur, query, size, radius, periods):
+def extract_kml(name, cur, query, size, radius, periods):
     kml = fastkml.kml.KML()
     ns = '{http://www.opengis.net/kml/2.2}'
-    doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
+
+    docname = name
+    if periods:
+        docname += ' ' + ', '.join("%s:%s" % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
+                                   for timeperiod in periods)
+
+    doc = fastkml.kml.Document(ns, django.template.defaultfilters.slugify(docname), docname, '')
     kml.append(doc)
 
     for timeperiod in periods:
@@ -373,7 +379,7 @@ def extract_clusters_csv(cur, query, radius, size, timeperiod, doc):
 
         doc.writerow([info['row'][col] for col in columns])
 
-def extract_csv(cur, query, size, radius, periods, doc):
+def extract_csv(name, cur, query, size, radius, periods, doc):
     global columns
     columns = None
     for timeperiod in periods:
@@ -393,7 +399,7 @@ def decodePeriod(period):
         end = start + datetime.interval(30)
     return (start, end)
 
-def extract(query, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **options):
+def extract(name, query, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **options):
     if template:
         with open(os.path.expanduser(template)) as f:
             exec f
@@ -408,10 +414,10 @@ def extract(query, template=None, format='kml', size = 4, radius=7500, periods =
 
     with contextlib.closing(django.db.connection.cursor()) as cur:
         if format == 'kml':
-            return extract_kml(cur, query, size, radius, periods).encode('utf-8')
+            return extract_kml(name, cur, query, size, radius, periods).encode('utf-8')
         elif format == 'csv':
             f = StringIO.StringIO()
-            extract_csv(cur, query, size, radius, periods, csv.writer(f))
+            extract_csv(name, cur, query, size, radius, periods, csv.writer(f))
             return f.getvalue()
         else:
             raise Exception("Unsupported format")

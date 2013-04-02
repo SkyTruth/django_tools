@@ -24,6 +24,11 @@ class Command(django.core.management.base.BaseCommand):
     args = '<query> <filename>'
 
     option_list = django.core.management.base.BaseCommand.option_list + (
+        optparse.make_option('--name',
+            action='store',
+            dest='name',
+            default='',
+            help='Document name'),
         optparse.make_option('--template',
             action='store',
             dest='template',
@@ -54,8 +59,10 @@ class Command(django.core.management.base.BaseCommand):
         )
 
     def handle2(self, query, filename, *args, **options):
+        name = options.pop('name')
+        if not name: name = os.path.splitext(os.path.split(filename)[1])[0]
         with open(filename, "w") as f:
-            f.write(appomatic_mapcluster.genclusters.extract(query, *args, **options))
+            f.write(appomatic_mapcluster.genclusters.extract(name, query, *args, **options))
 
     def handle(self, *args, **options):
         try:

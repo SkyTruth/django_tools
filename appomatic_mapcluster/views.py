@@ -3,6 +3,7 @@ import django.shortcuts
 import django.http
 import appomatic_mapcluster.models
 import appomatic_mapcluster.genclusters
+import urllib
 
 def index(request):
     queries = appomatic_mapcluster.models.Query.objects.all()
@@ -24,9 +25,14 @@ def cluster(request, name):
 
     response = django.http.HttpResponse(
         appomatic_mapcluster.genclusters.extract(
-            query.query, query.template, query.format, query.size, query.radius, periods = periods),
+            query.name, query.query, query.template, query.format, query.size, query.radius, periods = periods),
         content_type=contentTypes[query.format])
 
-    response['Content-Disposition'] = 'attachment; filename="%s.%s"' % (query.name, query.format,)
+    filename = query.name
+    if periods:
+        filename += ' ' + ', '.join(periods)
+    filename += "." + query.format
+    
+    response['Content-Disposition'] = 'attachment; filename="%s"' % (filename,)
 
     return response
