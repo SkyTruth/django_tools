@@ -517,13 +517,13 @@ MapServer.updateUrlFromMap = function (map) {
 MapServer.updateMapFromUrl = function (map) {
   MapServer.updateUrlFromMap.noUpdate = true;
   var data = JSON.parse(decodeURIComponent(window.location.hash.substr(1)));
-  $("#time-slider").slider( "option", "values", [data.timemin, data.timemax]);
-  map.setTimeRange(data.timemin, data.timemax);
   map.setCenter(
     (new OpenLayers.LonLat(data.center.lon, data.center.lat)).transform(
       new OpenLayers.Projection("EPSG:4326"),
       map.getProjection()),
     data.zoom);
+  $("#time-slider").slider( "option", "values", [data.timemin, data.timemax]);
+  map.setTimeRange(data.timemin, data.timemax);
   MapServer.updateUrlFromMap.noUpdate = false;
 }
 
@@ -555,9 +555,9 @@ MapServer.init = function () {
           selectFeature
         ],
         setTimeRange: function (min, max) {
-          MapServer.updateUrlFromMap(map);
           this.timemin = min;
           this.timemax = max;
+          MapServer.updateUrlFromMap(map);
           $.each(this.layers, function () {
             if (typeof this.setTimeRange != "undefined") {
               this.setTimeRange(min, max);
@@ -670,12 +670,14 @@ MapServer.init = function () {
       if (window.location.hash) {
         MapServer.updateMapFromUrl(map);
       } else {
+        var values = $("#time-slider").slider("option", "values");
         map.setCenter(
           new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
             new OpenLayers.Projection("EPSG:4326"),
             map.getProjectionObject()
           ), 5
         );
+        map.setTimeRange(values[0], values[1]);
       }
       cb();
     }
