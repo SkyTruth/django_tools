@@ -20,6 +20,7 @@ MapServer.dateTimeToDate = function (d) {
 }
 
 MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
+  CLASS_NAME: "MapServer.Control.Menu",
   minimizeDiv: null,
   maximizeDiv: null,
   contentDiv: null,
@@ -163,10 +164,168 @@ MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
     this.minimizeDiv.style.display = "none";
 
     this.div.appendChild(this.minimizeDiv);
+  }
+});
+
+
+MapServer.Control.GeoCode = OpenLayers.Class(OpenLayers.Control, {
+  CLASS_NAME: "MapServer.Control.GeoCode",
+  minimizeDiv: null,
+  maximizeDiv: null,
+  contentDiv: null,
+
+  initialize: function(options) {
+    OpenLayers.Control.prototype.initialize.apply(this, arguments);
   },
 
-  CLASS_NAME: "MapServer.Control.Menu"
+  destroy: function() {
+    this.map.events.un({buttonclick: this.onButtonClick, scope: this});
+    this.events.unregister("buttonclick", this, this.onButtonClick);
+    OpenLayers.Control.prototype.destroy.apply(this, arguments);
+  },
+
+  setMap: function(map) {
+    OpenLayers.Control.prototype.setMap.apply(this, arguments);
+    this.map.events.register("buttonclick", this, this.onButtonClick);
+  },
+
+  draw: function() {
+    OpenLayers.Control.prototype.draw.apply(this);
+    this.loadContents();
+    this.minimizeControl();
+    this.redraw();    
+    return this.div;
+  },
+
+  onButtonClick: function(evt) {
+    var button = evt.buttonElement;
+    if (button === this.minimizeDiv) {
+      this.minimizeControl();
+    } else if (button === this.maximizeDiv) {
+      this.maximizeControl();
+    } else if (button._layerSwitcher === this.id) {
+      if (button["for"]) {
+        button = document.getElementById(button["for"]);
+      }
+      if (!button.disabled) {
+        console.log(button);
+      }
+    }
+  },
+
+
+  redraw: function() {
+    return this.div; 
+  },
+
+  maximizeControl: function(e) {
+    this.div.style.width = "";
+    this.div.style.height = "";
+
+    this.showControls(false);
+
+    if (e != null) {
+      OpenLayers.Event.stop(e);                                            
+    }
+    $(this.contentDiv).find('input').focus();
+  },
+
+  minimizeControl: function(e) {
+    this.div.style.width = "0px";
+    this.div.style.height = "0px";
+
+    this.showControls(true);
+
+    if (e != null) {
+      OpenLayers.Event.stop(e);                                            
+    }
+  },
+
+  showControls: function(minimize) {
+    this.maximizeDiv.style.display = minimize ? "" : "none";
+    this.minimizeDiv.style.display = minimize ? "none" : "";
+    this.contentDiv.style.display = minimize ? "none" : "";
+  },
+
+  query: function(queryString) {
+    var self = this;
+    OpenLayers.Request.POST({
+        url: "http://www.openrouteservice.org/php/OpenLSLUS_Geocode.php",
+        scope: self,
+        failure: self.requestFailure,
+        success: self.requestSuccess,
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        data: "FreeFormAdress=" + encodeURIComponent(queryString) + "&MaxResponse=1"
+    });
+  },
+
+  requestSuccess: function(response) {
+    var self = this;
+    self.minimizeControl();
+    var format = new OpenLayers.Format.XLS();
+    var output = format.read(response.responseXML);
+    if (output.responseLists[0] && output.responseLists[0].features[0]) {
+      var geometry = output.responseLists[0].features[0].geometry;
+      var foundPosition = new OpenLayers.LonLat(geometry.x, geometry.y).transform(
+        new OpenLayers.Projection("EPSG:4326"),
+        map.getProjectionObject()
+      );
+      self.map.setCenter(foundPosition, 16);
+    } else {
+      alert("Sorry, no address found");
+    }
+  },
+
+  requestFailure: function(response) {
+    var self = this;
+    self.minimizeControl();
+    alert("An error occurred while communicating with the OpenLS service. Please try again.");
+  },
+
+  loadContents: function() {
+    var self = this;
+    var contentDiv = $("<div class='content'>Address:</div>");
+    this.contentDiv = contentDiv[0];
+    $(this.div).append(this.contentDiv);
+
+    var input = $("<input type='text'>");
+    contentDiv.append(input);
+
+    input.keyup(function (event) {
+      if (event.which == 13) {
+        self.query(input.val());
+        event.preventDefault();
+      }
+    });
+
+    // maximize button div
+    var img = OpenLayers.Util.getImageLocation('layer-switcher-maximize.png');
+    this.maximizeDiv = OpenLayers.Util.createAlphaImageDiv(
+                                "OpenLayers_Control_MaximizeDiv", 
+                                null, 
+                                null, 
+                                img, 
+                                "absolute");
+    OpenLayers.Element.addClass(this.maximizeDiv, "maximizeDiv olButton");
+    this.maximizeDiv.style.display = "none";
+
+    this.div.appendChild(this.maximizeDiv);
+
+    // minimize button div
+    var img = OpenLayers.Util.getImageLocation('layer-switcher-minimize.png');
+    this.minimizeDiv = OpenLayers.Util.createAlphaImageDiv(
+                                "OpenLayers_Control_MinimizeDiv", 
+                                null, 
+                                null, 
+                                img, 
+                                "absolute");
+    OpenLayers.Element.addClass(this.minimizeDiv, "minimizeDiv olButton");
+    this.minimizeDiv.style.display = "none";
+
+    this.div.appendChild(this.minimizeDiv);
+  }
 });
+
 
 MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
   CLASS_NAME: "MapServer.Layer.Db",
@@ -345,11 +504,13 @@ MapServer.Layer.KmlDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
 MapServer.init = function () {
   async.series([
     function(cb) {
-                function mapEvent(event) {
-                    console.log(event);
-                }
+      function mapEvent(event) {
+        console.log(event);
+      }
 
-     var selectFeature = new OpenLayers.Control.SelectFeature(this.vlayer);
+      OpenLayers.ProxyHost = MapServer.proxyurl;
+
+      var selectFeature = new OpenLayers.Control.SelectFeature(this.vlayer);
 
       map = new OpenLayers.Map('map', {
         controls: [
@@ -363,6 +524,7 @@ MapServer.init = function () {
           new OpenLayers.Control.OverviewMap(),
           new OpenLayers.Control.KeyboardDefaults(),
           new MapServer.Control.Menu(),
+          new MapServer.Control.GeoCode(),
           selectFeature
         ],
         setTimeRange: function (min, max) {
