@@ -13,10 +13,38 @@ import datetime
 import csv
 import os.path
 import StringIO
+import fastkml.config
+
+# Monkeypatch to fix a bug
+def etree_element(self):
+    element = super(fastkml.styles.StyleMap, self).etree_element()
+    if self.normal:
+        if isinstance(self.normal, (fastkml.styles.Style, fastkml.styles.StyleUrl)):
+            pair = fastkml.config.etree.SubElement(element, "%sPair" %self.ns)
+            key = fastkml.config.etree.SubElement(pair, "%skey" %self.ns)
+            key.text = 'normal'
+            pair.append(self.normal.etree_element())
+    if self.highlight:
+        if isinstance(self.highlight, (fastkml.styles.Style, fastkml.styles.StyleUrl)):
+            pair = fastkml.config.etree.SubElement(element, "%sPair" %self.ns)
+            key = fastkml.config.etree.SubElement(pair, "%skey" %self.ns)
+            key.text = 'highlight'
+            pair.append(self.highlight.etree_element()) # bug was here, said self.normal.etree_element()
+    return element
+fastkml.styles.StyleMap.etree_element = etree_element
+
+
+KMLNS = '{http://www.opengis.net/kml/2.2}'
 
 def dictreader(cur):
     for row in cur:
         yield dict(zip([col[0] for col in cur.description], row))
+
+def template_reports_name():
+    return "Reports"
+
+def template_reports_description():
+    return 'All reports'
 
 def template_cluster_name(columns):
     return ""
@@ -278,7 +306,7 @@ def extract_reports(cur, query, periods):
 
 
 def extract_reports_kml(cur, query, periods, doc):
-    folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', 'All reports', 'Reports', '')
+    folder = fastkml.kml.Folder(KMLNS, 'all-reports', template_reports_name(), template_reports_description())
     doc.append(folder)
 
     icons = [
@@ -295,21 +323,43 @@ def extract_reports_kml(cur, query, periods, doc):
     groupings = extract_reports(cur, query, periods)
 
     for ind, (typename, rows) in enumerate(groupings):
-        style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s" % (typename,))
-        icon_style = fastkml.styles.IconStyle(
-            '{http://www.opengis.net/kml/2.2}',
-            "style-%s-icon" % (typename,),
-            scale=0.5,
-            icon_href=icons[ind % len(icons)])
-        style.append_style(icon_style)
+        style = fastkml.styles.Style(KMLNS, "style-%s-normal" % (typename,))
+        style.append_style(fastkml.styles.IconStyle(
+                KMLNS,
+                "style-%s-normal-icon" % (typename,),
+                scale=0.5,
+                icon_href=icons[ind % len(icons)]))
+        style.append_style(fastkml.styles.LabelStyle(
+                KMLNS,
+                "style-%s-normal-label" % (typename,),
+                scale=0))
         doc.append_style(style)
 
+        style = fastkml.styles.Style(KMLNS, "style-%s-highlight" % (typename,))
+        style.append_style(fastkml.styles.IconStyle(
+                KMLNS,
+                "style-%s-highlight-icon" % (typename,),
+                scale=1.0,
+                icon_href=icons[ind % len(icons)]))
+        style.append_style(fastkml.styles.LabelStyle(
+                KMLNS,
+                "style-%s-highlight-label" % (typename,),
+                scale=1))
+        doc.append_style(style)
+
+        style_map = fastkml.styles.StyleMap(
+            KMLNS,
+            "style-%s" % (typename,))
+        style_map.normal = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-normal" % (typename,))
+        style_map.highlight = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-highlight" % (typename,))
+        doc.append_style(style_map)
+
     for (typename, rows) in groupings:
-        subfolder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}', typename, typename)
+        subfolder = fastkml.kml.Folder(KMLNS, typename, typename)
         folder.append(subfolder)
 
         for info in rows:
-            placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%(id)s" % info['row'], info['name'] % info['row'], info['description'] % info['row'])
+            placemark = fastkml.kml.Placemark(KMLNS, "%(id)s" % info['row'], info['name'] % info['row'], info['description'] % info['row'])
             placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
             placemark.styleUrl = "#style-%s" % (typename,)
             subfolder.append(placemark)
@@ -320,27 +370,53 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
     timeperiodstr = "%s-%s" % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
 
     foldername = 'Clusters %s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
-    folder = fastkml.kml.Folder('{http://www.opengis.net/kml/2.2}',
+    folder = fastkml.kml.Folder(KMLNS,
                                  django.template.defaultfilters.slugify(foldername),
                                 foldername,
                                 '')
     doc.append(folder)
 
     for info in extract_clusters(cur, query, size, radius, timeperiod):
-        style = fastkml.styles.Style('{http://www.opengis.net/kml/2.2}', "style-%s-%s" % (timeperiodstr, info['seq']))
         if info['scoremax'] - info['scoremin']:
             scale = 0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin']))
         else:
             scale = 1.0
-        icon_style = fastkml.styles.IconStyle(
-            '{http://www.opengis.net/kml/2.2}',
-            "style-%s-%s-icon" % (timeperiodstr, info['seq']),
-            scale=scale,
-            icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
-            color=info['color'])
-        style.append_style(icon_style)
+
+        style = fastkml.styles.Style(KMLNS, "style-%s-%s-normal" % (timeperiodstr, info['seq']))
+        style.append_style(fastkml.styles.IconStyle(
+                KMLNS,
+                "style-%s-%s-normal-icon" % (timeperiodstr, info['seq']),
+                scale=scale,
+                icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
+                color=info['color']))
+        style.append_style(fastkml.styles.LabelStyle(
+                KMLNS,
+                "style-%s-%s-normal-label" % (timeperiodstr, info['seq']),
+                scale=0))
         doc.append_style(style)
-        placemark = fastkml.kml.Placemark('{http://www.opengis.net/kml/2.2}', "%s-%s" % (timeperiodstr, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
+
+        style = fastkml.styles.Style(KMLNS, "style-%s-%s-highlight" % (timeperiodstr, info['seq']))
+        style.append_style(fastkml.styles.IconStyle(
+                KMLNS,
+                "style-%s-%s-highlight-icon" % (timeperiodstr, info['seq']),
+                scale=scale + 1,
+                icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
+                color=info['color']))
+        style.append_style(fastkml.styles.LabelStyle(
+                KMLNS,
+                "style-%s-%s-highlight-label" % (timeperiodstr, info['seq']),
+                scale=1))
+        doc.append_style(style)
+
+        style_map = fastkml.styles.StyleMap(
+            KMLNS,
+            "style-%s-%s" % (timeperiodstr, info['seq']))
+        style_map.normal = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-%s-normal" % (timeperiodstr, info['seq']))
+        style_map.highlight = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-%s-highlight" % (timeperiodstr, info['seq']))
+        doc.append_style(style_map)
+
+
+        placemark = fastkml.kml.Placemark(KMLNS, "%s-%s" % (timeperiodstr, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
         placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
         placemark.styleUrl = "#style-%s-%s" % (timeperiodstr, info['seq'])
         folder.append(placemark)
@@ -348,14 +424,13 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
 
 def extract_kml(name, cur, query, size, radius, periods):
     kml = fastkml.kml.KML()
-    ns = '{http://www.opengis.net/kml/2.2}'
 
     docname = name
     if periods:
         docname += ' ' + ', '.join("%s:%s" % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
                                    for timeperiod in periods)
 
-    doc = fastkml.kml.Document(ns, django.template.defaultfilters.slugify(docname), docname, '')
+    doc = fastkml.kml.Document(KMLNS, django.template.defaultfilters.slugify(docname), docname, '')
     kml.append(doc)
 
     for timeperiod in periods:
