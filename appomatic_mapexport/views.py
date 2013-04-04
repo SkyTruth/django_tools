@@ -10,13 +10,17 @@ import appomatic_mapexport.csvconvert
 import appomatic_mapexport.djangorecords
 
 def kmlformat(request):
-    return django.http.HttpResponse(
+    res = django.http.HttpResponse(
         appomatic_mapexport.kmlconvert.convert(appomatic_mapexport.djangorecords.get_records(**dict(request.GET.items())), 'extract2kml'),
-        mimetype="text/plain",
+        mimetype="application/vnd.google-earth.kml+xml",
         status=200)
+    res['Content-Disposition'] = 'attachment; filename="export.kml"'
+    return res
 
 def csvformat(request):
-    return django.http.HttpResponse(
+    res = django.http.HttpResponse(
         appomatic_mapexport.csvconvert.convert(appomatic_mapexport.djangorecords.get_records(**dict(request.GET.items()))),
-        mimetype="text/plain",
+        mimetype="text/csv",
         status=200)
+    res['Content-Disposition'] = 'attachment; filename="export.csv"'
+    return res
