@@ -503,7 +503,7 @@ MapServer.Layer.KmlDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
 
 MapServer.updateUrlFromMap = function (map) {
   if (MapServer.updateUrlFromMap.noUpdate) return;
-  window.location.hash = "#" + encodeURIComponent(JSON.stringify({
+  top.window.location.hash = "#" + encodeURIComponent(JSON.stringify({
     timemin: map.timemin,
     timemax: map.timemax,
     center: map.getCenter().transform(
@@ -516,7 +516,7 @@ MapServer.updateUrlFromMap = function (map) {
 
 MapServer.updateMapFromUrl = function (map) {
   MapServer.updateUrlFromMap.noUpdate = true;
-  var data = JSON.parse(decodeURIComponent(window.location.hash.substr(1)));
+  var data = JSON.parse(decodeURIComponent(top.window.location.hash.substr(1)));
   map.setCenter(
     (new OpenLayers.LonLat(data.center.lon, data.center.lat)).transform(
       new OpenLayers.Projection("EPSG:4326"),
@@ -667,7 +667,7 @@ MapServer.init = function () {
     },
 
     function(cb) {
-      if (window.location.hash) {
+      if (top.window.location.hash) {
         MapServer.updateMapFromUrl(map);
       } else {
         var values = $("#time-slider").slider("option", "values");
