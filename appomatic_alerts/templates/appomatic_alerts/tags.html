@@ -1,0 +1,27 @@
+{% extends 'appomatic_alerts/base.html' %}
+
+{% block content_title %}<h1>SkyTruth Alerts</h1>{% endblock %}
+
+{% block content %}
+  <p>There are many tags used in the alerts feed that can be used to filter the feed to only include certain types of reports</p>
+
+
+  <h2>Source Tags</h2>
+  <p>Each data source has a tag associated with it that is applied to every incident report that originates from that source.  For instance, reports originating from the <a href="{% url 'appomatic_alerts_sources' %}#NRC">NRC</a> have the tag 'NRC'.  For a complete list of data sources and their corresponding tags, see the <a href="{% url 'appomatic_alerts_sources' %}">SkyTruth Alerts Sources</a> page.</p>
+
+
+  <h2>SkyTruth Analysis Tags</h2>
+  <p>The SkyTruth automated expert system analyzes each report and assigns certain tags based on the content of the report.</p>
+  <div class="inset_box">
+    <table>
+      <tbody><tr><th align="left" valign="top">BigSpill</th><td>The report indicates an oil spill that is larger than 100 gallons</td></tr>
+      <tr><th align="left" valign="top">GeocodeMismatch</th><td>A lat/long was supplied in the report, but it does not match other location information such as a protraction area block id or zipcode</td></tr>
+      <tr><th align="left" valign="top">SheenSizeMismatch</th><td>For an oil spill that has a reported spill volume and also has a reported sheen size, this tag indicated that the volume computed from the sheen area is more than twice the size of the reported volume.  The volume derived from the sheen area is computed assuming a uniform distribution over the entire sheen area with a minimum thickness of 1 micron, which is the minimum thickness necessary in otder to produce a visible sheen on open water, according to <a href="http://blog.skytruth.org/2010/04/gulf-oil-spill-rate-must-be-much-higher.html">this analysis</a>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p></p>
+
+  <h2>Imported Tags</h2>
+  <p>When reports are imported, any tags associated with the report are preserved (for instance tags on imported blog posts)</p>
+{% endblock %}
