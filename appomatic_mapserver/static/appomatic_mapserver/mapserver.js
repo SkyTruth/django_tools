@@ -501,6 +501,33 @@ MapServer.Layer.KmlDir = OpenLayers.Class(OpenLayers.Layer.Vector, {
 });
 
 
+MapServer.updateUrlFromMap = function (map) {
+  if (MapServer.updateUrlFromMap.noUpdate) return;
+  top.window.location.hash = "#" + encodeURIComponent(JSON.stringify({
+    timemin: map.timemin,
+    timemax: map.timemax,
+    center: map.getCenter().transform(
+      map.getProjection(),
+      new OpenLayers.Projection("EPSG:4326")),
+    zoom: map.getZoom()
+  }));
+}
+
+
+MapServer.updateMapFromUrl = function (map) {
+  MapServer.updateUrlFromMap.noUpdate = true;
+  var data = JSON.parse(decodeURIComponent(top.window.location.hash.substr(1)));
+  map.setCenter(
+    (new OpenLayers.LonLat(data.center.lon, data.center.lat)).transform(
+      new OpenLayers.Projection("EPSG:4326"),
+      map.getProjection()),
+    data.zoom);
+  $("#time-slider").slider( "option", "values", [data.timemin, data.timemax]);
+  map.setTimeRange(data.timemin, data.timemax);
+  MapServer.updateUrlFromMap.noUpdate = false;
+}
+
+
 MapServer.init = function () {
   async.series([
     function(cb) {
@@ -530,6 +557,7 @@ MapServer.init = function () {
         setTimeRange: function (min, max) {
           this.timemin = min;
           this.timemax = max;
+          MapServer.updateUrlFromMap(map);
           $.each(this.layers, function () {
             if (typeof this.setTimeRange != "undefined") {
               this.setTimeRange(min, max);
@@ -537,6 +565,9 @@ MapServer.init = function () {
           });
         }
       });
+
+      map.events.register('moveend', {}, function(evt) { MapServer.updateUrlFromMap(map); });
+      map.events.register('zoomend', {}, function(evt) { MapServer.updateUrlFromMap(map); });
 
       map.events.register('loadend', {}, function(evt) {
         var features = {};
@@ -575,13 +606,6 @@ MapServer.init = function () {
 
       map.addLayer(new OpenLayers.Layer.OSM("Simple OSM Map"));
 
-      map.setCenter(
-        new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
-          new OpenLayers.Projection("EPSG:4326"),
-          map.getProjectionObject()
-        ), 5
-      );
-
       cb();
     },
 
@@ -619,7 +643,6 @@ MapServer.init = function () {
     },
 
     function(cb) {
-      map.setTimeRange(data.timemax-24*60*60, data.timemax);
       $("#time-slider-label-min").html(
         MapServer.epochToDate(data.timemax-24*60*60).format(MapServer.TIME_FORMAT));
       $("#time-slider-label-max").html(
@@ -640,6 +663,24 @@ MapServer.init = function () {
           map.setTimeRange(ui.values[0], ui.values[1]);
         }
       });
+      cb();
+    },
+
+    function(cb) {
+      if (top.window.location.hash) {
+        MapServer.updateMapFromUrl(map);
+      } else {
+        var values = $("#time-slider").slider("option", "values");
+        map.setCenter(
+          new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
+            new OpenLayers.Projection("EPSG:4326"),
+            map.getProjectionObject()
+          ), 5
+        );
+        map.setTimeRange(values[0], values[1]);
+      }
+      cb();
     }
+
   ]);
 };

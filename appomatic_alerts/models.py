@@ -1,5 +1,6 @@
 import appomatic_mapserver.maptemplates
-
+from django.conf import settings
+ 
 class MapTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SkyTruth Alerts"
 
@@ -17,18 +18,18 @@ class MapTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     # 1002 | viirs = Night fire / flare  detection
 
     source_icons = {
-        1: "http://alerts.skytruth.org/markers/chemleak.png",
-        2: "http://alerts.skytruth.org/markers/st_google_marker4a.png",
-        3: "http://alerts.skytruth.org/markers/NOAA_marker.png",
-        4: "http://alerts.skytruth.org/markers/permit.png",
-        5: "http://alerts.skytruth.org/markers/drill.png",
-        6: "http://alerts.skytruth.org/markers/earthquake.png",
-        7: "http://alerts.skytruth.org/markers/permit.png",
-        8: "http://alerts.skytruth.org/markers/drill.png",
-        9: "http://alerts.skytruth.org/markers/permit-broken.png",
-        10: "http://alerts.skytruth.org/markers/fracking.png",
-        1001: "http://alerts.skytruth.org/markers/chemleak.png",
-        1002: "http://alerts.skytruth.org/markers/nightfire.png"
+        1: settings.STATIC_URL + "appomatic_alerts/markers/chemleak.png",
+        2: settings.STATIC_URL + "appomatic_alerts/markers/st_google_marker4a.png",
+        3: settings.STATIC_URL + "appomatic_alerts/markers/NOAA_marker.png",
+        4: settings.STATIC_URL + "appomatic_alerts/markers/permit.png",
+        5: settings.STATIC_URL + "appomatic_alerts/markers/drill.png",
+        6: settings.STATIC_URL + "appomatic_alerts/markers/earthquake.png",
+        7: settings.STATIC_URL + "appomatic_alerts/markers/permit.png",
+        8: settings.STATIC_URL + "appomatic_alerts/markers/drill.png",
+        9: settings.STATIC_URL + "appomatic_alerts/markers/permit-broken.png",
+        10: settings.STATIC_URL + "appomatic_alerts/markers/fracking.png",
+        1001: settings.STATIC_URL + "appomatic_alerts/markers/chemleak.png",
+        1002: settings.STATIC_URL + "appomatic_alerts/markers/nightfire.png"
         }
 
     def row_generate_text(self, row):

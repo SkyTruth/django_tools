@@ -4,6 +4,16 @@ def template_reports_mangle_row(columns, row):
     if not row['Temperature']: row['Temperature'] = 0.0
     if not row['RadiativeHeat']: row['RadiativeHeat'] = 0.0
 
+def template_reports_colorcolumn(columns):
+    return u"Temperature"
+
+def template_reports_colors(columns):
+    # Colors are Alpha, Blue, Gree, Red (same order as KML)
+    return {
+        "mincolor": (255, 00, 255, 255),
+        "maxcolor": (255, 00, 00, 255),
+        "nonecolor": (255, 0, 255, 0)}
+
 def template_reports_name():
     return u"Detections"
 
@@ -17,6 +27,16 @@ def template_clusters_mangle_row(columns, row):
     if not row['RadiativeHeat_avg']: row['RadiativeHeat_avg'] = 0.0
     if not row['RadiativeHeat_min']: row['RadiativeHeat_min'] = 0.0
     if not row['RadiativeHeat_max']: row['RadiativeHeat_max'] = 0.0
+
+def template_cluster_colorcolumn(columns):
+    return u"Temperature_avg"
+
+def template_cluster_colors(columns):
+    # Colors are Alpha, Blue, Gree, Red (same order as KML)
+    return {
+        "mincolor": (255, 00, 255, 255),
+        "maxcolor": (255, 00, 00, 255),
+        "nonecolor": (255, 0, 255, 0)}
 
 def template_cluster_name(columns):
     return u"%(count)d detections, %(Temperature_avg).0f°C"

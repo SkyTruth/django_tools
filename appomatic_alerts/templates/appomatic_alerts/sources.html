@@ -1,0 +1,43 @@
+{% extends 'appomatic_alerts/base.html' %}
+
+{% block content_title %}<h1>SkyTruth Alerts</h1>{% endblock %}
+
+{% block content %}
+  <p>Entries in the alerts feed are consolidated from a number of sources.  Each alert feed entry is tagged based on the original source of the report.</p>
+  <h2>SkyTruth Source Tags</h2>
+  <p>
+    </p><div class="inset_box">
+        <table>
+        <tbody><tr><th align="left" valign="top">NRC</th><td>reports from the <a href="http://www.nrc.uscg.mil/foia.html">National Response Center</a>.  These are mostly industry self-reports from operators that are required to report accidents and emissions to the NRC</td></tr>
+        <tr><th align="left" valign="top">SkyTruth</th><td>Reports from the <a href="http://blog.skytruth.org/search/label/Alerts">SkyTruth blog</a> that have been tagged as <b>Alerts</b></td></tr>
+        <tr><th align="left" valign="top">NOAA</th><td>Incidents reported on NOAA's  <a href="http://www.incidentnews.gov/">Incident News</a> site documenting selected oil spills (and other incidents) where NOAA's Office of Response and Restoration (OR&amp;R) provided scientific support for the incident response</td></tr>
+        </tbody></table>
+</div>
+  <p></p>
+  <h2>NRC Incident Reports</h2>
+<p>Reports from the NRC are scraped daily from the NRC website.  The full report text is parsed to extract key fields.  Certain reports are eliminated from the feed because they are not "real" reports.  These include reports that are drills, or tests of the system, as well as routine activity reports that do not document a release of materials. </p>
+<p>After extraction, the reports are geo-coded using the best availale geo-location information in the report.  Reports where the location cannot be determined are excluded from the feed.</p>
+<p>Finally the reports are analyzed by the SkyTruth expert system.  Additional fields are added to the report if there is any additional anallysis that can be included.</p>
+
+
+    <div class="inset_box">
+    <h3>NRC Report Geo-Location Methods in Order of Preference</h3>
+        <table>
+        <tbody><tr><th align="left" valign="top" width="180">Explicit Lat/Long</th><td>If a report is found to contain an explicit lattitude and longitude pair, this is always used as the location</td></tr>
+        <tr><th align="left" valign="top">Protraction Area and Lease Block</th><td>Offshoe reports commonly have a protraction area (e.g. Mississippi Canyon) and a lease blosk ID number.  If this is present, then the center point of the lease block is used as the location.  Protraction areas and lease blocks are the way the Gulf of Mexico is divided up by <a href="http://www.gomr.boemre.gov/homepg/pubinfo/MapsandSpatialData.html">BOEMRE</a> for management of oil and gas drilling leases in federal waters.</td></tr>
+        <tr><th align="left" valign="top">Street Addresss</th><td>we use Google Maps to geocode the street address if given. If google can geocode it then we use it. Sometimes this is just a point somwhere on the road, and we do not know where the precise street address is.</td></tr>
+        <tr><th align="left" valign="top">Zip Code</th><td>Many onshore incidents contain a zip code but no street address.  In this case the he center point of the zip code is used as the incident location</td></tr>
+        <tr><th align="left" valign="top">City and State</th><td>as a last ditch effort, we use the center point of the city as given by Google Maps</td></tr>
+        </tbody></table>
+
+    <h3>NRC Report Filtering</h3>
+    We filter out some of the reports that are published by the NRC because they do not represent actual pollution incidents.  Our filter is applied as follows:
+        <table>
+        <tbody><tr><th align="left" valign="top" width="180">Elimiate Unlocatable</th><td>Eliminate any report that cannot be located.
+For the most part this means reports which are out in the ocean and do not have any of the location information that we use to geo-locate.</td></tr>
+        <tr><th align="left" valign="top">Eliminate Non-Reports</th><td>Some NRC reports are marked <b>This is a Drill</b> so we eliminate those. Â&nbsp;We also eliminate <b>ATON Battery</b> reports which have to do with batteries housed in lighted bouys that the Coast Guard maintains.</td></tr>
+        <tr><th align="left" valign="top">Eliminate Non-Release</th><td>Some reports are safety reports (e.g reports of trespassers in railway yards) that do not involve a release of any material.</td></tr>
+        </tbody></table>
+</div>
+<p></p>
+{% endblock %}

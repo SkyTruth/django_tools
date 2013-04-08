@@ -23,7 +23,7 @@ class Query(django.contrib.gis.db.models.Model):
     size = django.db.models.IntegerField(null=False, blank=False)
     radius = django.db.models.FloatField(null=False, blank=False)
 
-    format = django.db.models.CharField(max_length=128, null=False, blank=False)
+    #format = django.db.models.CharField(max_length=128, null=False, blank=False)
     template = django.db.models.CharField(max_length=2048, null=False, blank=False)
 
 
