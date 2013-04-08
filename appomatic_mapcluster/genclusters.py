@@ -126,18 +126,25 @@ def extract_columns(cur, query):
                                    for column in cur.description)
                 if ts)
 
-def extract_clusters(cur, query, size, radius, timeperiod):
-    if timeperiod is None:
-        color = "ff00ffff"
+def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255), maxcolor = (255, 00, 00, 255), nonecolor = (255, 00, 255, 255)):
+    if value is None:
+        color = nonecolor
     else:
-        mincolor = (255, 00, 255, 00)
-        maxcolor = (255, 00, 00, 255)
-         # Min time: 1 month, max time, 1 year
-        div = ((timeperiod[1] - timeperiod[0]).days-30) / (11*30.0)
+        if maxvalue == minvalue:
+            div = 1.0
+        else:
+            div = (value - minvalue) / (maxvalue - minvalue)
         if div < 0.0: div = 0.0
         if div > 1.0: div = 1.0
-        color = "%02x%02x%02x%02x" % tuple(c[1]*div + c[0]*(1.0-div)
-                                           for c in zip(mincolor, maxcolor))
+        color = tuple(c[1]*div + c[0]*(1.0-div)
+                      for c in zip(mincolor, maxcolor))
+    return "%02x%02x%02x%02x" % color
+
+
+def extract_clusters(cur, query, size, radius, timeperiod):
+    color = get_color(
+        (timeperiod[1] - timeperiod[0]).days,
+        30, 12*30, (255, 00, 255, 00), (255, 00, 00, 255), (255, 00, 255, 255))
 
     columns = extract_columns(cur, query)
 
@@ -224,7 +231,7 @@ def extract_clusters(cur, query, size, radius, timeperiod):
     """, {"size": size})
     scoremin, scoremax = cur.next()
 
-    cur.execute("""
+    result_sql = """
       select
          """ + sqlcols + """
        from  
@@ -241,13 +248,29 @@ def extract_clusters(cur, query, size, radius, timeperiod):
          a.max_score
        order by
          a.max_score desc
-    """, {"size": size, "radius": radius})
+    """
+    result_query = {"size": size, "radius": radius}
+
+    colorcolumn = template_cluster_colorcolumn(columns)
+    colors = template_cluster_colors(columns)
+    cur.execute('''
+      select
+         min("''' + colorcolumn + '''") as min,
+         max("''' + colorcolumn + '''") as max
+       from  
+         (''' + result_sql + ''') a
+    ''', result_query)
+    colormin, colormax = cur.next()
+
+    cur.execute(result_sql, result_query)
 
     seq = 0
     for row in dictreader(cur):
         yield {
             "seq": seq,
-            "color": color,
+            "color": get_color(
+                row[colorcolumn],
+                colormin, colormax, **colors),
             "columns": columns,
             "scoremin": scoremin,
             "scoremax": scoremax,
