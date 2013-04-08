@@ -1022,25 +1022,6 @@ class Publishedfeeditems(models.Model):
         managed = False
         db_table = 'PublishedFeedItems'
 
-class Rssemailsubscription(models.Model):
-    # id = models.CharField(primary_key=True, max_length=36)
-    confirmed = models.SmallIntegerField()
-    email = models.CharField(max_length=255)
-    rss_url = models.CharField(max_length=255)
-    interval_hours = models.IntegerField()
-    last_email_sent = models.DateTimeField(blank=True, null=True)
-    last_item_updated = models.DateTimeField(blank=True, null=True)
-    lat1 = models.FloatField(blank=True, null=True)
-    lat2 = models.FloatField(blank=True, null=True)
-    lng1 = models.FloatField(blank=True, null=True)
-    lng2 = models.FloatField(blank=True, null=True)
-    last_update_sent = models.DateTimeField(blank=True, null=True)
-    active = models.SmallIntegerField()
-    name = models.CharField(max_length=30, blank=True)
-    class Meta:
-        managed = False
-        db_table = 'RSSEmailSubscription'
-
 class RssemailsubscriptionBackup(models.Model):
     # id = models.CharField(max_length=36)
     confirmed = models.SmallIntegerField()
