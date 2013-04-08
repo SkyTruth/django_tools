@@ -33,6 +33,13 @@
           <form action="{% url 'appomatic_mapcluster.views.cluster' name=query.slug %}" method="GET"> 
             <p>Start date: <input type="text" name="startdate" class="datepicker" /></p>
             <p>End date: <input type="text" name="enddate" class="datepicker" /></p>
+            <p>Format:
+              <select name="format">
+                <option value="kml">KML</option>
+                <option value="csv">CSV</option>
+                <option value="csv_reports">CSV - individual detections</option>
+              </select>
+            </p>
             <input type="submit" value="Get it">
           </form>
           <p>{{query.description}}</p>

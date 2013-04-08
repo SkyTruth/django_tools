@@ -455,11 +455,30 @@ def extract_clusters_csv(cur, query, radius, size, timeperiod, doc):
 
         doc.writerow([info['row'][col] for col in columns])
 
+def extract_reports_csv(cur, query, periods, doc):
+    global columns
+
+    for (typename, rows) in extract_reports(cur, query, periods):
+        for info in rows:
+            del info['row']['shape']
+
+            if columns is None:
+                columns = info['row'].keys()
+                columns.sort()
+                doc.writerow(columns)
+
+            doc.writerow([info['row'][col] for col in columns])
+
 def extract_csv(name, cur, query, size, radius, periods, doc):
     global columns
     columns = None
     for timeperiod in periods:
         extract_clusters_csv(cur, query, size, radius, timeperiod, doc)
+
+def extract_csv_reports(name, cur, query, size, radius, periods, doc):
+    global columns
+    columns = None
+    extract_reports_csv(cur, query, periods, doc)
 
 def decodePeriod(period):
     start, end = period.split(":")
@@ -494,6 +513,10 @@ def extract(name, query, template=None, format='kml', size = 4, radius=7500, per
         elif format == 'csv':
             f = StringIO.StringIO()
             extract_csv(name, cur, query, size, radius, periods, csv.writer(f))
+            return f.getvalue()
+        elif format == 'csv_reports':
+            f = StringIO.StringIO()
+            extract_csv_reports(name, cur, query, size, radius, periods, csv.writer(f))
             return f.getvalue()
         else:
             raise Exception("Unsupported format")
