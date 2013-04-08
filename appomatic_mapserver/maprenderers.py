@@ -95,7 +95,8 @@ class MapRendererKml(MapRenderer):
         kml.append(doc)
 
         for layer in self.get_layers():
-            folder = fastkml.kml.Folder(ns, "group-%s" % layer.urlquery.get('name', str(uuid.uuid4())))
+            layer_name = layer.urlquery.get('name', str(uuid.uuid4()))
+            folder = fastkml.kml.Folder(ns, "group-%s" % layer_name, layer_name)
             doc.append(folder)
 
             with layer.source as source:
