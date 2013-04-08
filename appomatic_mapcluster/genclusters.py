@@ -142,10 +142,6 @@ def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255),
 
 
 def extract_clusters(cur, query, size, radius, timeperiod):
-    color = get_color(
-        (timeperiod[1] - timeperiod[0]).days,
-        30, 12*30, (255, 00, 255, 00), (255, 00, 00, 255), (255, 00, 255, 255))
-
     columns = extract_columns(cur, query)
 
     # Remove old data if any
@@ -306,6 +302,18 @@ def extract_reports(cur, query, periods):
     """ + filter, args)
     groupings = [[row[0]] for row in cur]
 
+    colorcolumn = template_reports_colorcolumn(columns)
+    colors = template_reports_colors(columns)
+    cur.execute('''
+      select
+         min("''' + colorcolumn + '''") as min,
+         max("''' + colorcolumn + '''") as max
+       from  
+         ''' + query + ''' a
+       where
+    ''' + filter, args)
+    colormin, colormax = cur.next()
+
     for grouping in groupings:
         def getRows():
             groupargs = {"grouping": grouping[0]}
@@ -322,8 +330,16 @@ def extract_reports(cur, query, periods):
                 grouping = %(grouping)s and
             """ + filter, groupargs)
 
+            seq = 0
             for row in dictreader(cur):
-                yield {'row': row, 'description': description, 'name': name}
+                yield {'row': row,
+                       'description': description,
+                       'name': name,
+                       "seq": seq,
+                       "color": get_color(
+                        row[colorcolumn],
+                        colormin, colormax, **colors)}
+                seq += 1
         grouping.append(getRows())
     return groupings
 
@@ -346,45 +362,46 @@ def extract_reports_kml(cur, query, periods, doc):
     groupings = extract_reports(cur, query, periods)
 
     for ind, (typename, rows) in enumerate(groupings):
-        style = fastkml.styles.Style(KMLNS, "style-%s-normal" % (typename,))
-        style.append_style(fastkml.styles.IconStyle(
-                KMLNS,
-                "style-%s-normal-icon" % (typename,),
-                scale=0.5,
-                icon_href=icons[ind % len(icons)]))
-        style.append_style(fastkml.styles.LabelStyle(
-                KMLNS,
-                "style-%s-normal-label" % (typename,),
-                scale=0))
-        doc.append_style(style)
-
-        style = fastkml.styles.Style(KMLNS, "style-%s-highlight" % (typename,))
-        style.append_style(fastkml.styles.IconStyle(
-                KMLNS,
-                "style-%s-highlight-icon" % (typename,),
-                scale=1.0,
-                icon_href=icons[ind % len(icons)]))
-        style.append_style(fastkml.styles.LabelStyle(
-                KMLNS,
-                "style-%s-highlight-label" % (typename,),
-                scale=1))
-        doc.append_style(style)
-
-        style_map = fastkml.styles.StyleMap(
-            KMLNS,
-            "style-%s" % (typename,))
-        style_map.normal = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-normal" % (typename,))
-        style_map.highlight = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-highlight" % (typename,))
-        doc.append_style(style_map)
-
-    for (typename, rows) in groupings:
         subfolder = fastkml.kml.Folder(KMLNS, typename, typename)
         folder.append(subfolder)
 
         for info in rows:
+            style = fastkml.styles.Style(KMLNS, "style-%s-%s-normal" % (typename, info["seq"],))
+            style.append_style(fastkml.styles.IconStyle(
+                    KMLNS,
+                    "style-%s-%s-normal-icon" % (typename, info["seq"],),
+                    scale=0.5,
+                    icon_href=icons[ind % len(icons)],
+                    color=info['color']))
+            style.append_style(fastkml.styles.LabelStyle(
+                    KMLNS,
+                    "style-%s-%s-normal-label" % (typename, info["seq"],),
+                    scale=0))
+            doc.append_style(style)
+
+            style = fastkml.styles.Style(KMLNS, "style-%s-%s-highlight" % (typename, info["seq"],))
+            style.append_style(fastkml.styles.IconStyle(
+                    KMLNS,
+                    "style-%s-%s-highlight-icon" % (typename, info["seq"],),
+                    scale=1.0,
+                    icon_href=icons[ind % len(icons)],
+                    color=info['color']))
+            style.append_style(fastkml.styles.LabelStyle(
+                    KMLNS,
+                    "style-%s-%s-highlight-label" % (typename, info["seq"],),
+                    scale=1))
+            doc.append_style(style)
+
+            style_map = fastkml.styles.StyleMap(
+                KMLNS,
+                "style-%s-%s" % (typename, info["seq"],))
+            style_map.normal = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-%s-normal" % (typename, info["seq"],))
+            style_map.highlight = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-%s-highlight" % (typename, info["seq"],))
+            doc.append_style(style_map)
+
             placemark = fastkml.kml.Placemark(KMLNS, "%(id)s" % info['row'], info['name'] % info['row'], info['description'] % info['row'])
             placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
-            placemark.styleUrl = "#style-%s" % (typename,)
+            placemark.styleUrl = "#style-%s-%s" % (typename, info["seq"],)
             subfolder.append(placemark)
 
 

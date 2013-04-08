@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 
-def template_reorts_colorcolumn():
+def template_reports_colorcolumn(columns):
     return u"Temperature"
+
+def template_reports_colors(columns):
+    # Colors are Alpha, Blue, Gree, Red (same order as KML)
+    return {
+        "mincolor": (255, 00, 255, 255),
+        "maxcolor": (255, 00, 00, 255),
+        "nonecolor": (255, 0, 255, 0)}
 
 def template_reports_name():
     return u"Detections"
