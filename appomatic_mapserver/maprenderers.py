@@ -107,7 +107,7 @@ class MapRendererKml(MapRenderer):
                         ns, row['name'],
                         row['name'],
                         row['description'])
-                    placemark.append_style(layer.template.row_kml_style(row))
+                    placemark.styleUrl = layer.template.row_kml_style(row, doc)
                     placemark.geometry = geometry
                     folder.append(placemark)
 
