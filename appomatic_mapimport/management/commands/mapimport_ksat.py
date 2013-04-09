@@ -69,7 +69,8 @@ class Command(django.core.management.base.BaseCommand):
                                                     except:
                                                         print row
                                                         raise
-                                                if row.get('name', None) is not None and row.get('shiptype', None) is not None:
+                                                if row.get('name', None) is not None:
+                                                    row['shiptype'] = row.get('shiptype', None)
                                                     row['url'] = 'http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=' + row['mmsi']
                                                     try:
                                                         cur.execute("insert into appomatic_mapdata_vessel (mmsi, name, type, length) select %(mmsi)s, %(shipname)s, %(shiptype)s, %(to_bow)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
