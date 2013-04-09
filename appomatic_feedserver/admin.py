@@ -4,3 +4,4 @@ import appomatic_feedserver.models
 django.contrib.admin.site.register(appomatic_feedserver.models.Feedtag)
 django.contrib.admin.site.register(appomatic_feedserver.models.Feedsource)
 django.contrib.admin.site.register(appomatic_feedserver.models.Feedentry)
+django.contrib.admin.site.register(appomatic_feedserver.models.RssEmailSubscription)

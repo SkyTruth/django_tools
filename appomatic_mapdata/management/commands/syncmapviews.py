@@ -101,6 +101,7 @@ class Command(django.core.management.base.BaseCommand):
                       from
                         appomatic_mapdata_ais as ais
                       order by
+                        ais.src,
                         ais.mmsi,
                         ais.datetime) as a
                    group by a.src, a.mmsi

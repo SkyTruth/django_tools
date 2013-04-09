@@ -51,3 +51,31 @@ class Feedentry(django.contrib.gis.db.models.Model):
 
     def __unicode__(self):
         return "%s (%s)" % (self.title, self.source)
+
+class RssEmailSubscription(django.contrib.gis.db.models.Model):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+    id = django.db.models.CharField(primary_key=True, max_length=36, blank=True)
+
+    confirmed = django.db.models.SmallIntegerField(default=0)
+    email = django.db.models.CharField(max_length=255)
+    rss_url = django.db.models.CharField(max_length=255)
+    interval_hours = django.db.models.IntegerField(default=23)
+    last_email_sent = django.db.models.DateTimeField(blank=True, null=True)
+    last_item_updated = django.db.models.DateTimeField(blank=True, null=True)
+    lat1 = django.db.models.FloatField(blank=True, null=True)
+    lat2 = django.db.models.FloatField(blank=True, null=True)
+    lng1 = django.db.models.FloatField(blank=True, null=True)
+    lng2 = django.db.models.FloatField(blank=True, null=True)
+    last_update_sent = django.db.models.DateTimeField(blank=True, null=True)
+    active = django.db.models.SmallIntegerField(default=1)
+    name = django.db.models.CharField(max_length=30, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'RSSEmailSubscription'
+
+    def save(self, *arg, **kw):
+        if not self.id:
+            self.id = str(uuid.uuid4())
+        models.Model.save(self, *arg, **kw)
