@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+def template_reports_mangle_row(columns, row):
+    if not row['Temperature']: row['Temperature'] = 0.0
+    if not row['RadiativeHeat']: row['RadiativeHeat'] = 0.0
+
 def template_reports_colorcolumn(columns):
     return u"Temperature"
 
@@ -15,6 +19,14 @@ def template_reports_name():
 
 def template_reports_description():
     return u'All detections'
+
+def template_clusters_mangle_row(columns, row):
+    if not row['Temperature_avg']: row['Temperature_avg'] = 0.0
+    if not row['Temperature_min']: row['Temperature_min'] = 0.0
+    if not row['Temperature_max']: row['Temperature_max'] = 0.0
+    if not row['RadiativeHeat_avg']: row['RadiativeHeat_avg'] = 0.0
+    if not row['RadiativeHeat_min']: row['RadiativeHeat_min'] = 0.0
+    if not row['RadiativeHeat_max']: row['RadiativeHeat_max'] = 0.0
 
 def template_cluster_colorcolumn(columns):
     return u"Temperature_avg"

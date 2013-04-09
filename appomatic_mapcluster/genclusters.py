@@ -23,11 +23,17 @@ def dictreader(cur):
     for row in cur:
         yield dict(zip([col[0] for col in cur.description], row))
 
+def template_reports_mangle_row(columns, row):
+    pass
+
 def template_reports_name():
     return "Reports"
 
 def template_reports_description():
     return 'All reports'
+
+def template_cluster_mangle_row(columns, row):
+    pass
 
 def template_cluster_name(columns):
     return ""
@@ -245,6 +251,7 @@ def extract_clusters(cur, query, size, radius, timeperiod):
 
     seq = 0
     for row in dictreader(cur):
+	template_clusters_mangle_row(columns, row)
         yield {
             "seq": seq,
             "color": get_color(
@@ -315,6 +322,7 @@ def extract_reports(cur, query, periods):
 
             seq = 0
             for row in dictreader(cur):
+	        template_reports_mangle_row(columns, row)
                 yield {'row': row,
                        'description': description,
                        'name': name,
