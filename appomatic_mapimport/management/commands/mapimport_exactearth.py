@@ -46,7 +46,7 @@ class Command(django.core.management.base.BaseCommand):
                                                     except:
                                                         print row
                                                         raise
-                                                    if row['name'] is not None and row['type'] is not None:
+                                                    if row['name'] is not None:
                                                         try:
                                                             cur.execute("insert into appomatic_mapdata_vessel (mmsi, name, type, length) select %(mmsi)s, %(name)s, %(type)s, %(length)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
                                                         except:
