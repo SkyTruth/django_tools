@@ -2,6 +2,7 @@ import appomatic_mapdata.models
 import datetime
 import django.db
 import math
+from django.conf import settings
 
 def dictreader(cur):
     for row in cur:
@@ -94,11 +95,16 @@ class TolerancePathMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
-        if self.urlquery.get('full', 'false') == 'true':
+        tolerance = self.urlquery.get('tolerance', '')
+
+        if tolerance == 'none':
             return None
+        if tolerance == 'minimal':
+            return 2 ** settings.TOLERANCE_BASE_MIN
         else:
-            self.cur.execute("select " + bboxsql['bboxdiag'] + " / 100", query)
-            tolerance = self.cur.fetchone()[0]
+            if tolerance == "":
+                self.cur.execute("select " + bboxsql['bboxdiag'] + " / 100", query)
+                tolerance = self.cur.fetchone()[0]
 
             # Round to nearest (lower) 2^x as those are the only tolerances implemented in the view...
             # Fixme: Handle min and max...

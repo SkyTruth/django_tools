@@ -104,7 +104,7 @@ MapServer.Control.Menu = OpenLayers.Class(OpenLayers.Control, {
       window.open(
         MapServer.apiurl + "?" + $.param({
           format: 'appomatic_mapserver.maprenderers.MapRendererKml',
-          full: 'true',
+          tolerance: 'minimal',
           action: 'map',
           datetime__gte: self.map.timemin,
           datetime__lte: self.map.timemax,
@@ -592,9 +592,11 @@ MapServer.init = function () {
             $.each(features[date], function (index, feature) {
               var item = $("<div class='item'></div>");
               group.append(item);
-              var link = $("<a href='javascript:void()'></a>");
+              var link = $("<a href='javascript:void(0);'></a>");
               item.append(link);
-              link.append("<img src='" + feature.data.style.externalGraphic + "'>");
+              if (feature.data.style.externalGraphic) {
+                link.append("<img src='" + feature.data.style.externalGraphic + "'>");
+              }
               link.append(feature.data.title);
               link.click(function () {
                 map.panTo(new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom));

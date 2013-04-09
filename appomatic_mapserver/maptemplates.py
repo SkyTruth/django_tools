@@ -25,7 +25,13 @@ class MapTemplate(object):
 class MapTemplateSimple(MapTemplate):
     name = 'Simple template'
     def row_generate_text(self, row):
-        row['name'] = ""
+        row['title'] = row.get(
+            'title',
+            row.get(
+                'name',
+                "%s @ %sN %sE" % (row.get('id', ''),
+                                  row.get('longitude', ''),
+                                  row.get('latitude', ''))))
 
         header = "<h2>%(name)s</h2>"
         if "url" in row:

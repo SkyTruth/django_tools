@@ -20,6 +20,7 @@ import re
 import uuid
 import appomatic_mapserver.models
 from django.conf import settings
+import cProfile
 
 import appomatic_mapserver.maprenderers
 
@@ -34,8 +35,26 @@ def print_time(fn):
     return print_time
 
 
+def profiled(filename_pattern):
+    def profiled(fn):
+        def profiled_fn(request, *arg, **kw):
+            def profiled_fn():
+                return fn(request, *arg, **kw)
+            profiler = cProfile.Profile()
+            try:
+                return profiler.runcall(profiled_fn)
+            finally:
+                query = dict(request.GET.items())
+                query['url'] = request.get_full_path().replace("/", "__")
+                query['time'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                query['path'] = request.path.replace("/", "__")
+                profiler.dump_stats(filename_pattern % query)
 
+            return res
+        return profiled_fn
+    return profiled
 
+@profiled("/tmp/profile-mapserver: %(time)s %(url)s")
 @fcdjangoutils.jsonview.json_view
 @print_time
 def mapserver(request, application):

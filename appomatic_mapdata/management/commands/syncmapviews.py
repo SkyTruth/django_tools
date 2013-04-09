@@ -4,6 +4,7 @@ import appomatic_mapexport.kmlconvert
 import appomatic_mapexport.djangorecords
 import optparse
 import contextlib
+from django.conf import settings
 
 class Command(django.core.management.base.BaseCommand):
     help = 'Sets up views and stored procedures for map data'
@@ -106,7 +107,8 @@ class Command(django.core.management.base.BaseCommand):
                         ais.datetime) as a
                    group by a.src, a.mmsi
                    having count(a.location) > 1) as b,
-                   (select 2^generate_series(-20,20) as tolerance
+                   (select 2^generate_series(%(TOLERANCE_BASE_MIN)s,%(TOLERANCE_BASE_MAX)s) as tolerance
                     union select null as tolerance) as c;
-            """)
+            """, {'TOLERANCE_BASE_MAX': settings.TOLERANCE_BASE_MAX,
+                  'TOLERANCE_BASE_MIN': TOLERANCE_BASE_MIN})
             cur.execute("commit")
