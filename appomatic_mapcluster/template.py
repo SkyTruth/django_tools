@@ -7,8 +7,8 @@ def template_reports_colors(columns):
     # Colors are Alpha, Blue, Gree, Red (same order as KML)
     return {
         "mincolor": (255, 00, 255, 255),
-        "maxcolor": (255, 00, 00, 255),
-        "nonecolor": (255, 0, 255, 0)}
+        "maxcolor": (255, 00, 255, 255),
+        "nonecolor": (255, 0, 255, 255)}
 
 def template_reports_name():
     return u"Detections"
@@ -23,8 +23,8 @@ def template_cluster_colors(columns):
     # Colors are Alpha, Blue, Gree, Red (same order as KML)
     return {
         "mincolor": (255, 00, 255, 255),
-        "maxcolor": (255, 00, 00, 255),
-        "nonecolor": (255, 0, 255, 0)}
+        "maxcolor": (255, 00, 255, 255),
+        "nonecolor": (255, 0, 255, 255)}
 
 def template_cluster_name(columns):
     return u"%(count)d detections, %(Temperature_avg).0f°C"
