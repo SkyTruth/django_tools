@@ -89,7 +89,7 @@ class Command(django.core.management.base.BaseCommand):
                             }
 
                         print data['MMSI:']
-                        cur2.execute("insert into appomatic_mapdata_vessel (mmsi, name, type, length) select %(mmsi)s, %(name)s, %(type)s, %(length)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
+                        cur2.execute("insert into appomatic_mapdata_vessel (src, mmsi, name, type, length) select 'MARINETRAFFIC', %(mmsi)s, %(name)s, %(type)s, %(length)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
 
                         if ind % 5 == 0:
                             cur2.execute("commit")

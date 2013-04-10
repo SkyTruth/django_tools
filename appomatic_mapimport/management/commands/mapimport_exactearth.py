@@ -41,14 +41,15 @@ class Command(django.core.management.base.BaseCommand):
 
                                                 for row in appomatic_mapimport.ee.convert(file):
                                                     #print "    %(datetime)s: %(mmsi)s" % row
+                                                    row['filename'] = filename
                                                     try:
-                                                        cur.execute("insert into appomatic_mapdata_ais (src, datetime, mmsi, latitude, longitude, true_heading, sog, cog) values ('EXACTEARTH', %(datetime)s, %(mmsi)s, %(latitude)s, %(longitude)s, %(true_heading)s, %(sog)s, %(cog)s)", row)
+                                                        cur.execute("insert into appomatic_mapdata_ais (src, srcfile, datetime, mmsi, latitude, longitude, true_heading, sog, cog) values ('EXACTEARTH', %(filename)s, %(datetime)s, %(mmsi)s, %(latitude)s, %(longitude)s, %(true_heading)s, %(sog)s, %(cog)s)", row)
                                                     except:
                                                         print row
                                                         raise
                                                     if row['name'] is not None:
                                                         try:
-                                                            cur.execute("insert into appomatic_mapdata_vessel (mmsi, name, type, length) select %(mmsi)s, %(name)s, %(type)s, %(length)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
+                                                            cur.execute("insert into appomatic_mapdata_vessel (src, srcfile, mmsi, name, type, length) select 'EXACTEARTH', %(filename)s, %(mmsi)s, %(name)s, %(type)s, %(length)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
                                                         except:
                                                             print row
                                                             raise

@@ -42,12 +42,19 @@ django.contrib.gis.db.backends.postgis.operations.PostGISOperations.geo_db_type 
 class GeometryField(django.contrib.gis.db.models.GeometryField):
     geom_type = None
 
-
-
-
-
-class Vessel(django.contrib.gis.db.models.Model):
+class ImportedData(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
+
+    src = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
+    srcfile = django.db.models.CharField(max_length=1024, null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class Vessel(ImportedData):
+    objects = django.contrib.gis.db.models.GeoManager()
+
     mmsi = django.db.models.CharField(max_length=16, null=False, blank=False, unique=True) # max_length *should* be 9, but we do get some odd data...
     name = django.db.models.CharField(max_length=128, null=True, blank=True)
     type = django.db.models.CharField(max_length=64, null=True, blank=True)
@@ -57,20 +64,18 @@ class Vessel(django.contrib.gis.db.models.Model):
     def url(self):
         return "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=" + self.mmsi
 
-class Region(django.contrib.gis.db.models.Model):
+class Region(ImportedData):
     class Meta:
         db_table = 'region'
 
-    src = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
     name = django.db.models.CharField(max_length=50, null=False, blank=False, db_index=True)
     code = django.db.models.CharField(max_length=20, null=False, blank=False, db_index=True)
     the_geom = GeometryField(null=True, blank=True)
     simple_geom = GeometryField(null=True, blank=True)
     kml = django.db.models.TextField(null=True, blank=True)
 
-class Event(django.contrib.gis.db.models.Model):
+class Event(ImportedData):
     objects = django.contrib.gis.db.models.GeoManager()
-    src = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
     datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True)
 
     latitude = django.db.models.FloatField(null=False, blank=False, db_index=True)
@@ -86,6 +91,7 @@ class Path(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
 
     src = django.db.models.CharField(max_length=128, null=False, blank=False)
+    srcfile = django.db.models.CharField(max_length=1024, null=True, blank=True)
 
     timemin = django.db.models.DateTimeField(null=False, blank=False)
     timemax = django.db.models.DateTimeField(null=False, blank=False)

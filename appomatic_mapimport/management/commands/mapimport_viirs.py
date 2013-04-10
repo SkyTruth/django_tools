@@ -44,7 +44,10 @@ class Command(django.core.management.base.BaseCommand):
             resp, content = h.request(self.starturl, "GET")
             if not resp['status'] == '200':
                 raise Exception(resp)
+            content = content.replace('\0', '')
+            print "bugfixed"
             content = lxml.html.soupparser.fromstring(content)
+            print "parsed"
             for entry in content.xpath(".//ul[@class='treeview']/li/ul/li"):
                 date = entry.xpath("text()[1]")[0]
                 url = entry.xpath("a[text()='KMZ']/@href")[0]
@@ -97,6 +100,7 @@ class Command(django.core.management.base.BaseCommand):
                                              for row in description.xpath(".//tr/td/text()")
                                              if row.count("=") == 1)
 
+                            detection['filename'] = filename
                             detection['name'] = feature.name or ""
                             detection['longitude'] = feature.geometry.x
                             detection['latitude'] = feature.geometry.y
@@ -151,6 +155,7 @@ class Command(django.core.management.base.BaseCommand):
                                 cur.execute("""
                                             insert into appomatic_mapdata_viirs (
                                               "src",
+                                              "srcfile",
                                               "datetime",
                                               "name",
                                               "latitude",
@@ -164,6 +169,7 @@ class Command(django.core.management.base.BaseCommand):
                                               "SourceID")
                                             values (
                                               'VIIRS',
+                                              %(filename)s,
                                               %(datetime)s,
                                               %(name)s,
                                               %(latitude)s,

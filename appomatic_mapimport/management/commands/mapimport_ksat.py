@@ -43,6 +43,8 @@ class Command(django.core.management.base.BaseCommand):
                                         try:
 
                                             for row in appomatic_mapimport.ksat.convert(file):
+                                                row['filename'] = filename
+
                                                 # Why doesn't gpsdecode do scaling???
                                                 if 'speed' in row:
                                                     if row['speed'] >= 1023:
@@ -65,7 +67,7 @@ class Command(django.core.management.base.BaseCommand):
                                                 #print "    %(C)s: %(mmsi)s" % row
                                                 if row.get('type', None) in (1, 2, 3): # position reports
                                                     try:
-                                                        cur.execute("insert into appomatic_mapdata_ais (src, datetime, mmsi, latitude, longitude, true_heading, sog, cog) values (%(S)s, %(C)s, %(mmsi)s, %(lat)s, %(lon)s, %(heading)s, %(speed)s, %(course)s)", row)
+                                                        cur.execute("insert into appomatic_mapdata_ais (src, srcfile, datetime, mmsi, latitude, longitude, true_heading, sog, cog) values (%(S)s, %(filename)s, %(C)s, %(mmsi)s, %(lat)s, %(lon)s, %(heading)s, %(speed)s, %(course)s)", row)
                                                     except:
                                                         print row
                                                         raise
@@ -73,7 +75,7 @@ class Command(django.core.management.base.BaseCommand):
                                                     row['shiptype'] = row.get('shiptype', None)
                                                     row['url'] = 'http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=' + row['mmsi']
                                                     try:
-                                                        cur.execute("insert into appomatic_mapdata_vessel (mmsi, name, type, length) select %(mmsi)s, %(shipname)s, %(shiptype)s, %(to_bow)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
+                                                        cur.execute("insert into appomatic_mapdata_vessel (src, srcfile, mmsi, name, type, length) select %(S)s, %(filename)s, %(mmsi)s, %(shipname)s, %(shiptype)s, %(to_bow)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
                                                     except:
                                                         print row
                                                         raise

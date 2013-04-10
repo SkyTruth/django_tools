@@ -115,6 +115,7 @@ class Command(django.core.management.base.BaseCommand):
                                                              for item in ([td.text for td in tr.findall("./td")][:2]
                                                                           for tr in description.findall(".//tr"))
                                                              if item[0].strip())
+                                            detection['filename'] = filename
                                             detection['name'] = subfeature.name
                                             detection['longitude'] = subfeature.geometry.x
                                             detection['latitude'] = subfeature.geometry.y
@@ -126,6 +127,7 @@ class Command(django.core.management.base.BaseCommand):
                                                 cur.execute("""
                                                             insert into appomatic_mapdata_sar (
                                                               "src",
+                                                              "srcfile",
                                                               "datetime",
                                                               "duration",
                                                               "BeamMode",
@@ -151,6 +153,7 @@ class Command(django.core.management.base.BaseCommand):
                                                               "ProductId")
                                                             values (
                                                               %(src)s,
+                                                              %(filename)s
                                                               %(datetime)s,
                                                               %(duration)s,
                                                               %(BeamMode)s,
