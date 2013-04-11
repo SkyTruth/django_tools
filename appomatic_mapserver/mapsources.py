@@ -184,6 +184,7 @@ class EventMap(MapSource):
           select
             *,
             extract(epoch from datetime) as datetime,
+            datetime as datetime_time,
             ST_AsText(location) as shape
           from
             """ + self.get_table() + """ as a
