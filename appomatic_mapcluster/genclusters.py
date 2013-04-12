@@ -15,6 +15,7 @@ import os.path
 import StringIO
 import fastkml.config
 import monkeypatches.fastkmlmonkey
+import fcdjangoutils.sqlutils
 
 
 KMLNS = '{http://www.opengis.net/kml/2.2}'
@@ -85,36 +86,6 @@ def sql_cluster_columns(columns):
             sqlcols.append('stddev(extract(\'epoch\' from c."%s")) * interval \'1second\' as "%s_stddev"' % (name, name))
     return sqlcols
 
-
-def extract_columns(cur, query):
-    cur.execute("""
-      select
-        *
-      from
-        """ + query + """ as a
-      limit 1
-    """)
-
-    return dict((name, ts[0])
-                for (name, ts) in ((column.name, 
-                                    [name
-                                     for name, t in ((name, getattr(psycopg2, name))
-                                                     for name in ("Date",
-                                                                  "Time",
-                                                                  "Timestamp",
-                                                                  "DateFromTicks",
-                                                                  "TimeFromTicks",
-                                                                  "TimestampFromTicks",
-                                                                  "Binary",
-                                                                  "STRING",
-                                                                  "BINARY",
-                                                                  "NUMBER",
-                                                                  "DATETIME",
-                                                                  "ROWID"))
-                                     if column.type_code == t])
-                                   for column in cur.description)
-                if ts)
-
 def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255), maxcolor = (255, 00, 00, 255), nonecolor = (255, 00, 255, 255)):
     if value is None:
         color = nonecolor
@@ -131,7 +102,7 @@ def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255),
 
 
 def extract_clusters(cur, query, size, radius, timeperiod):
-    columns = extract_columns(cur, query)
+    columns = fcdjangoutils.sqlutils.query_columns(cur, query)
 
     # Remove old data if any
     cur.execute("truncate table appomatic_mapcluster_cluster")
@@ -267,7 +238,7 @@ def extract_clusters(cur, query, size, radius, timeperiod):
         seq += 1
 
 def extract_reports(cur, query, periods):
-    columns = extract_columns(cur, query)
+    columns = fcdjangoutils.sqlutils.query_columns(cur, query)
 
     description = template_report_description(columns)
     name = template_report_name(columns)

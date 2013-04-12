@@ -50,6 +50,7 @@ class MapRenderer(object):
         for layer in self.get_layers():
             with layer.source as source:
                 new = source.get_timeframe()
+                if new is None: continue
                 if timeframe['timemin'] is None or timeframe['timemin'] > new['timemin']:
                     timeframe['timemin'] = new['timemin']
                 if timeframe['timemax'] is None or timeframe['timemax'] < new['timemax']:
@@ -100,7 +101,26 @@ class MapRendererKml(MapRenderer):
             doc.append(folder)
 
             with layer.source as source:
+                groupings = -1
+                groupValuePath = []
+                groupValueMapPath = []
                 for row in source.get_map_data():
+                    if groupings == -1:
+                        groupings = len([key for  key in row.keys() if key.startswith('grouping')])
+                        groupValuePath = ['__DUMMY__'] * groupings # Fill the path with dummy values 
+                        groupValueMapPath = ['__DUMMY__'] * groupings
+                        print "LAYER", layer_name, groupings
+                    for ind in range(0, groupings):
+                        if groupValuePath[ind] != row["grouping%s" % ind]:
+                            for ind2 in range(ind, groupings):
+                                groupValuePath[ind] = row["grouping%s" % ind2]
+                                groupValueMapPath[ind] = fastkml.kml.Folder(ns, "group-%s-%s" % (layer_name, '-'.join(groupValuePath)), row["grouping%s" % ind2])
+                                if ind == 0:
+                                    folder.append(groupValueMapPath[ind])
+                                else:
+                                    groupValueMapPath[ind-1].append(groupValueMapPath[ind])
+                            break
+
                     layer.template.row_generate_text(row)
                     geometry = shapely.wkt.loads(str(row['shape']))
                     placemark = fastkml.kml.Placemark(
@@ -109,7 +129,10 @@ class MapRendererKml(MapRenderer):
                         row['description'])
                     placemark.styleUrl = layer.template.row_kml_style(row, doc)
                     placemark.geometry = geometry
-                    folder.append(placemark)
+                    if groupings > 0:
+                        groupValueMapPath[-1].append(placemark)
+                    else:
+                        folder.append(placemark)
 
         res = django.http.HttpResponse(
             kml.to_string(prettyprint=True),

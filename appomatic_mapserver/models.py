@@ -54,7 +54,7 @@ class Layer(django.db.models.Model):
         choices=[],
         default='appomatic_mapserver.views.MapTemplateCog')
 
-    query = django.db.models.CharField(max_length=1024)
+    query = django.db.models.TextField(max_length=1024)
 
     definition = fcdjangoutils.fields.JsonField(blank=True)
 

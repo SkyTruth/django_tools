@@ -3,6 +3,7 @@ import datetime
 import django.db
 import math
 from django.conf import settings
+import fcdjangoutils.sqlutils
 
 def dictreader(cur):
     for row in cur:
@@ -52,6 +53,9 @@ class MapSource(object):
 
     def get_table(self):
         return self.layer.layerdef.query
+
+    def get_columns(self):
+        return fcdjangoutils.sqlutils.query_columns(self.cur, self.get_table())
 
     def get_bboxsql(self):
         bboxmin = "ST_Point(%(lonmin)s, %(latmin)s)"
@@ -157,6 +161,7 @@ class TolerancePathMap(MapSource):
                  """ + bboxsql['bbox'] + """)) as a
           where
             not ST_IsEmpty(shape)
+          order by mmsi
         """
 
         self.cur.execute(sql, query)
@@ -180,6 +185,9 @@ class EventMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
+        groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
+        order_by = ','.join(["a.grouping%s desc" % ind for ind in xrange(0, groupings)] + ["a.datetime desc"])
+
         sql = """
           select
             *,
@@ -193,8 +201,7 @@ class EventMap(MapSource):
             and ST_Contains(
               """ + bboxsql['bbox'] + """, location)
           order by
-            a.datetime desc
-        """
+        """ + order_by
 
         if 'limit' in self.urlquery:
             sql += "limit %(limit)s"
@@ -210,4 +217,6 @@ class EventMap(MapSource):
     def get_timeframe(self):
         self.cur.execute("select min(datetime), max(datetime) from " + self.get_table() + " as a")
         row = self.cur.fetchone()
+        if row[0] is None:
+            return None
         return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
