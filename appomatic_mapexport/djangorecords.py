@@ -38,7 +38,8 @@ def get_records(**args):
         
         sql = """
           select
-            src,
+            ais.src as src,
+            ais.srcfile as srcfile,
             ais.mmsi as mmsi,
             datetime,
             latitude,
