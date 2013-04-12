@@ -4,6 +4,7 @@ import django.views.generic
 
 urlpatterns = patterns('',
     url(r'^alerts/?$', django.views.generic.TemplateView.as_view(template_name='appomatic_alerts/index.html'), name="appomatic_alerts_index"),
+
     url(r'^alerts/subscribe/do/?$', 'appomatic_alerts.views.subscribe'),
     url(r'^alerts/subscribe/thanks/?$', django.views.generic.TemplateView.as_view(template_name='appomatic_alerts/subscribe_thankyou.html'), name="appomatic_alerts_subscribe_thankyou"),
     url(r'^alerts/subscribe/?$', django.views.generic.TemplateView.as_view(template_name='appomatic_alerts/subscribe.html'), name="appomatic_alerts_subscribe"),

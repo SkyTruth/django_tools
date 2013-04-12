@@ -3,6 +3,7 @@ import django.db.models
 import appomatic_mapdata.models
 import dbarray
 import uuid
+import django.contrib.auth.models
 
 class Feedtag(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -58,6 +59,7 @@ class RssEmailSubscription(django.contrib.gis.db.models.Model):
     id = django.db.models.CharField(primary_key=True, max_length=36, blank=True)
 
     confirmed = django.db.models.SmallIntegerField(default=0)
+
     email = django.db.models.CharField(max_length=255)
     rss_url = django.db.models.CharField(max_length=255)
     interval_hours = django.db.models.IntegerField(default=23)
@@ -78,4 +80,4 @@ class RssEmailSubscription(django.contrib.gis.db.models.Model):
     def save(self, *arg, **kw):
         if not self.id:
             self.id = str(uuid.uuid4())
-        models.Model.save(self, *arg, **kw)
+        django.contrib.gis.db.models.Model.save(self, *arg, **kw)
