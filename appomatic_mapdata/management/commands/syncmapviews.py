@@ -106,9 +106,35 @@ class Command(django.core.management.base.BaseCommand):
                         ais.mmsi,
                         ais.datetime) as a
                    group by a.src, a.mmsi
-                   having count(a.location) > 1) as b,
-                   (select 2^generate_series(%(TOLERANCE_BASE_MIN)s,%(TOLERANCE_BASE_MAX)s) as tolerance
-                    union select null as tolerance) as c;
+                   having count(a.location) > 1
+                   union select
+                     'ALL' as src,
+                     a.mmsi,
+                     st_makeline(a.location) as line,
+                     min(a.datetime) as timemin,
+                     max(a.datetime) as timemax
+                   from
+                     (select
+                        ais.src,
+                        ais.mmsi,
+                        ais.datetime,
+                        ais.latitude,
+                        ais.longitude,
+                        ais.true_heading,
+                        ais.sog,
+                        ais.cog,
+                        ais.location
+                      from
+                        appomatic_mapdata_ais as ais
+                      order by
+                        ais.src,
+                        ais.mmsi,
+                        ais.datetime) as a
+                   group by a.mmsi
+                   having count(a.location) > 1
+                  ) as b,
+                  (select 2^generate_series(%(TOLERANCE_BASE_MIN)s,%(TOLERANCE_BASE_MAX)s) as tolerance
+                   union select null as tolerance) as c;
             """, {'TOLERANCE_BASE_MAX': settings.TOLERANCE_BASE_MAX,
-                  'TOLERANCE_BASE_MIN': TOLERANCE_BASE_MIN})
+                  'TOLERANCE_BASE_MIN': settings.TOLERANCE_BASE_MIN})
             cur.execute("commit")
