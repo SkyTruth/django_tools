@@ -126,33 +126,21 @@ class TolerancePathMap(MapSource):
 
         sql = """
           select
-            mmsi,
-            ST_AsText(shape) as shape,
+            ST_AsText(shape_binary) as shape,
             extract(epoch from timemin) as datetime,
-            timemin,
-            timemax,
-            name,
-            type,
-            length
+            *
           from
             (select
-               ais_path.mmsi,
                ST_Intersection(
                  ST_locate_between_measures(
                    line,
                    extract(epoch from %(timemin)s::timestamp),
                    extract(epoch from %(timemax)s::timestamp)
                  ),
-                 """ + bboxsql['bbox'] + """) as shape,
-               timemin,
-               timemax,
-                vessel.name,
-               vessel.type,
-               vessel.length
+                 """ + bboxsql['bbox'] + """) as shape_binary,
+               ais_path.*
              from
                """ + self.get_table() + """ as ais_path
-               left outer join appomatic_mapdata_vessel as vessel on
-                 ais_path.mmsi = vessel.mmsi
              where
                """ + tolerancetest + """
                and not (%(timemax)s < timemin or %(timemin)s > timemax)
@@ -160,7 +148,7 @@ class TolerancePathMap(MapSource):
                  line,
                  """ + bboxsql['bbox'] + """)) as a
           where
-            not ST_IsEmpty(shape)
+            not ST_IsEmpty(shape_binary)
           order by mmsi
         """
 

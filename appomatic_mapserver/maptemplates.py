@@ -40,12 +40,11 @@ class MapTemplateSimple(MapTemplate):
                                       row.get('longitude', ''),
                                       row.get('latitude', '')))))
 
-        header = "<h2>%(name)s</h2>"
         if "url" in row:
             header = "<h2><a href='%(url)s'>%(name)s</a></h2>"
         cols = [col for col in row.keys() if col not in ("shape", "location")]
         cols.sort()
-        template = header + '<table>%s</table>' % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
+        template = '<table>%s</table>' % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
         row['description'] = template % row
 
         row['style'] = {

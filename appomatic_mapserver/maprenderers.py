@@ -69,7 +69,11 @@ class MapRendererGeojson(MapRenderer):
             with layer.source as source:
                 for row in source.get_map_data():
                     layer.template.row_generate_text(row)
-                    geometry = shapely.wkt.loads(str(row['shape']))
+                    try:
+                        geometry = shapely.wkt.loads(str(row['shape']))
+                    except Exception, e:
+                        e.args += (row['shape'],)
+                        raise e
                     geometry = fcdjangoutils.jsonview.from_json(
                         geojson.dumps(
                             geometry))

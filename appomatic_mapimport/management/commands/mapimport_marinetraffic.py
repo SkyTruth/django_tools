@@ -15,6 +15,7 @@ import zipfile
 import pytz
 import StringIO
 import lxml.etree
+import traceback
 
 def dictreader(cur):
     for row in cur:
@@ -40,6 +41,7 @@ class Command(django.core.management.base.BaseCommand):
 
                 cur.execute("select distinct mmsi from appomatic_mapdata_ais where mmsi not in (select mmsi from appomatic_mapdata_vessel)");
                 for ind, row in enumerate(dictreader(cur)):
+                    print row['mmsi']
                     try:
                         h = httplib2.Http()
                         resp, content = h.request(self.urlpattern % row, "GET")
@@ -77,21 +79,17 @@ class Command(django.core.management.base.BaseCommand):
                         #  'Ship Type:': u' Sailing Vessel',
                         #  'MMSI:': u' 227147250'}
 
-                        if 'Ship Type:' not in data:
-                            print "BAD RESPONSE"
-                            continue
-
                         row = {
-                            'mmsi': data['MMSI:'],
+                            'mmsi': row['mmsi'],
                             'name': data['title'],
-                            'type': data['Ship Type:'],
-                            'length': data['Length x Breadth:'].split('m')[0].strip()
+                            'type': data.get('Ship Type:', ''),
+                            'length': data.get('Length x Breadth:', '').split('m')[0].strip() or None
                             }
 
-                        print data['MMSI:']
                         cur2.execute("insert into appomatic_mapdata_vessel (src, mmsi, name, type, length) select 'MARINETRAFFIC', %(mmsi)s, %(name)s, %(type)s, %(length)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
 
                         if ind % 5 == 0:
                             cur2.execute("commit")
                     except Exception, e:
                         print e
+                        #traceback.print_exc()
