@@ -128,6 +128,7 @@ class TolerancePathMap(MapSource):
           select
             ST_AsText(shape_binary) as shape,
             extract(epoch from timemin) as datetime,
+            timemin as datetime_time,
             *
           from
             (select

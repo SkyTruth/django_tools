@@ -117,19 +117,22 @@ class MapRendererKml(MapRenderer):
                     for ind in range(0, groupings):
                         if groupValuePath[ind] != row["grouping%s" % ind]:
                             for ind2 in range(ind, groupings):
-                                groupValuePath[ind] = row["grouping%s" % ind2]
-                                groupValueMapPath[ind] = fastkml.kml.Folder(ns, "group-%s-%s" % (layer_name, '-'.join(groupValuePath)), row["grouping%s" % ind2])
-                                if ind == 0:
-                                    folder.append(groupValueMapPath[ind])
+                                groupValuePath[ind2] = row["grouping%s" % ind2]
+                                groupValueMapPath[ind2] = fastkml.kml.Folder(
+                                    ns,
+                                    "group-%s-%s" % (layer_name, '-'.join("%s" % item for item in groupValuePath)),
+                                    "%s" % row["grouping%s" % ind2])
+                                if ind2 == 0:
+                                    folder.append(groupValueMapPath[ind2])
                                 else:
-                                    groupValueMapPath[ind-1].append(groupValueMapPath[ind])
+                                    groupValueMapPath[ind2-1].append(groupValueMapPath[ind2])
                             break
 
                     layer.template.row_generate_text(row)
                     geometry = shapely.wkt.loads(str(row['shape']))
                     placemark = fastkml.kml.Placemark(
-                        ns, row['name'],
-                        row['name'],
+                        ns, row['title'],
+                        row['title'],
                         row['description'])
                     placemark.styleUrl = layer.template.row_kml_style(row, doc)
                     placemark.geometry = geometry
