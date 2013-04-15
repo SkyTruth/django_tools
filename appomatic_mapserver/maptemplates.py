@@ -143,3 +143,11 @@ class MapTemplateCog(MapTemplateSimple):
         doc.append_style(style_map)
 
         return "#style-%s" % (id,)
+
+class MapTemplateCogTimeTitle(MapTemplateCog):
+    name = 'Template for events with COG, titled by time'
+
+    def row_generate_text(self, row):
+        MapTemplateCog.row_generate_text(self, row)
+        if 'datetime' in row:
+            row['title'] = row['datetime_time'].strftime("%H:%M:%S")
