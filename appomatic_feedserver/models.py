@@ -77,6 +77,9 @@ class RssEmailSubscription(django.contrib.gis.db.models.Model):
         managed = False
         db_table = 'RSSEmailSubscription'
 
+    def __unicode__(self):
+        return "%s%s %s" % (self.email, [" (Disabled)", ""][not not self.active], self.rss_url)
+
     def save(self, *arg, **kw):
         if not self.id:
             self.id = str(uuid.uuid4())
