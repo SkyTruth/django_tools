@@ -8,6 +8,8 @@ import geojson
 import fcdjangoutils.jsonview
 import uuid
 import django.http
+import types
+import cgi
 
 def flattentree(tree):
     if isinstance(tree, types.GeneratorType):
@@ -141,9 +143,9 @@ class MapRendererKml(MapRenderer):
 
                         yield '<kml:Placemark id="%s">' % row['title']
                         yield '<kml:name>%s</kml:name>' % row['title']
-                        yield '<kml:description>%s</kml:description>' % row['description']
+                        yield '<kml:description>%s</kml:description>' % cgi.escape(row['description'])
                         yield '<kml:visibility>1</kml:visibility>'
-                        # yield '<kml:styleUrl>%s</kml:styleUrl>' %  layer.template.row_kml_style(row, doc)
+                        yield layer.template.row_kml_style(row)
                         yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
                         yield '</kml:Placemark>'
 
@@ -155,7 +157,7 @@ class MapRendererKml(MapRenderer):
             yield '</kml:kml>'
 
         res = django.http.StreamingHttpResponse(
-            get_map(),
+            flattentree(get_map()),
             mimetype="application/vnd.google-earth.kml+xml",
             status=200)
         res['Content-disposition'] = 'attachment; filename=export.kml'
