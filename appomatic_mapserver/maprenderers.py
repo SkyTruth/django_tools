@@ -3,10 +3,19 @@ import shapely.geometry
 import shapely.wkb
 import shapely.wkt
 import fastkml.kml
+import fastkml.geometry
 import geojson
 import fcdjangoutils.jsonview
 import uuid
 import django.http
+
+def flattentree(tree):
+    if isinstance(tree, types.GeneratorType):
+        for item in tree:
+            for result in flattentree(item):
+                yield result
+    else:
+        yield tree
 
 class MapRenderer(object):
     implementations = {}
@@ -94,55 +103,59 @@ class MapRendererGeojson(MapRenderer):
 
 class MapRendererKml(MapRenderer):
     def get_map(self):
-        kml = fastkml.kml.KML()
-        ns = '{http://www.opengis.net/kml/2.2}'
-        doc = fastkml.kml.Document(ns, 'docid', 'doc name', 'doc description')
-        kml.append(doc)
+        def get_map():
+            yield '<kml:kml xmlns:kml="http://www.opengis.net/kml/2.2">'
+            yield '<kml:Document id="docid">'
 
-        for layer in self.get_layers():
-            layer_name = layer.urlquery.get('name', str(uuid.uuid4()))
-            folder = fastkml.kml.Folder(ns, "group-%s" % layer_name, layer_name)
-            doc.append(folder)
+            yield '<kml:name>doc name</kml:name>'
+            yield '<kml:description>doc name</kml:description>'
+            yield '<kml:visibility>1</kml:visibility>'
 
-            with layer.source as source:
-                groupings = -1
-                groupValuePath = []
-                groupValueMapPath = []
-                for row in source.get_map_data():
-                    if groupings == -1:
-                        groupings = len([key for  key in row.keys() if key.startswith('grouping')])
-                        groupValuePath = ['__DUMMY__'] * groupings # Fill the path with dummy values 
-                        groupValueMapPath = ['__DUMMY__'] * groupings
-                        print "LAYER", layer_name, groupings
-                    for ind in range(0, groupings):
-                        if groupValuePath[ind] != row["grouping%s" % ind]:
-                            for ind2 in range(ind, groupings):
-                                groupValuePath[ind2] = row["grouping%s" % ind2]
-                                groupValueMapPath[ind2] = fastkml.kml.Folder(
-                                    ns,
-                                    "group-%s-%s" % (layer_name, '-'.join("%s" % item for item in groupValuePath)),
-                                    "%s" % row["grouping%s" % ind2])
-                                if ind2 == 0:
-                                    folder.append(groupValueMapPath[ind2])
-                                else:
-                                    groupValueMapPath[ind2-1].append(groupValueMapPath[ind2])
-                            break
+            for layer in self.get_layers():
+                layer_name = layer.urlquery.get('name', str(uuid.uuid4()))
+                yield '<kml:Folder id="grop-%s">' % layer_name
+                yield '<kml:name>%s</kml:name>' % layer_name
+                yield '<kml:visibility>1</kml:visibility>'
 
-                    layer.template.row_generate_text(row)
-                    geometry = shapely.wkt.loads(str(row['shape']))
-                    placemark = fastkml.kml.Placemark(
-                        ns, row['title'],
-                        row['title'],
-                        row['description'])
-                    placemark.styleUrl = layer.template.row_kml_style(row, doc)
-                    placemark.geometry = geometry
-                    if groupings > 0:
-                        groupValueMapPath[-1].append(placemark)
-                    else:
-                        folder.append(placemark)
+                with layer.source as source:
+                    groupings = -1
+                    groupValuePath = []
+                    groupValueMapPath = []
+                    for row in source.get_map_data():
+                        if groupings == -1:
+                            groupings = len([key for  key in row.keys() if key.startswith('grouping')])
+                            groupValuePath = ['__DUMMY__'] * groupings # Fill the path with dummy values 
+                        for ind in range(0, groupings):
+                            if groupValuePath[ind] != row["grouping%s" % ind]:
+                                for ind2 in range(ind, groupings):
+                                    if groupValuePath[ind2] != '__DUMMY__':
+                                        yield "</kml:Folder>"
+                                for ind2 in range(ind, groupings):
+                                    groupValuePath[ind2] = row["grouping%s" % ind2]
+                                    yield '<kml:Folder id="group-%s-%s">' % (layer_name, '-'.join("%s" % item for item in groupValuePath)),
+                                    yield '<kml:name>%s</kml:name>' % row["grouping%s" % ind2]
+                                    yield '<kml:visibility>1</kml:visibility>'
+                                break
+                            
+                        layer.template.row_generate_text(row)
 
-        res = django.http.HttpResponse(
-            kml.to_string(prettyprint=True),
+                        yield '<kml:Placemark id="%s">' % row['title']
+                        yield '<kml:name>%s</kml:name>' % row['title']
+                        yield '<kml:description>%s</kml:description>' % row['description']
+                        yield '<kml:visibility>1</kml:visibility>'
+                        # yield '<kml:styleUrl>%s</kml:styleUrl>' %  layer.template.row_kml_style(row, doc)
+                        yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
+                        yield '</kml:Placemark>'
+
+                    if groupValuePath and groupValuePath[-1] != '__DUMMY__':
+                        for ind in range(0, groupings):
+                            yield "</kml:Folder>"
+                yield '</kml:Folder>'
+            yield '</kml:Document>'
+            yield '</kml:kml>'
+
+        res = django.http.StreamingHttpResponse(
+            get_map(),
             mimetype="application/vnd.google-earth.kml+xml",
             status=200)
         res['Content-disposition'] = 'attachment; filename=export.kml'
