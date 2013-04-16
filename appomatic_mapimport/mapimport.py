@@ -90,8 +90,8 @@ class Import(django.core.management.base.BaseCommand):
                                 try:
                                     for row in self.loadfile(file):
                                         #print "    %(datetime)s: %(mmsi)s" % row
-                                        row['filename'] = filename
-                                        row['SRC'] = self.SRC
+                                        if 'filename' not in row: row['filename'] = filename
+                                        if 'SRC' not in row: row['SRC'] = self.SRC
                                         try:
                                             self.insertrow(row)
                                         except:
