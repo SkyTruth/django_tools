@@ -5,87 +5,63 @@ import django.db
 import paramiko
 import sys
 import appomatic_mapimport.ksat
+import appomatic_mapimport.mapimport
 import datetime
 import pytz
 from django.conf import settings
 
 
-class Command(django.core.management.base.BaseCommand):
+class Command(appomatic_mapimport.mapimport.SftpImport):
     help = 'Import data from exact earth'
+    SRC = 'KSAT'
 
-    def handle(self, *args, **options):
-        with contextlib.closing(django.db.connection.cursor()) as cur:
+    def connectioninfo(self):
+        return settings.MAPIMPORT_KSAT
 
-            cur.execute("select filename from appomatic_mapimport_downloaded where src='KSAT'");
-            oldfiles = set(row[0] for row in cur.fetchall())
+    def sourcedirs(self):
+        yield "WWW/AIS"
 
-            with contextlib.closing(paramiko.Transport((settings.MAPIMPORT_KSAT['host'], settings.MAPIMPORT_KSAT['port']))) as transport:
-                transport.connect(username=settings.MAPIMPORT_KSAT['username'], password=settings.MAPIMPORT_KSAT['password'])
-                with contextlib.closing(paramiko.SFTPClient.from_transport(transport)) as sftp:
+    def filepathsforname(self, sourcedir, filename):
+        if filename.endswith('.nmea'):
+            yield sourcedir + "/" + filename
 
-                    sourcedir = "WWW/AIS"
+    def loadfile(self, file):
+        for row in appomatic_mapimport.ksat.convert(file):
 
-                    for filename in sftp.listdir(sourcedir):
-                        if filename.endswith('.nmea'):
+            # Why doesn't gpsdecode do scaling???
+            if 'speed' in row:
+                if row['speed'] >= 1023:
+                    row['speed'] = None
+                else:
+                    row['speed'] = row['speed'] / 10.0 # A AIS speed unit is 1/10 of a knot
+            if 'heading' in row: row['heading'] = row['heading'] / 10.0 # A AIS cog unit is 1/10 of a degree
+            if 'course' in row: row['course'] = row['course'] / 10.0 # A AIS cog unit is 1/10 of a degree
+            if 'lon' in row: row['lon'] = row['lon'] / 600000.0 # A AIS unit is 1/10000th of a minute (1/60th of a degree)
+            if 'lat' in row: row['lat'] = row['lat'] / 600000.0
+            if 'C' in row:
+                row['C'] = datetime.datetime.utcfromtimestamp(int(row['C'])).replace(tzinfo=pytz.utc)
+            else:
+                row['C'] = None
+            if 'S' in row:
+                row['S'] = 'KSAT-' + row['S']
+            else:
+                row['S'] = 'KSAT'
+            #print row
+            #print "    %(C)s: %(mmsi)s" % row
+            row['hasposition'] = row.get('type', None) in (1, 2, 3)
 
-                            filename = filename[:-len(".nmea")]
-                            filepath = sourcedir + "/" + filename + ".nmea"
+            if 'mmsi' in row: row['mmsi'] = str(row['mmsi'])
 
-                            if filename in oldfiles:
-                                print filepath + " (OLD)"
-                            else:
-                                print filepath
+            row['SRC'] = row['S']
+            row['datetime'] = row['C']
+            row['latitude'] = row.get('lat', None)
+            row['longitude'] = row.get('lon', None)
+            row['sog'] = row.get('speed', None)
+            row['cog'] = row.get('course', None)
+            row['true_heading'] = row.get('heading', None)
 
-                                try:
-                                    with contextlib.closing(sftp.file(filepath)) as file:
+            row['name'] = row.get('shipname', None)
+            row['type'] = row.get('shiptype', None)
+            row['length'] = row.get('to_bow', None)
 
-                                        cur.execute("begin")
-                                        try:
-
-                                            for row in appomatic_mapimport.ksat.convert(file):
-                                                row['filename'] = filename
-
-                                                # Why doesn't gpsdecode do scaling???
-                                                if 'speed' in row:
-                                                    if row['speed'] >= 1023:
-                                                        row['speed'] = None
-                                                    else:
-                                                        row['speed'] = row['speed'] / 10.0 # A AIS speed unit is 1/10 of a knot
-                                                if 'heading' in row: row['heading'] = row['heading'] / 10.0 # A AIS cog unit is 1/10 of a degree
-                                                if 'course' in row: row['course'] = row['course'] / 10.0 # A AIS cog unit is 1/10 of a degree
-                                                if 'lon' in row: row['lon'] = row['lon'] / 600000.0 # A AIS unit is 1/10000th of a minute (1/60th of a degree)
-                                                if 'lat' in row: row['lat'] = row['lat'] / 600000.0
-                                                if 'C' in row:
-                                                    row['C'] = datetime.datetime.utcfromtimestamp(int(row['C'])).replace(tzinfo=pytz.utc)
-                                                else:
-                                                    row['C'] = None
-                                                if 'S' in row:
-                                                    row['S'] = 'KSAT-' + row['S']
-                                                else:
-                                                    row['S'] = 'KSAT'
-                                                #print row
-                                                #print "    %(C)s: %(mmsi)s" % row
-                                                if row.get('type', None) in (1, 2, 3): # position reports
-                                                    try:
-                                                        cur.execute("insert into appomatic_mapdata_ais (src, srcfile, datetime, mmsi, latitude, longitude, true_heading, sog, cog) values (%(S)s, %(filename)s, %(C)s, %(mmsi)s, %(lat)s, %(lon)s, %(heading)s, %(speed)s, %(course)s)", row)
-                                                    except:
-                                                        print row
-                                                        raise
-                                                if row.get('name', None) is not None:
-                                                    row['shiptype'] = row.get('shiptype', None)
-                                                    row['url'] = 'http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=' + row['mmsi']
-                                                    try:
-                                                        cur.execute("insert into appomatic_mapdata_vessel (src, srcfile, mmsi, name, type, length) select %(S)s, %(filename)s, %(mmsi)s, %(shipname)s, %(shiptype)s, %(to_bow)s where %(mmsi)s not in (select mmsi from appomatic_mapdata_vessel)", row)
-                                                    except:
-                                                        print row
-                                                        raise
-                                            cur.execute("insert into appomatic_mapimport_downloaded (src, filename) values ('KSAT', %(filename)s)", {'filename': filename})
-
-                                        except Exception, e:
-                                            print "    Error loading file " + str(e)
-                                            cur.execute("rollback")
-                                        else:
-                                            cur.execute("commit")
-
-                                except Exception, e:
-                                    print "    Unable to open file " + str(e)
+            yield row
