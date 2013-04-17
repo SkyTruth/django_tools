@@ -119,6 +119,8 @@ class MapRendererKml(MapRenderer):
                 yield '<kml:name>%s</kml:name>' % layer_name
                 yield '<kml:visibility>1</kml:visibility>'
 
+                yield layer.template.kml_style()
+
                 with layer.source as source:
                     groupings = -1
                     groupValuePath = []
@@ -134,7 +136,7 @@ class MapRendererKml(MapRenderer):
                                         yield "</kml:Folder>"
                                 for ind2 in range(ind, groupings):
                                     groupValuePath[ind2] = row["grouping%s" % ind2]
-                                    yield '<kml:Folder id="group-%s-%s">' % (layer_name, '-'.join("%s" % item for item in groupValuePath)),
+                                    yield '<kml:Folder id="group-%s-%s">' % (layer_name, '-'.join("%s" % item for item in groupValuePath))
                                     yield '<kml:name>%s</kml:name>' % row["grouping%s" % ind2]
                                     yield '<kml:visibility>1</kml:visibility>'
                                 break

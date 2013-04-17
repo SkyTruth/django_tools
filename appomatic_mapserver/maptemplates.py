@@ -56,8 +56,8 @@ class MapTemplateSimple(MapTemplate):
           "pointRadius": 3,
           }
     
-    def row_kml_style(self, row):
-        yield '<kml:StyleMap>'
+    def kml_style(self):
+        yield '<kml:StyleMap id="layerstyle-%s">' % self.layer.layerdef.slug
         yield '  <kml:Pair>'
         yield '    <kml:key>normal</kml:key>'
         yield '    <kml:Style>'
@@ -85,8 +85,41 @@ class MapTemplateSimple(MapTemplate):
         yield '  </kml:Pair>'
         yield '</kml:StyleMap>'
 
+    def row_kml_style(self, row):
+        yield '<kml:styleUrl>#layerstyle-%s</kml:styleUrl>' % self.layer.layerdef.slug
+
 class MapTemplateCog(MapTemplateSimple):
     name = 'Template for events with COG'
+    def kml_style(self):
+        yield '<kml:StyleMap id="layerstyle-%s">' % self.layer.layerdef.slug
+        yield '  <kml:Pair>'
+        yield '    <kml:key>normal</kml:key>'
+        yield '    <kml:Style>'
+        yield '      <kml:IconStyle>'
+        yield '        <kml:scale>0.5</kml:scale>'
+        yield '        <kml:Icon>http://alerts.skytruth.org/markers/vessel_direction.png</kml:Icon>'
+        yield '      </kml:IconStyle>'
+        yield '      <kml:LabelStyle>'
+        yield '        <kml:scale>0</kml:scale>'
+        yield '      </kml:LabelStyle>'
+        yield '    </kml:Style>'
+        yield '  </kml:Pair>'
+
+        yield '  <kml:Pair>'
+        yield '    <kml:key>highlight</kml:key>'
+        yield '    <kml:Style>'
+        yield '      <kml:IconStyle>'
+        yield '        <kml:scale>1.0</kml:scale>'
+        yield '        <kml:Icon>http://alerts.skytruth.org/markers/vessel_direction.png</kml:Icon>'
+        yield '      </kml:IconStyle>'
+        yield '      <kml:LabelStyle>'
+        yield '        <kml:scale>1.0</kml:scale>'
+        yield '      </kml:LabelStyle>'
+        yield '    </kml:Style>'
+        yield '  </kml:Pair>'
+        yield '</kml:StyleMap>'
+
+
     def row_kml_style(self, row):
         id = row.get('id', row.get('mmsi', str(uuid.uuid4())))
 
@@ -96,37 +129,14 @@ class MapTemplateCog(MapTemplateSimple):
             c = 0
         color = 'ff00%02x%02x' % (c, 255-c)
 
-        yield '<kml:StyleMap>'
-        yield '  <kml:Pair>'
-        yield '    <kml:key>normal</kml:key>'
-        yield '    <kml:Style>'
-        yield '      <kml:IconStyle>'
-        yield '        <kml:scale>0.5</kml:scale>'
-        yield '        <kml:heading>%s</kml:heading>' % row.get('cog', 0)
-        yield '        <kml:color>%s</kml:color>' % color
-        yield '        <kml:Icon>http://alerts.skytruth.org/markers/vessel_direction.png</kml:Icon>'
-        yield '      </kml:IconStyle>'
-        yield '      <kml:LabelStyle>'
-        yield '        <kml:scale>0</kml:scale>'
-        yield '      </kml:LabelStyle>'
-        yield '    </kml:Style>'
-        yield '  </kml:Pair>'
-
-        yield '  <kml:Pair>'
-        yield '    <kml:key>highlight</kml:key>'
-        yield '    <kml:Style>'
-        yield '      <kml:IconStyle>'
-        yield '        <kml:scale>1.0</kml:scale>'
-        yield '        <kml:heading>%s</kml:heading>' % row.get('cog', 0)
-        yield '        <kml:color>%s</kml:color>' % color
-        yield '        <kml:Icon>http://alerts.skytruth.org/markers/vessel_direction.png</kml:Icon>'
-        yield '      </kml:IconStyle>'
-        yield '      <kml:LabelStyle>'
-        yield '        <kml:scale>1.0</kml:scale>'
-        yield '      </kml:LabelStyle>'
-        yield '    </kml:Style>'
-        yield '  </kml:Pair>'
-        yield '</kml:StyleMap>'
+        yield '<kml:styleUrl>#layerstyle-%s</kml:styleUrl>' % self.layer.layerdef.slug
+        yield '<kml:Style>'
+        yield '  <kml:IconStyle>'
+        yield '    <kml:heading>%s</kml:heading>' % row.get('cog', 0)
+        yield '    <kml:color>%s</kml:color>' % color
+        yield '    <kml:Icon>http://alerts.skytruth.org/markers/vessel_direction.png</kml:Icon>'
+        yield '  </kml:IconStyle>'
+        yield '</kml:Style>'
 
 class MapTemplateCogTimeTitle(MapTemplateCog):
     name = 'Template for events with COG, titled by time'
