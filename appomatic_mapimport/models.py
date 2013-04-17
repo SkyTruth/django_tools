@@ -5,6 +5,7 @@ class Downloaded(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
     src = django.db.models.CharField(max_length=128, null=False, blank=False)
     filename = django.db.models.CharField(max_length=1024, null=False, blank=False)
+    datetime = django.db.models.DateTimeField(auto_now = True)
 
     class Meta:
         unique_together = ('src', 'filename',)

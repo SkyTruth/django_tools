@@ -67,6 +67,13 @@ class Command(appomatic_mapimport.mapimport.Import):
 
             for feature in kmldoc.features():
                 if not isinstance(feature, fastkml.kml.Placemark): continue
+
+                icon_href = None
+                for style in feature.styles():
+                    for style2 in style.styles():
+                        if hasattr(style2, "icon_href"):
+                            icon_href = style2.icon_href
+
                 description = lxml.html.soupparser.fromstring(feature.description)
 
                 # Some ugly hack to parse their info popups...
@@ -78,6 +85,7 @@ class Command(appomatic_mapimport.mapimport.Import):
                 detection['longitude'] = feature.geometry.x
                 detection['latitude'] = feature.geometry.y
                 detection['location'] = feature.geometry.to_wkt()                                                
+                detection['quality'] = [1, 0][icon_href == "http://maps.google.com/mapfiles/marker_white.png"] # White means curve fitting failed, so quality is shit...
 
                 # Example:
                 # {'Radiant output': '3.92 W/m2',

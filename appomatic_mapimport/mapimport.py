@@ -7,6 +7,7 @@ import sys
 import os.path
 import appomatic_mapimport.ee
 from django.conf import settings 
+import datetime
 
 
 class Import(django.core.management.base.BaseCommand):
@@ -44,7 +45,8 @@ class Import(django.core.management.base.BaseCommand):
 
     def insertrow(self, row):
         if row.get("hasposition", True):
-            self.cur.execute("insert into appomatic_mapdata_ais (src, srcfile, datetime, mmsi, latitude, longitude, true_heading, sog, cog) values (%(SRC)s, %(filename)s, %(datetime)s, %(mmsi)s, %(latitude)s, %(longitude)s, %(true_heading)s, %(sog)s, %(cog)s)", row)
+            row['quality'] = row.get('quality', 1)
+            self.cur.execute("insert into appomatic_mapdata_ais (src, srcfile, datetime, mmsi, latitude, longitude, true_heading, sog, cog, quality) values (%(SRC)s, %(filename)s, %(datetime)s, %(mmsi)s, %(latitude)s, %(longitude)s, %(true_heading)s, %(sog)s, %(cog)s, %(quality)s)", row)
         self.insert_row_vessel(row)
 
     def insert_row_vessel(self, row):
@@ -98,7 +100,7 @@ class Import(django.core.management.base.BaseCommand):
                                             print row
                                             raise
 
-                                    self.cur.execute("insert into appomatic_mapimport_downloaded (src, filename) values (%(SRC)s, %(filename)s)", {'SRC': self.SRC, 'filename': filename})
+                                    self.cur.execute("insert into appomatic_mapimport_downloaded (src, filename, datetime) values (%(SRC)s, %(filename)s, %(datetime)s)", {'SRC': self.SRC, 'filename': filename, 'datetime': datetime.datetime.now()})
 
                                 except Exception, e:
                                     print "    Error loading file " + str(e)

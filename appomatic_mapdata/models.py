@@ -84,6 +84,8 @@ class Event(ImportedData):
 
     region = dbarray.IntegerArrayField(null=True, blank=True) # Really a set of foreign keys to Region
 
+    quality = django.db.models.FloatField(default = 1.0, db_index=True)
+
     class Meta:
         abstract = True
 
