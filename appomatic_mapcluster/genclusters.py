@@ -378,6 +378,37 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
                                 '')
     doc.append(folder)
 
+
+    style = fastkml.styles.Style(KMLNS, "style-%s-normal" % (timeperiodstr,))
+    style.append_style(fastkml.styles.IconStyle(
+            KMLNS,
+            "style-%s-normal-icon" % (timeperiodstr,),
+            icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png"))
+    style.append_style(fastkml.styles.LabelStyle(
+            KMLNS,
+            "style-%s-normal-label" % (timeperiodstr,),
+            scale=0))
+    doc.append_style(style)
+
+    style = fastkml.styles.Style(KMLNS, "style-%s-highlight" % (timeperiodstr,))
+    style.append_style(fastkml.styles.IconStyle(
+            KMLNS,
+            "style-%s-highlight-icon" % (timeperiodstr,),
+            icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png"))
+    style.append_style(fastkml.styles.LabelStyle(
+            KMLNS,
+            "style-%s-highlight-label" % (timeperiodstr,),
+            scale=1))
+    doc.append_style(style)
+
+    style_map = fastkml.styles.StyleMap(
+        KMLNS,
+        "style-%s" % (timeperiodstr,))
+    style_map.normal = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-normal" % (timeperiodstr,))
+    style_map.highlight = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-highlight" % (timeperiodstr,))
+    doc.append_style(style_map)
+
+
     for info in extract_clusters(cur, query, size, radius, timeperiod):
         if info['scoremax'] - info['scoremin']:
             scale = 0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin']))
@@ -389,12 +420,7 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
                 KMLNS,
                 "style-%s-%s-normal-icon" % (timeperiodstr, info['seq']),
                 scale=scale,
-                icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
                 color=info['color']))
-        style.append_style(fastkml.styles.LabelStyle(
-                KMLNS,
-                "style-%s-%s-normal-label" % (timeperiodstr, info['seq']),
-                scale=0))
         doc.append_style(style)
 
         style = fastkml.styles.Style(KMLNS, "style-%s-%s-highlight" % (timeperiodstr, info['seq']))
@@ -402,12 +428,7 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
                 KMLNS,
                 "style-%s-%s-highlight-icon" % (timeperiodstr, info['seq']),
                 scale=scale + 1,
-                icon_href="http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png",
                 color=info['color']))
-        style.append_style(fastkml.styles.LabelStyle(
-                KMLNS,
-                "style-%s-%s-highlight-label" % (timeperiodstr, info['seq']),
-                scale=1))
         doc.append_style(style)
 
         style_map = fastkml.styles.StyleMap(
@@ -415,12 +436,11 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
             "style-%s-%s" % (timeperiodstr, info['seq']))
         style_map.normal = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-%s-normal" % (timeperiodstr, info['seq']))
         style_map.highlight = fastkml.styles.StyleUrl(KMLNS, url="#style-%s-%s-highlight" % (timeperiodstr, info['seq']))
-        doc.append_style(style_map)
-
 
         placemark = fastkml.kml.Placemark(KMLNS, "%s-%s" % (timeperiodstr, info['seq']), info['name'] % info['row'], info['description'] % info['row'])
         placemark.geometry = shapely.wkt.loads(str(info['row']['shape']))
-        placemark.styleUrl = "#style-%s-%s" % (timeperiodstr, info['seq'])
+        placemark.styleUrl = "#style-%s" % (timeperiodstr,)
+        placemark.append_style(style_map)
         folder.append(placemark)
 
 
