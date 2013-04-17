@@ -163,9 +163,10 @@ class TolerancePathMap(MapSource):
 
 
     def get_timeframe(self):
-        self.cur.execute("select min(timemin), max(timemax) from " + self.get_table() + " as a")
-        row = self.cur.fetchone()
-        return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
+        self.cur.execute("select extract(epoch from min(timemin)) timemin, extract(epoch from max(timemax)) timemax from " + self.get_table() + " as a")
+        res = dictreader(self.cur).next()
+        if res['timemin'] is None: return None
+        return res
 
 
 class EventMap(MapSource):
@@ -204,8 +205,7 @@ class EventMap(MapSource):
             print "RESULTS: ", self.cur.rowcount
 
     def get_timeframe(self):
-        self.cur.execute("select min(datetime), max(datetime) from " + self.get_table() + " as a")
-        row = self.cur.fetchone()
-        if row[0] is None:
-            return None
-        return {'timemin': int(row[0].strftime('%s')), 'timemax': int(row[1].strftime("%s"))}
+        self.cur.execute("select extract(epoch from min(datetime)) timemin, extract(epoch from max(datetime)) timemax from " + self.get_table() + " as a")
+        res = dictreader(self.cur).next()
+        if res['timemin'] is None: return None
+        return res
