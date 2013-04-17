@@ -135,7 +135,8 @@ class Command(appomatic_mapimport.mapimport.Import):
                       "RadiativeHeat",
                       "footprint",
                       "SatZenithAngle",
-                      "SourceID")
+                      "SourceID",
+                      "quality")
                     values (
                       'VIIRS',
                       %(filename)s,
@@ -149,7 +150,8 @@ class Command(appomatic_mapimport.mapimport.Import):
                       %(RadiativeHeat)s,
                       %(footprint)s,
                       %(SatZenithAngle)s,
-                      %(SourceID)s)""",
+                      %(SourceID)s,
+                      %(quality)s)""",
                     row)
 
 
