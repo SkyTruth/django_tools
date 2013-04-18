@@ -37,8 +37,8 @@ class MapSource(object):
         self.cur.close()
 
     def get_query(self):
-        datetimemin = int(self.urlquery['datetime__gte'])
-        datetimemax = int(self.urlquery['datetime__lte'])
+        datetimemin = int(self.urlquery.get('datetime__gte', 0))
+        datetimemax = int(self.urlquery.get('datetime__lte', 0))
         lon1,lat1,lon2,lat2 = [float(coord) for coord in self.urlquery['bbox'].split(",")]
         return {
             "timeminstamp": datetimemin,
@@ -209,3 +209,42 @@ class EventMap(MapSource):
         res = dictreader(self.cur).next()
         if res['timemin'] is None: return None
         return res
+
+
+
+class StaticMap(MapSource):
+    name = 'Static set of objects'
+    def get_map_data_raw(self):
+        query = self.get_query()
+        bboxsql = self.get_bboxsql()
+
+        groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
+        order_by = ','.join(["a.grouping%s desc" % ind for ind in xrange(0, groupings)] + ["datetime desc"])
+
+        sql = """
+          select
+            *,
+            extract(epoch from %(timemin)s :: timestamp) as datetime,
+            %(timemin)s :: timestamp as datetime_time,
+            ST_AsText(location) as shape
+          from
+            """ + self.get_table() + """ as a
+          where
+            ST_Contains(
+              """ + bboxsql['bbox'] + """, location)
+          order by
+        """ + order_by
+
+        if 'limit' in self.urlquery:
+            sql += "limit %(limit)s"
+            query['limit'] = self.urlquery['limit']
+
+        self.cur.execute(sql, query)
+        try:
+            for row in dictreader(self.cur):
+                yield row
+        finally:
+            print "RESULTS: ", self.cur.rowcount
+
+    def get_timeframe(self):
+        return None

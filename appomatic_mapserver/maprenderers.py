@@ -10,6 +10,7 @@ import uuid
 import django.http
 import types
 import cgi
+import itertools
 
 def flattentree(tree):
     if isinstance(tree, types.GeneratorType):
@@ -66,6 +67,10 @@ class MapRenderer(object):
                     timeframe['timemin'] = new['timemin']
                 if timeframe['timemax'] is None or timeframe['timemax'] < new['timemax']:
                     timeframe['timemax'] = new['timemax']
+        if timeframe['timemin'] is None:
+            timeframe['timemin'] = 0
+        if timeframe['timemax'] is None:
+            timeframe['timemax'] = timeframe['timemin']
         return timeframe
 
     def get_layer_defs(self):
@@ -104,6 +109,29 @@ class MapRendererGeojson(MapRenderer):
         return res
 
 class MapRendererKml(MapRenderer):
+
+    def __init__(self, *arg, **kw):
+        MapRenderer.__init__(self, *arg, **kw)
+        self.group_value_path = []
+
+    def update_group_value_path(self, group_value_path):
+        matching = 0
+
+        for (old, new) in itertools.izip(self.group_value_path, group_value_path):
+            if old != new:
+                break
+            matching += 1
+
+        for i in xrange(matching, len(self.group_value_path)):
+            yield "</kml:Folder>"
+
+        for i in xrange(matching, len(group_value_path)):
+            yield '<kml:Folder id="group-%s">' % '-'.join("%s" % item for item in group_value_path)
+            yield '<kml:name>%s</kml:name>' % group_value_path[i]
+            yield '<kml:visibility>1</kml:visibility>'
+
+        self.group_value_path = group_value_path
+
     def get_map(self):
         def get_map():
             yield '<kml:kml xmlns:kml="http://www.opengis.net/kml/2.2">'
@@ -123,23 +151,10 @@ class MapRendererKml(MapRenderer):
 
                 with layer.source as source:
                     groupings = -1
-                    groupValuePath = []
-                    groupValueMapPath = []
                     for row in source.get_map_data():
                         if groupings == -1:
                             groupings = len([key for  key in row.keys() if key.startswith('grouping')])
-                            groupValuePath = ['__DUMMY__'] * groupings # Fill the path with dummy values 
-                        for ind in range(0, groupings):
-                            if groupValuePath[ind] != row["grouping%s" % ind]:
-                                for ind2 in range(ind, groupings):
-                                    if groupValuePath[ind2] != '__DUMMY__':
-                                        yield "</kml:Folder>"
-                                for ind2 in range(ind, groupings):
-                                    groupValuePath[ind2] = row["grouping%s" % ind2]
-                                    yield '<kml:Folder id="group-%s-%s">' % (layer_name, '-'.join("%s" % item for item in groupValuePath))
-                                    yield '<kml:name>%s</kml:name>' % row["grouping%s" % ind2]
-                                    yield '<kml:visibility>1</kml:visibility>'
-                                break
+                        yield self.update_group_value_path([row["grouping%s" % ind] for ind in xrange(0, groupings)])
                             
                         layer.template.row_generate_text(row)
 
@@ -151,9 +166,7 @@ class MapRendererKml(MapRenderer):
                         yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
                         yield '</kml:Placemark>'
 
-                    if groupValuePath and groupValuePath[-1] != '__DUMMY__':
-                        for ind in range(0, groupings):
-                            yield "</kml:Folder>"
+                    yield self.update_group_value_path([])
                 yield '</kml:Folder>'
             yield '</kml:Document>'
             yield '</kml:kml>'
