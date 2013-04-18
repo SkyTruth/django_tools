@@ -57,6 +57,10 @@ class MapSource(object):
     def get_columns(self):
         return fcdjangoutils.sqlutils.query_columns(self.cur, self.get_table())
 
+    def order_by(self):
+        groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
+        return ["a.grouping%s desc" % ind for ind in xrange(0, groupings)]
+
     def get_bboxsql(self):
         bboxmin = "ST_Point(%(lonmin)s, %(latmin)s)"
         bboxmax = "ST_Point(%(lonmax)s, %(latmax)s)"
@@ -114,6 +118,9 @@ class TolerancePathMap(MapSource):
             # Fixme: Handle min and max...
             return 2**int(math.log(float(tolerance), 2))
 
+    def order_by(self):
+        return MapSource.order_by(self) + ["mmsi desc"]
+
     def get_map_data_raw(self):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
@@ -150,8 +157,8 @@ class TolerancePathMap(MapSource):
                  """ + bboxsql['bbox'] + """)) as a
           where
             not ST_IsEmpty(shape_binary)
-          order by mmsi
-        """
+          order by
+        """ + ', '.join(self.order_by())
 
         self.cur.execute(sql, query)
         try:
@@ -175,9 +182,6 @@ class EventMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
-        groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
-        order_by = ','.join(["a.grouping%s desc" % ind for ind in xrange(0, groupings)] + ["a.datetime desc"])
-
         sql = """
           select
             *,
@@ -191,7 +195,7 @@ class EventMap(MapSource):
             and ST_Contains(
               """ + bboxsql['bbox'] + """, location)
           order by
-        """ + order_by
+        """ + ', '.join(self.order_by())
 
         if 'limit' in self.urlquery:
             sql += "limit %(limit)s"
@@ -218,9 +222,6 @@ class StaticMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
-        groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
-        order_by = ','.join(["a.grouping%s desc" % ind for ind in xrange(0, groupings)] + ["datetime desc"])
-
         sql = """
           select
             *,
@@ -233,7 +234,7 @@ class StaticMap(MapSource):
             ST_Contains(
               """ + bboxsql['bbox'] + """, location)
           order by
-        """ + order_by
+        """ + ', '.join(self.order_by())
 
         if 'limit' in self.urlquery:
             sql += "limit %(limit)s"

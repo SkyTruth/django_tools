@@ -11,6 +11,8 @@ import django.http
 import types
 import cgi
 import itertools
+import contextlib
+import django.template.defaultfilters
 
 def flattentree(tree):
     if isinstance(tree, types.GeneratorType):
@@ -19,6 +21,42 @@ def flattentree(tree):
                 yield result
     else:
         yield tree
+
+@contextlib.contextmanager
+def nestedwith(*mgrs):
+    if mgrs:
+        with mgrs[0] as value:
+            with nestedwith(*mgrs[1:]) as values:
+                yield (value,) + values
+    else:
+        yield ()
+
+class Peekable(object):
+    def __init__(self, iterator):
+        self.iterator = iter(iterator)
+        self.values = []
+    def __iter__(self):
+        return self
+    def next(self):
+        if self.values:
+            value = self.values[0]
+            self.values = self.values[1:]
+            return value
+        else:
+            return self.iterator.next()
+    def peek(self, items):
+        """Returns the next items number of items from the stream,
+        retaining the position within the stream (with regards to next()).
+        If StopIteration is reached on the underlying stream
+        a list shorter than items number of items will be returned.
+        """
+
+        for i in xrange(len(self.values), items):
+            try:
+                self.values.append(self.iterator.next())
+            except StopIteration:
+                pass
+        return self.values[:items]
 
 class MapRenderer(object):
     implementations = {}
@@ -109,7 +147,6 @@ class MapRendererGeojson(MapRenderer):
         return res
 
 class MapRendererKml(MapRenderer):
-
     def __init__(self, *arg, **kw):
         MapRenderer.__init__(self, *arg, **kw)
         self.group_value_path = []
@@ -126,11 +163,60 @@ class MapRendererKml(MapRenderer):
             yield "</kml:Folder>"
 
         for i in xrange(matching, len(group_value_path)):
-            yield '<kml:Folder id="group-%s">' % '-'.join("%s" % item for item in group_value_path)
+            yield '<kml:Folder id="group-%s">' % '-'.join(django.template.defaultfilters.slugify(("%s" % item).strip()) for item in group_value_path[:i])
             yield '<kml:name>%s</kml:name>' % group_value_path[i]
             yield '<kml:visibility>1</kml:visibility>'
 
         self.group_value_path = group_value_path
+
+    def merge_layers(self, *layers):
+        with nestedwith(*(layer.source for layer in layers)) as sources:
+            layers = dict((layer.layerdef.slug,
+                           {'layer': layer,
+                            'source': source,
+                            'rows': Peekable(source.get_map_data())})
+                          for (layer, source) in zip(layers, sources))
+
+            def remove_empty_layers():
+                # Remove layers that have run out of rows:
+                for slug, layer in layers.items():
+                    if not layer['rows'].peek(1):
+                        del layers[slug]
+                        continue
+
+            remove_empty_layers()
+
+            for slug, layer in layers.iteritems():
+                row = layer['rows'].peek(1)[0]
+                layer['groupings'] = len([key for key in row.keys() if key.startswith('grouping')])
+                layer['groupingcols'] = ["grouping%s" % ind for ind in xrange(0, layer['groupings'])]
+
+            while layers:
+                def layercmp(a, b):
+                    # Compare the next rows from two layers, which should come first?
+
+                    layera = layers[a]
+                    layerb = layers[b]
+
+                    rowa = layera['rows'].peek(1)[0]
+                    rowb = layerb['rows'].peek(1)[0]
+                    colsa = [rowa[col] for col in layera['groupingcols']]
+                    colsb = [rowb[col] for col in layerb['groupingcols']]
+
+                    print "CMP", a, colsa, b, colsb
+
+                    return cmp(colsa, colsb)
+
+                nextslug = sorted(layers.keys(), cmp=layercmp, reverse=True)[0]
+                print "NEXT", nextslug
+                if nextslug in layers: # Check for end of all layers
+                    layer = layers[nextslug]
+                    row = layer['rows'].next()
+                    path = [row[col] for col in layer['groupingcols']]
+                    yield layer['layer'], path, row
+
+                remove_empty_layers()
+
 
     def get_map(self):
         def get_map():
@@ -141,33 +227,23 @@ class MapRendererKml(MapRenderer):
             yield '<kml:description>doc name</kml:description>'
             yield '<kml:visibility>1</kml:visibility>'
 
-            for layer in self.get_layers():
-                layer_name = layer.urlquery.get('name', str(uuid.uuid4()))
-                yield '<kml:Folder id="grop-%s">' % layer_name
-                yield '<kml:name>%s</kml:name>' % layer_name
+            self.group_value_path = []
+
+            for layer, path, row in self.merge_layers(*self.get_layers()):
+                yield self.update_group_value_path(path)
+
+                layer.template.row_generate_text(row)
+
+                yield '<kml:Placemark id="%s">' % row['title']
+                yield '<kml:name>%s</kml:name>' % row['title']
+                yield '<kml:description>%s</kml:description>' % cgi.escape(row['description'])
                 yield '<kml:visibility>1</kml:visibility>'
+                yield layer.template.row_kml_style(row)
+                yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
+                yield '</kml:Placemark>'
 
-                yield layer.template.kml_style()
+            yield self.update_group_value_path([])
 
-                with layer.source as source:
-                    groupings = -1
-                    for row in source.get_map_data():
-                        if groupings == -1:
-                            groupings = len([key for  key in row.keys() if key.startswith('grouping')])
-                        yield self.update_group_value_path([row["grouping%s" % ind] for ind in xrange(0, groupings)])
-                            
-                        layer.template.row_generate_text(row)
-
-                        yield '<kml:Placemark id="%s">' % row['title']
-                        yield '<kml:name>%s</kml:name>' % row['title']
-                        yield '<kml:description>%s</kml:description>' % cgi.escape(row['description'])
-                        yield '<kml:visibility>1</kml:visibility>'
-                        yield layer.template.row_kml_style(row)
-                        yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
-                        yield '</kml:Placemark>'
-
-                    yield self.update_group_value_path([])
-                yield '</kml:Folder>'
             yield '</kml:Document>'
             yield '</kml:kml>'
 
