@@ -43,7 +43,18 @@ class MapTemplateSimple(MapTemplate):
             header = "<h2><a href='%(url)s'>%(name)s</a></h2>"
         cols = [col for col in row.keys() if col not in ("shape", "shape_binary", "location", "line")]
         cols.sort()
-        template = '<table>%s</table>' % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
+        template = """
+          <style>
+            table th {
+              text-align: right;
+            }
+            table th, table td {
+              vertical-align: top; }
+            }
+          </style>
+          <table>%s</table>
+        """
+        template = template % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
         row['description'] = template % row
 
         row['style'] = {
@@ -145,3 +156,18 @@ class MapTemplateCogTimeTitle(MapTemplateCog):
         MapTemplateCog.row_generate_text(self, row)
         if 'datetime' in row:
             row['title'] = row['datetime_time'].strftime("%H:%M:%S")
+class MapTemplateCogTimeTitle(MapTemplateCog):
+    name = 'Template for events with COG, titled by time'
+
+    def row_generate_text(self, row):
+        MapTemplateCog.row_generate_text(self, row)
+        if 'datetime' in row:
+            row['title'] = row['datetime_time'].strftime("%H:%M:%S")
+
+class MapTemplateCogDateTimeTitle(MapTemplateCog):
+    name = 'Template for events with COG, titled by date & time'
+
+    def row_generate_text(self, row):
+        MapTemplateCog.row_generate_text(self, row)
+        if 'datetime' in row:
+            row['title'] = row['datetime_time'].strftime("%Y-%m-%d %H:%M:%S")
