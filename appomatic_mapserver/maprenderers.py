@@ -203,12 +203,9 @@ class MapRendererKml(MapRenderer):
                     colsa = [rowa[col] for col in layera['groupingcols']]
                     colsb = [rowb[col] for col in layerb['groupingcols']]
 
-                    print "CMP", a, colsa, b, colsb
-
                     return cmp(colsa, colsb)
 
                 nextslug = sorted(layers.keys(), cmp=layercmp, reverse=True)[0]
-                print "NEXT", nextslug
                 if nextslug in layers: # Check for end of all layers
                     layer = layers[nextslug]
                     row = layer['rows'].next()
