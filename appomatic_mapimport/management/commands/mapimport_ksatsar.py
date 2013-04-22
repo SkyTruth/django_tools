@@ -122,7 +122,7 @@ class Command(django.core.management.base.BaseCommand):
                                             detection['location'] = subfeature.geometry.to_wkt()                                                
 
                                             detection.update(fileinfo)
-
+                                            
                                             try:
                                                 cur.execute("""
                                                             insert into appomatic_mapdata_sar (
@@ -153,7 +153,7 @@ class Command(django.core.management.base.BaseCommand):
                                                               "ProductId")
                                                             values (
                                                               %(src)s,
-                                                              %(filename)s
+                                                              %(filename)s,
                                                               %(datetime)s,
                                                               %(duration)s,
                                                               %(BeamMode)s,
