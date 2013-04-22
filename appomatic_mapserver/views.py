@@ -68,6 +68,9 @@ def mapserver(request, application):
     if action == 'map':
         return renderer.get_map()
 
+    if action == 'config':
+        return renderer.application.configuration
+
     if action == 'layers':
         return renderer.get_layer_defs()
 

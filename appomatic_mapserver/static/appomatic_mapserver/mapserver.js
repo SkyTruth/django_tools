@@ -670,17 +670,29 @@ MapServer.init = function () {
 
     function(cb) {
       if (top.window.location.hash) {
-        MapServer.updateMapFromUrl(map);
-      } else {
-        var values = $("#time-slider").slider("option", "values");
-        map.setCenter(
-          new OpenLayers.LonLat(-118.20782, -24.9335916667).transform(
-            new OpenLayers.Projection("EPSG:4326"),
-            map.getProjectionObject()
-          ), 5
-        );
-        map.setTimeRange(values[0], values[1]);
+        return cb();
       }
+      $.get(
+        MapServer.apiurl,
+         {action: 'config'},
+         function(d) {
+           if (!d) {
+             d = {
+               timemin: map.timemin,
+               timemax: map.timemax,
+               center: new OpenLayers.LonLat(-118.20782, -24.9335916667),
+               zoom: map.getZoom()
+             }
+           }
+           top.window.location.hash = "#" + encodeURIComponent(JSON.stringify(d));
+           cb();
+         },
+         "json"
+      );
+    },
+
+    function(cb) {
+      MapServer.updateMapFromUrl(map);
       cb();
     }
 

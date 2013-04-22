@@ -3,6 +3,7 @@ import fcdjangoutils.fields
 import appomatic_mapserver.mapsources
 import appomatic_mapserver.maptemplates
 import django.utils.functional
+import fcdjangoutils.fields
 
 def set_path(d, path, value):
     node = d
@@ -16,6 +17,7 @@ def set_path(d, path, value):
 class Application(django.db.models.Model):
     slug = django.db.models.SlugField(max_length=1024, primary_key=True)
     name = django.db.models.CharField(max_length=1024, unique=True)
+    configuration = fcdjangoutils.fields.JsonField(max_length=2048, null=True, blank=True)
 
     def __unicode__(self):
         return self.name
