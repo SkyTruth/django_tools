@@ -676,15 +676,16 @@ MapServer.init = function () {
         MapServer.apiurl,
          {action: 'config'},
          function(d) {
-           if (!d) {
-             d = {
-               timemin: map.timemin,
-               timemax: map.timemax,
-               center: new OpenLayers.LonLat(-118.20782, -24.9335916667),
-               zoom: map.getZoom()
-             }
+           defaults = {
+             timemin: data.timemax-24*60*60,
+             timemax: data.timemax,
+             center: new OpenLayers.LonLat(-118.20782, -24.9335916667),
+             zoom: map.getZoom()
            }
-           top.window.location.hash = "#" + encodeURIComponent(JSON.stringify(d));
+           for (key in d) {
+             defaults[key] = d[key];
+           }
+           top.window.location.hash = "#" + encodeURIComponent(JSON.stringify(defaults));
            cb();
          },
          "json"
