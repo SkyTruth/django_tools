@@ -224,6 +224,9 @@ class MapRendererKml(MapRenderer):
             yield '<kml:description>doc name</kml:description>'
             yield '<kml:visibility>1</kml:visibility>'
 
+            for layer in self.get_layers():
+                yield layer.template.kml_style()
+
             self.group_value_path = []
 
             for layer, path, row in self.merge_layers(*self.get_layers()):
