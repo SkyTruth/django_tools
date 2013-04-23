@@ -359,7 +359,7 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
     OpenLayers.Util.extend(options, {
       projection: new OpenLayers.Projection("EPSG:4326"), // Same as WGS84
       strategies: [
-        new OpenLayers.Strategy.BBOX({resFactor: 1}),
+        new OpenLayers.Strategy.BBOX({ratio: 1}),
         this.filterStrategy
       ],
       protocol: new OpenLayers.Protocol.HTTP(
