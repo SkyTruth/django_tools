@@ -288,6 +288,8 @@ MapServer.Control.GeoCode = OpenLayers.Class(OpenLayers.Control, {
     this.contentDiv = contentDiv[0];
     $(this.div).append(this.contentDiv);
 
+    contentDiv.mousedown(function (e) { e.stopPropagation(); });
+
     var input = $("<input type='text'>");
     contentDiv.append(input);
 
