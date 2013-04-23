@@ -240,6 +240,13 @@ class MapRendererKml(MapRenderer):
                 yield '<kml:visibility>1</kml:visibility>'
                 yield layer.template.row_kml_style(row)
                 yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
+
+                if 'timemax' in row and 'timemin' in row:
+                    yield "<TimeSpan><begin>%s</begin><end>%s</end></TimeSpan>" % (row['timemin'].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                                                                   row['timemax'].strftime("%Y-%m-%dT%H:%M:%SZ"))
+                else:
+                    yield "<TimeStamp><when>%s</when></TimeStamp>" % (row['datetime_time'].strftime("%Y-%m-%dT%H:%M:%SZ"))
+
                 yield '</kml:Placemark>'
 
             yield self.update_group_value_path([])
