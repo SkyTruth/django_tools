@@ -59,6 +59,8 @@ class MapSource(object):
 
     def order_by(self):
         groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
+        if not groupings:
+            return ["1"]
         return ["a.grouping%s desc" % ind for ind in xrange(0, groupings)]
 
     def get_bboxsql(self):
