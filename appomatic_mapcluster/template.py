@@ -56,9 +56,9 @@ def template_cluster_description(columns):
         <tr><th>Temperature (avg)</th><td>%(Temperature_avg).0f°C</td></tr>
         <tr><th>Temperature (min)</th><td>%(Temperature_min).0f°C</td></tr>
         <tr><th>Temperature (max)</th><td>%(Temperature_max).0f°C</td></tr>
-        <tr><th>Magnitude (avg)</th><td>%(RadiativeHeat_avg).2fMW</td></tr>
+        <!--tr><th>Magnitude (avg)</th><td>%(RadiativeHeat_avg).2fMW</td></tr>
         <tr><th>Magnitude (min)</th><td>%(RadiativeHeat_min).2fMW</td></tr>
-        <tr><th>Magnitude (max)</th><td>%(RadiativeHeat_max).2fMW</td></tr>
+        <tr><th>Magnitude (max)</th><td>%(RadiativeHeat_max).2fMW</td></tr-->
       </table>
       <br>
       Analysis by <a href="http://skytruth.org/">SkyTruth</a><br>
