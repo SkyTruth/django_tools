@@ -44,6 +44,7 @@ class Import(django.core.management.base.BaseCommand):
         raise NotImplementedError
 
     def insertrow(self, row):
+        row['mmsi'] = row.get('mmsi', '').strip()
         if row.get("hasposition", True):
             row['quality'] = row.get('quality', 1)
             self.cur.execute("insert into appomatic_mapdata_ais (src, srcfile, datetime, mmsi, latitude, longitude, true_heading, sog, cog, quality) values (%(SRC)s, %(filename)s, %(datetime)s, %(mmsi)s, %(latitude)s, %(longitude)s, %(true_heading)s, %(sog)s, %(cog)s, %(quality)s)", row)
@@ -101,7 +102,7 @@ class Import(django.core.management.base.BaseCommand):
                                             raise
 
                                     self.cur.execute("insert into appomatic_mapimport_downloaded (src, filename, datetime) values (%(SRC)s, %(filename)s, %(datetime)s)", {'SRC': self.SRC, 'filename': filename, 'datetime': datetime.datetime.now()})
-
+                                    print "    DONE"
                                 except Exception, e:
                                     print "    Error loading file " + str(e)
                                     import traceback
