@@ -1,0 +1,35 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Clusters</title>
+
+    <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/css/smoothness/jquery-ui-1.10.0.custom.min.css" />
+
+    <script src="{% get_static_prefix %}appomatic_mapserver/libs/async.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/libs/date.format.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/libs/mustache/mustache.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/js/jquery-1.9.0.js"></script>
+    <script src="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/js/jquery-ui-1.10.0.custom.min.js"></script>
+    <script>
+      $(function() {
+        $(".datepicker" ).datepicker({dateFormat: "yy-mm-dd"});
+        $(".expandable .body").hide();
+        $(".expandable .expander").click(function () {
+          $(this).parent().find(".body").toggle();
+        });
+      });
+    </script>
+  </head>
+  <body>
+     <form action="{% url 'appomatic_mapexport.views.kmlformat' %}" method="GET"> 
+       <input type="hidden" name="bbox" value="-117.31792742189,-31.078647788423,-96.224177421889,-21.337810333915" />
+       <p>Start date: <input type="text" name="datetime__gte" class="datepicker" /></p>
+       <p>End date: <input type="text" name="datetime__lte" class="datepicker" /></p>
+       <input type="submit" value="Get it">
+     </form>
+  </body>
+</html>
