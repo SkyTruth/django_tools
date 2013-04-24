@@ -24,3 +24,10 @@ def csvformat(request):
         status=200)
     res['Content-Disposition'] = 'attachment; filename="export.csv"'
     return res
+
+
+def index(request):
+    return django.shortcuts.render_to_response(
+        'appomatic_mapexport/index.html',
+        {},
+        context_instance=django.template.RequestContext(request))

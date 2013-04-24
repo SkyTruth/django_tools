@@ -149,6 +149,12 @@ $placemarks_kml
 </Folder>
 """	 )
 
+date_kml_template = Template(
+"""<Folder>
+    <name>$date</name>
+    $placemarks_kml
+   </Folder>
+""")
 
 
 track_template = Template (
@@ -171,6 +177,7 @@ placemark_template = Template(
     <name>$datetime</name>
     <description>
 <table width="300">
+    <tr><th align="right">Source</th><td>$src</td></tr>
     <tr><th align="right">Vessel Name</th><td>$name</td></tr>
     <tr><th align="right">Vessel Type</th><td>$type</td></tr>
     <tr><th align="right">MMSI</th><td>$mmsi</td></tr>
@@ -225,7 +232,20 @@ def interval_total_seconds(interval):
     
 def get_vessel_kml (vessel, mmsi):
     params = {'name': vessel.name}
-    params['placemarks_kml'] = '\n'.join([get_placemark_kml(ais) for ais  in vessel.ais])
+
+    params['placemarks_kml'] = []
+    lastdate = None
+    datekml = []
+    for ais in vessel.ais:
+        if ais['datetime'].strftime("%Y-%m-%d") != lastdate:
+            if datekml:
+               params['placemarks_kml'].append(date_kml_template.substitute({'date':lastdate, 'placemarks_kml': '\n'.join(datekml)}))
+            datekml = []
+            lastdate = ais['datetime'].strftime("%Y-%m-%d")
+        datekml.append(get_placemark_kml(ais))
+    if datekml:
+        params['placemarks_kml'].append(date_kml_template.substitute({'date':lastdate, 'placemarks_kml': '\n'.join(datekml)}))
+    params['placemarks_kml'] = '\n'.join(params['placemarks_kml'])
     params['track_kml'] = get_track_kml (vessel)
     return vessel_kml_template.substitute (params)
     

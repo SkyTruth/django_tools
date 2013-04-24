@@ -9,10 +9,22 @@ def dictreader(cur):
 
 def get_records(**args):
     with contextlib.closing(django.db.connection.cursor()) as cur:
+
+        def converttime(s):
+            try:
+                return int(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:S").strftime("%s"))
+            except:
+                try:
+                    return int(datetime.datetime.strptime(s, "%Y-%m-%d").strftime("%s"))
+                except Exception, e:
+                    return int(s)
+
         if args.get('datetime__gte', None):
-            args['timemin'] = datetime.datetime.utcfromtimestamp(int(args['datetime__gte']))
+            args['timemin'] = datetime.datetime.utcfromtimestamp(converttime(args['datetime__gte']))
         if args.get('datetime__lte', None):
-            args['timemax'] = datetime.datetime.utcfromtimestamp(int(args['datetime__lte']))
+            args['timemax'] = datetime.datetime.utcfromtimestamp(converttime(args['datetime__lte']))
+
+
         if args.get('bbox', None):
             lon1,lat1,lon2,lat2 = [float(coord) for coord in args['bbox'].split(",")]
             args['lonmin'] = min(lon1, lon2)

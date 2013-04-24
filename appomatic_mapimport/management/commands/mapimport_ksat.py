@@ -27,17 +27,6 @@ class Command(appomatic_mapimport.mapimport.SftpImport):
 
     def loadfile(self, file):
         for row in appomatic_mapimport.ksat.convert(file):
-
-            # Why doesn't gpsdecode do scaling???
-            if 'speed' in row:
-                if row['speed'] >= 1023:
-                    row['speed'] = None
-                else:
-                    row['speed'] = row['speed'] / 10.0 # A AIS speed unit is 1/10 of a knot
-            if 'heading' in row: row['heading'] = row['heading'] / 10.0 # A AIS cog unit is 1/10 of a degree
-            if 'course' in row: row['course'] = row['course'] / 10.0 # A AIS cog unit is 1/10 of a degree
-            if 'lon' in row: row['lon'] = row['lon'] / 600000.0 # A AIS unit is 1/10000th of a minute (1/60th of a degree)
-            if 'lat' in row: row['lat'] = row['lat'] / 600000.0
             if 'C' in row:
                 row['C'] = datetime.datetime.utcfromtimestamp(int(row['C'])).replace(tzinfo=pytz.utc)
             else:
@@ -48,20 +37,14 @@ class Command(appomatic_mapimport.mapimport.SftpImport):
                 row['S'] = 'KSAT'
             #print row
             #print "    %(C)s: %(mmsi)s" % row
-            row['hasposition'] = row.get('type', None) in (1, 2, 3)
+            row['hasposition'] = row.get('x', None) is not None
 
             if 'mmsi' in row: row['mmsi'] = str(row['mmsi'])
 
             row['SRC'] = row['S']
             row['datetime'] = row['C']
-            row['latitude'] = row.get('lat', None)
-            row['longitude'] = row.get('lon', None)
-            row['sog'] = row.get('speed', None)
-            row['cog'] = row.get('course', None)
-            row['true_heading'] = row.get('heading', None)
-
-            row['name'] = row.get('shipname', None)
-            row['type'] = row.get('shiptype', None)
-            row['length'] = row.get('to_bow', None)
+            row['latitude'] = row.get('y', None)
+            row['longitude'] = row.get('x', None)
+            row['length'] = row.get('dim_a', None)
 
             yield row
