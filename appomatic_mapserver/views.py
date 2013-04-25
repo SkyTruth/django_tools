@@ -54,7 +54,7 @@ def profiled(filename_pattern):
         return profiled_fn
     return profiled
 
-@profiled("/tmp/profile-mapserver: %(time)s %(url)s")
+#@profiled("/tmp/profile-mapserver: %(time)s %(url)s")
 @fcdjangoutils.jsonview.json_view
 @print_time
 def mapserver(request, application):
