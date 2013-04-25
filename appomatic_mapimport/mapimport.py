@@ -43,6 +43,18 @@ class Import(django.core.management.base.BaseCommand):
     def loadfile(self, file):
         raise NotImplementedError
 
+
+    rowfilter = {'min': {'longitude': -180, 'latitude': -90},
+                 'max': {'longitude': 180, 'latitude': 90}}
+
+    def filterrow(self, row):
+        if row.get("hasposition", True):
+            if not (row['latitude'] >= self.rowfilter['min']['latitude']
+                    and row['latitude'] <= self.rowfilter['max']['latitude']
+                    and row['longitude'] >= self.rowfilter['min']['longitude']
+                    and row['longitude'] <= self.rowfilter['max']['longitude']):
+                row['quality'] = 0
+
     def insertrow(self, row):
         row['mmsi'] = row.get('mmsi', '').strip()
         if row.get("hasposition", True):
@@ -95,6 +107,7 @@ class Import(django.core.management.base.BaseCommand):
                                         #print "    %(datetime)s: %(mmsi)s" % row
                                         if 'filename' not in row: row['filename'] = filename
                                         if 'SRC' not in row: row['SRC'] = self.SRC
+                                        self.filterrow(row)
                                         try:
                                             self.insertrow(row)
                                         except:
@@ -113,6 +126,12 @@ class Import(django.core.management.base.BaseCommand):
 
                         except Exception, e:
                             print "    Unable to open file " + str(e)
+
+
+class RowFilterEasterIsland(object):
+    rowfilter = {'min': {'longitude': -116.650175250333, 'latitude': -33.4570571845831},
+                 'max': {'longitude': -98.3831892475021, 'latitude': -19.5137636124117}}
+
 
 class SftpImport(Import):
     help = 'Import data from sftp'

@@ -11,7 +11,7 @@ import pytz
 from django.conf import settings
 
 
-class Command(appomatic_mapimport.mapimport.SftpImport):
+class Command(appomatic_mapimport.mapimport.RowFilterEasterIsland, appomatic_mapimport.mapimport.SftpImport):
     help = 'Import data from exact earth'
     SRC = 'KSAT'
 

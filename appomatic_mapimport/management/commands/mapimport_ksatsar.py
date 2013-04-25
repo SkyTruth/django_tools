@@ -17,7 +17,7 @@ import fastkml.kml
 KML_ROOT = os.path.join(settings.MEDIA_ROOT, "vessel-detections")
 
 
-class Command(django.core.management.base.BaseCommand):
+class Command(appomatic_mapimport.mapimport.RowFilterEasterIsland, django.core.management.base.BaseCommand):
     help = 'Import data from exact earth'
 
     def handle(self, *args, **options):

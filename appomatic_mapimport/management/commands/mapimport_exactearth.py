@@ -9,11 +9,10 @@ import appomatic_mapimport.mapimport
 from django.conf import settings
 
 
-class Command(appomatic_mapimport.mapimport.SftpImport):
+class Command(appomatic_mapimport.mapimport.RowFilterEasterIsland, appomatic_mapimport.mapimport.SftpImport):
     SRC = 'EXACTEARTH'
 
     help = 'Import data from exact earth'
-
 
     def connectioninfo(self):
         return settings.MAPIMPORT_EXACTEARTH
