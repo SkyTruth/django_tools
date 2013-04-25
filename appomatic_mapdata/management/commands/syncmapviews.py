@@ -154,7 +154,7 @@ class Command(django.core.management.base.BaseCommand):
                 next.location next_location,
                 next.srcfile next_srcfile,
                 next.quality next_quality,
-                st_distance(ais.location, next.location) distance,
+                st_distance(ais.location::geography, next.location::geography) / 1852.0 distance,
                 next.datetime - ais.datetime timediff,
                 (st_distance(ais.location::geography, next.location::geography) / 1852.0)
                  / ((extract(epoch from next.datetime) - extract(epoch from ais.datetime)) / 60 / 60) speed
