@@ -37,8 +37,18 @@ class MapSource(object):
         self.cur.close()
 
     def get_query(self):
-        datetimemin = int(self.urlquery.get('datetime__gte', 0))
-        datetimemax = int(self.urlquery.get('datetime__lte', 0))
+        def converttime(s):
+            try:
+                return int(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:S").strftime("%s"))
+            except:
+                try:
+                    return int(datetime.datetime.strptime(s, "%Y-%m-%d").strftime("%s"))
+                except Exception, e:
+                    return int(s)
+
+        datetimemin = converttime(self.urlquery.get('datetime__gte', '0'))
+        datetimemax = converttime(self.urlquery.get('datetime__lte', '0'))
+
         lon1,lat1,lon2,lat2 = [float(coord) for coord in self.urlquery['bbox'].split(",")]
         return {
             "timeminstamp": datetimemin,
