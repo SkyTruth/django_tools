@@ -137,4 +137,46 @@ class Command(django.core.management.base.BaseCommand):
                    union select null as tolerance) as c;
             """, {'TOLERANCE_BASE_MAX': settings.TOLERANCE_BASE_MAX,
                   'TOLERANCE_BASE_MIN': settings.TOLERANCE_BASE_MIN})
+
+            cur.execute("""
+              drop view if exists appomatic_mapdata_ais_calculated_speeds_view;
+              create view appomatic_mapdata_ais_calculated_speeds_view as
+              select
+                ais.*,
+                next.id next_id,
+                next.src next_src,
+                next.datetime next_datetime,
+                next.latitude next_latitude,
+                next.longitude next_longitude,
+                next.true_heading next_true_heading,
+                next.sog next_sog,
+                next.cog next_cog,
+                next.location next_location,
+                next.srcfile next_srcfile,
+                next.quality next_quality,
+                st_distance(ais.location::geography, next.location::geography) / 1852.0 distance,
+                next.datetime - ais.datetime timediff,
+                (st_distance(ais.location::geography, next.location::geography) / 1852.0)
+                 / ((extract(epoch from next.datetime) - extract(epoch from ais.datetime)) / 60 / 60) speed
+              from
+                appomatic_mapdata_ais ais
+                join appomatic_mapdata_ais next on
+                  ais.latitude <= 90 and ais.latitude >= -90 and ais.longitude <= 180 and ais.longitude >= -180
+                  and next.latitude <= 90 and next.latitude >= -90 and next.longitude <= 180 and next.longitude >= -180
+                  and next.mmsi = ais.mmsi
+                  and next.datetime = (
+                    select
+                      min(between.datetime)
+                    from
+                      appomatic_mapdata_ais between
+                    where
+                      between.mmsi = ais.mmsi
+                      and between.datetime > ais.datetime);
+            """)
+            
+            cur.execute("""
+              drop table if exists appomatic_mapdata_ais_calculated_speeds;
+              create table appomatic_mapdata_ais_calculated_speeds as select * from appomatic_mapdata_ais_calculated_speeds_view limit 0;
+            """)
+
             cur.execute("commit")
