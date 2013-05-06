@@ -33,7 +33,12 @@ def retry(times=3):
 
 
 class Command(appomatic_mapimport.mapimport.Import):
-    help = 'Import fracfocusdata.org data'
+    help = """Import fracfocusdata.org data
+      Usage:
+      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus 3 Texas Mitchell
+
+      County and State are optional. You do want to specify screen-size (and set it that big) to avoid bugs in selenium.
+    """
     SRC='FRACFOCUS'
 
     baseurl = "http://www.fracfocusdata.org/DisclosureSearch/StandardSearch.aspx"
