@@ -5,7 +5,9 @@ import selenium.webdriver.support
 import selenium.webdriver.support.expected_conditions
 import selenium.webdriver.common.by
 import selenium.common.exceptions
+import selenium.webdriver.common.proxy
 import appomatic_mapimport.mapimport
+import appomatic_mapimport.models
 import logging
 import contextlib
 
@@ -33,9 +35,34 @@ class SeleniumImport(appomatic_mapimport.mapimport.Import):
             else:
                 raise Exception("%s never showed up" % xpath)
 
+    def proxyconf(self):
+        proxyconf = appomatic_mapimport.models.Proxy.get()
+        proxyurl = "%s:%s" % (proxyconf.ip_address, proxyconf.port)
+        logger.info("Using proxy %s" % proxyconf)
+        return {"proxy": selenium.webdriver.common.proxy.Proxy({
+                    'proxyType': selenium.webdriver.common.proxy.ProxyType.MANUAL,
+                    'httpProxy': proxyurl,
+                    'ftpProxy': proxyurl,
+                    'sslProxy': proxyurl,
+                    'noProxy': ''})}
+
+    def profileconf(self):
+        return {"firefox_profile": selenium.webdriver.firefox.firefox_profile.FirefoxProfile(
+                profile_directory=self.FIREFOX_PROFILEDIR)}
+
+    def connectionparams(self):
+        res = {}
+        res.update(self.profileconf())
+        res.update(self.proxyconf())
+        return res
+
     @contextlib.contextmanager
     def connect(self):
-        self.connection = selenium.webdriver.Firefox(
-            firefox_profile=selenium.webdriver.firefox.firefox_profile.FirefoxProfile(
-                profile_directory=self.FIREFOX_PROFILEDIR))
+        @appomatic_mapimport.mapimport.retryable()
+        def connect():
+            self.connection = selenium.webdriver.Firefox(**self.connectionparams())
+            self.connection.get("http://google.com")
+
+        connect()
+        logger.info("Connected")
         yield
