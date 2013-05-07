@@ -19,33 +19,6 @@ import psycopg2
 
 logger = logging.getLogger(__name__)
 
-def retryable(times=3):
-    def inner(fn):
-        def wrapper(*arg, **kw):
-            for attempt in xrange(0, times):
-                try:
-                    return fn(*arg, **kw)
-                except Exception, e:
-                    exc = e
-                    logger.warn("Retrying %s. Failed due to: %s" % (fn.func_name, e))
-                time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
-            raise exc
-        return wrapper
-    return inner
-
-def run(fn):
-    fn()
-    return fn
-
-def retry(times=3):
-    def inner(fn):
-        @run
-        @retryable(times)
-        def wrapper(*arg, **kw):
-            return fn(*arg, **kw)
-        return wrapper
-    return inner
-
 
 class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
     help = """Import fracfocusdata.org data
@@ -75,7 +48,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
         logger.debug("Cleaned the download dir")
 
 
-    @retryable()
+    @appomatic_mapimport.mapimport.retryable()
     def get_states_from_site(self):
         self.connection.get(self.baseurl)
         time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
@@ -86,7 +59,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
             if state.text != 'Choose a State')
 
 
-    @retryable()
+    @appomatic_mapimport.mapimport.retryable()
     def get_counties_from_site(self, state):
         self.connection.get(self.baseurl)
         time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
@@ -161,7 +134,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
     def get_file_from_record(self, element, row):
         pattern = os.path.join(settings.MAPIMPORT_FRACFOCUS['DOWNLOADDIR'], "*")
 
-        @retryable()
+        @appomatic_mapimport.mapimport.retryable()
         def attempt_download():
             if len(glob.glob(pattern)) > 0:
                 logger.warn("Download dir not clean prior to download")
@@ -243,7 +216,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
     # FIXME: Retry each page separately, and make sure the next-page button gets us to the right page...
     def get_records_for_county(self, state = 'Texas', county = 'Mitchell'):
-        @retry()
+        @appomatic_mapimport.mapimport.retry()
         def load_results():
             self.connection.get(self.baseurl)
 

@@ -10,6 +10,34 @@ from django.conf import settings
 import datetime
 
 
+def retryable(times=3):
+    def inner(fn):
+        def wrapper(*arg, **kw):
+            for attempt in xrange(0, times):
+                try:
+                    return fn(*arg, **kw)
+                except Exception, e:
+                    exc = e
+                    logger.warn("Retrying %s. Failed due to: %s" % (fn.func_name, e))
+                time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
+            raise exc
+        return wrapper
+    return inner
+
+def run(fn):
+    fn()
+    return fn
+
+def retry(times=3):
+    def inner(fn):
+        @run
+        @retryable(times)
+        def wrapper(*arg, **kw):
+            return fn(*arg, **kw)
+        return wrapper
+    return inner
+
+
 class Import(django.core.management.base.BaseCommand):
     SRC = NotImplemented
 
