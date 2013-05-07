@@ -11,16 +11,18 @@ import shutil
 import os.path
 import datetime
 import appomatic_mapimport.mapimport
+import appomatic_mapimport.seleniumimport
+import appomatic_mapimport.models
 from django.conf import settings
 import logging
 import psycopg2
 
 logger = logging.getLogger(__name__)
 
-def retry(times=3):
-    def retry(fn):
+def retryable(times=3):
+    def inner(fn):
         def wrapper(*arg, **kw):
-            for retry in xrange(0, times):
+            for attempt in xrange(0, times):
                 try:
                     return fn(*arg, **kw)
                 except Exception, e:
@@ -29,10 +31,23 @@ def retry(times=3):
                 time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
             raise exc
         return wrapper
-    return retry
+    return inner
+
+def run(fn):
+    fn()
+    return fn
+
+def retry(times=3):
+    def inner(fn):
+        @run
+        @retryable(times)
+        def wrapper(*arg, **kw):
+            return fn(*arg, **kw)
+        return wrapper
+    return inner
 
 
-class Command(appomatic_mapimport.mapimport.Import):
+class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
     help = """Import fracfocusdata.org data
       Usage:
       xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus 3 Texas Mitchell
@@ -41,27 +56,9 @@ class Command(appomatic_mapimport.mapimport.Import):
     """
     SRC='FRACFOCUS'
 
-    baseurl = "http://www.fracfocusdata.org/DisclosureSearch/StandardSearch.aspx"
+    FIREFOX_PROFILEDIR = settings.MAPIMPORT_FRACFOCUS['PROFILE']
 
-    def wait_for_xpath(self, xpath, negate=False):
-        """Waits for an xpath to match the document, or of negate is True, to not match any longer."""
-        cond = selenium.webdriver.support.expected_conditions.presence_of_element_located(
-            (selenium.webdriver.common.by.By.XPATH,
-             xpath))
-        wait = selenium.webdriver.support.ui.WebDriverWait(self.driver, 10)
-        try:
-            if negate:
-                logger.debug("Waiting for %s to go away" % xpath)
-                return wait.until_not(cond)
-            else:
-                logger.debug("Waiting for %s" % xpath)
-                return wait.until(cond)
-        except selenium.common.exceptions.TimeoutException, e:
-            self.driver.get_screenshot_as_file('timeout-screenshot.png')
-            if negate:
-                raise Exception("%s never went away" % xpath)
-            else:
-                raise Exception("%s never showed up" % xpath)
+    baseurl = "http://www.fracfocusdata.org/DisclosureSearch/StandardSearch.aspx"
 
     def parsedate(self, date):
         """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
@@ -78,35 +75,93 @@ class Command(appomatic_mapimport.mapimport.Import):
         logger.debug("Cleaned the download dir")
 
 
-    @retry()
-    def get_states(self):
-        self.driver.get(self.baseurl)
+    @retryable()
+    def get_states_from_site(self):
+        self.connection.get(self.baseurl)
         time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
 
         return dict(
             (state.text, state.get_attribute("value"))
-            for state in self.driver.find_elements_by_xpath("//*[@id='MainContent_cboStateList']//option")
+            for state in self.connection.find_elements_by_xpath("//*[@id='MainContent_cboStateList']//option")
             if state.text != 'Choose a State')
 
 
-    @retry()
-    def get_counties(self, state = 'Texas'):
-        self.driver.get(self.baseurl)
+    @retryable()
+    def get_counties_from_site(self, state):
+        self.connection.get(self.baseurl)
         time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
 
-        self.driver.find_element_by_xpath("//*[@id='MainContent_cboStateList']//*[text()='%s']" % state).click()
+        self.connection.find_element_by_xpath("//*[@id='MainContent_cboStateList']//*[text()='%s']" % state).click()
 
         self.wait_for_xpath("//*[@id='MainContent_cboCountyList']//*[text()='Choose a State First']", negate=True)
 
         return dict(
             (county.text, county.get_attribute("value"))
-            for county in self.driver.find_elements_by_xpath("//*[@id='MainContent_cboCountyList']//option")
+            for county in self.connection.find_elements_by_xpath("//*[@id='MainContent_cboCountyList']//option")
             if county.text != 'Choose a County')
+
+    def get_states(self):
+        db_states = list(appomatic_mapimport.models.Downloaded.objects.filter(src=self.SRC, parent=None).order_by("-datetime"))
+        db_states_dict = dict((obj.filename, obj) for obj in db_states)
+
+        downloaded_states = self.get_states_from_site()
+
+        for state in downloaded_states.iterkeys():
+            if state not in db_states_dict:
+                new_state = appomatic_mapimport.models.Downloaded(
+                    src=self.SRC,
+                    filename=state,
+                    datetime=datetime.datetime(1970,1, 1))
+                new_state.save()
+                db_states.insert(0, new_state)
+
+        return db_states
+
+    def get_state(self, name):
+        try:
+            return appomatic_mapimport.models.Downloaded.objects.get(src=self.SRC, parent=None, filename=name)
+        except:
+            new_state = appomatic_mapimport.models.Downloaded(
+                src=self.SRC,
+                filename=name,
+                datetime=datetime.datetime(1970,1, 1))
+            new_state.save()
+            return new_state
+
+    def get_county(self, state, name):
+        try:
+            return appomatic_mapimport.models.Downloaded.objects.get(src=self.SRC, parent=state, filename=name)
+        except:
+            new_county = appomatic_mapimport.models.Downloaded(
+                src=self.SRC,
+                filename=name,
+                parent = state,
+                datetime=datetime.datetime(1970,1, 1))
+            new_county.save()
+            return new_county
+
+    def get_counties(self, state):
+        db_counties = list(appomatic_mapimport.models.Downloaded.objects.filter(src=self.SRC, parent=state).order_by("-datetime"))
+        db_counties_dict = dict((obj.filename, obj) for obj in db_counties)
+
+        downloaded_counties = self.get_counties_from_site(state.filename)
+
+        for county in downloaded_counties.iterkeys():
+            if county not in db_counties_dict:
+                new_county = appomatic_mapimport.models.Downloaded(
+                    parent=state,
+                    src=self.SRC,
+                    filename=county,
+                    datetime=datetime.datetime(1970,1, 1))
+                new_county.save()
+                db_counties.insert(0, new_county)
+
+        return db_counties
 
     def get_file_from_record(self, element, row):
         pattern = os.path.join(settings.MAPIMPORT_FRACFOCUS['DOWNLOADDIR'], "*")
 
-        @retry()
+        @retryable()
         def attempt_download():
             if len(glob.glob(pattern)) > 0:
                 logger.warn("Download dir not clean prior to download")
@@ -146,15 +201,27 @@ class Command(appomatic_mapimport.mapimport.Import):
             self.clean_downloaddir()
             raise Exception("Download dir left in a terrible state. Doing what I can to clean up.")
 
+    def is_new_record(self, record):
+        self.cur.execute('''
+          select
+            count(*)
+          from
+            "FracFocusScrape"
+          where
+            api = %(API No.)s
+            and job_date = %(Job Start Dt)s
+        ''', record)
+        return self.cur.next()[0] == 0
+
     def extract_records(self):
         # Wait for all of page to have loaded
         self.wait_for_xpath("//*[@id='lnkGroundWaterProtectionCouncil']")
 
         headers = [col.text
-                   for col in self.driver.find_elements_by_xpath("//table[@id='MainContent_GridView1']//tr[th]"
+                   for col in self.connection.find_elements_by_xpath("//table[@id='MainContent_GridView1']//tr[th]"
                                                             )[0].find_elements_by_xpath(".//th")]
 
-        for row in self.driver.find_elements_by_xpath("//table[@id='MainContent_GridView1']//tr[td]"):
+        for row in self.connection.find_elements_by_xpath("//table[@id='MainContent_GridView1']//tr[td]"):
             if len(row.find_elements_by_xpath(".//td")) != len(headers):
                 logger.debug("Ignoring non-data row: %s", row.text)
                 continue
@@ -175,117 +242,114 @@ class Command(appomatic_mapimport.mapimport.Import):
                 logger.debug("Ignoring old entry for %(API No.)s @ %(Job Start Dt)s" % data)
 
     # FIXME: Retry each page separately, and make sure the next-page button gets us to the right page...
-    @retry()
     def get_records_for_county(self, state = 'Texas', county = 'Mitchell'):
-        self.driver.get(self.baseurl)
+        @retry()
+        def load_results():
+            self.connection.get(self.baseurl)
 
-        self.driver.find_element_by_xpath("//*[@id='MainContent_cboStateList']//*[text()='%s']" % state).click()
-        self.wait_for_xpath("//*[@id='MainContent_cboCountyList']//*[text()='Choose a State First']", negate=True)
-        self.driver.find_element_by_xpath("//*[@id='MainContent_cboCountyList']//*[text()='%s']" % county).click()
+            self.wait_for_xpath("//*[@id='MainContent_btnSearch']")
 
-        self.driver.find_element_by_xpath("//*[@id='MainContent_btnSearch']").click()
-        self.wait_for_xpath("//*[@id='MainContent_btnBackToFilter']")
+            self.connection.find_element_by_xpath("//*[@id='MainContent_cboStateList']//*[text()='%s']" % state).click()
+            self.wait_for_xpath("//*[@id='MainContent_cboCountyList']//*[text()='Choose a State First']", negate=True)
+            self.connection.find_element_by_xpath("//*[@id='MainContent_cboCountyList']//*[text()='%s']" % county).click()
 
-        if not self.driver.find_elements_by_xpath("//td[contains(text(), 'any documents')]"):
+            self.wait_for_xpath("//*[@id='MainContent_btnSearch']")
+            self.connection.find_element_by_xpath("//*[@id='MainContent_btnSearch']").click()
+            self.wait_for_xpath("//*[@id='MainContent_btnBackToFilter']")
+
+        if not self.connection.find_elements_by_xpath("//td[contains(text(), 'any documents')]"):
             while True:
-                current_page = self.driver.find_element_by_xpath("//*[@id='MainContent_GridView1_PageCurrent']").get_attribute("value")
+                current_page = self.connection.find_element_by_xpath("//*[@id='MainContent_GridView1_PageCurrent']").get_attribute("value")
 
                 for record in self.extract_records():
                     yield record
 
-                if not self.driver.find_elements_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']"):
+                if not self.connection.find_elements_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']"):
                     break
 
-                logger.debug("Loading one more page of results for %(state)s / %(county)s" % {"state":state, "county":county})
-                self.driver.find_element_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']").click()
-                self.wait_for_xpath("//*[@id='MainContent_GridView1_PageCurrent' and @value!='%s']" % current_page)
+                @retry
+                def load_next():
+                    logger.debug("Loading one more page of results for %(state)s / %(county)s" % {"state":state, "county":county})
+                    self.connection.find_element_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']").click()
+                    self.wait_for_xpath("//*[@id='MainContent_GridView1_PageCurrent' and @value!='%s']" % current_page)
 
     def get_records(self, state=None, county=None):
         if state is None:
-            states = self.get_states(self.driver).iterkeys()
+            states = self.get_states()
         else:
-            states = [state]
-        for state in states:
-            logger.debug("Getting record for %(state)s" % {"state":state})
+            states = [self.get_state(state)]
+        for cur_state in states:
+            logger.debug("Getting record for %(state)s" % {"state":cur_state.filename})
             if county is None:
-                counties = self.get_counties(state).iterkeys()
+                counties = self.get_counties(cur_state)
             else:
-                counties = [county]
-            for county in counties:
-                logger.debug("Getting record for %(state)s / %(county)s" % {"state":state, "county":county})
-                for record in self.get_records_for_county(state, county):
+                counties = [self.get_county(cur_state, county)]
+            for cur_county in counties:
+                logger.debug("Getting record for %(state)s / %(county)s" % {"state":cur_state.filename, "county":cur_county.filename})
+                for record in self.get_records_for_county(cur_state.filename, cur_county.filename):
                     yield record
-
-
-    def is_new_record(self, record):
-        self.cur.execute('''
-          select
-            count(*)
-          from
-            "FracFocusScrape"
-          where
-            api = %(API No.)s
-            and job_date = %(Job Start Dt)s
-        ''', record)
-        return self.cur.next()[0] == 0
+                cur_county.save()
+            cur_state.save()
 
 
     def mapimport(self):
-        self.driver = selenium.webdriver.Firefox(
-            firefox_profile=selenium.webdriver.firefox.firefox_profile.FirefoxProfile(
-                profile_directory=settings.MAPIMPORT_FRACFOCUS['PROFILE']))
+        try:
 
-        self.clean_downloaddir()
+            self.clean_downloaddir()
 
-        for record in self.get_records(*self.args):
-            self.cur.execute('''
-              insert into "FracFocusScrape" (
-                api,
-                job_date,
-                state,
-                county,
-                operator,
-                well_name,
-                well_type,
-                latitude,
-                longitude,
-                datum
-              ) values (
-                %(API No.)s,
-                %(Job Start Dt)s,
-                %(State)s,
-                %(County)s,
-                %(Operator)s,
-                %(WellName)s,
-                NULL,
-                %(Latitude)s,
-                %(Longitude)s,
-                %(Datum)s
-              )
-            ''', record)
-            self.cur.execute('select lastval()')
-            record['task_id'] = self.cur.next()[0]
+            for record in self.get_records(*self.args):
+                self.cur.execute('''
+                  insert into "FracFocusScrape" (
+                    api,
+                    job_date,
+                    state,
+                    county,
+                    operator,
+                    well_name,
+                    well_type,
+                    latitude,
+                    longitude,
+                    datum
+                  ) values (
+                    %(API No.)s,
+                    %(Job Start Dt)s,
+                    %(State)s,
+                    %(County)s,
+                    %(Operator)s,
+                    %(WellName)s,
+                    NULL,
+                    %(Latitude)s,
+                    %(Longitude)s,
+                    %(Datum)s
+                  )
+                ''', record)
+                self.cur.execute('select lastval()')
+                record['task_id'] = self.cur.next()[0]
 
-            self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusReport', 'NEW')""", record)
+                self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusReport', 'NEW')""", record)
 
-            with open(record['path']) as f:
-                record['data'] = psycopg2.Binary(f.read())
+                with open(record['path']) as f:
+                    record['data'] = psycopg2.Binary(f.read())
 
-            self.cur.execute('''
-              insert into "FracFocusPDF" (
-                seqid,
-                pdf,
-                filename
-              ) select
-                %(task_id)s,
-                %(data)s,
-                %(filename)s
-            ''', record)
-            record['fileid'] = self.cur.lastrowid
+                self.cur.execute('''
+                  insert into "FracFocusPDF" (
+                    seqid,
+                    pdf,
+                    filename
+                  ) select
+                    %(task_id)s,
+                    %(data)s,
+                    %(filename)s
+                ''', record)
+                record['fileid'] = self.cur.lastrowid
 
-            self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
+                self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
 
-            self.cur.execute("commit")
-            logger.info("Stored %(API No.)s @ %(Job Start Dt)s" % record)
+                self.cur.execute("commit")
+                logger.info("Stored %(API No.)s @ %(Job Start Dt)s" % record)
 
-            time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
+                time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
+
+        except selenium.common.exceptions.TimeoutException, e:
+            self.connection.get_screenshot_as_file('timeout-screenshot.png')
+            raise

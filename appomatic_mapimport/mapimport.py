@@ -71,43 +71,42 @@ class Import(django.core.management.base.BaseCommand):
         self.cur.execute("select filename from appomatic_mapimport_downloaded where src=%(SRC)s", {"SRC": self.SRC});
         self.oldfiles = set(row[0] for row in self.cur.fetchall())
 
-        with self.connect():
-            for filepath in self.listfiles():
-                filename = self.filename(filepath)
+        for filepath in self.listfiles():
+            filename = self.filename(filepath)
 
-                if filename in self.oldfiles:
-                    print filepath + " (OLD)"
-                else:
-                    print filepath
+            if filename in self.oldfiles:
+                print filepath + " (OLD)"
+            else:
+                print filepath
 
-                    try:
-                        self.download(filepath)
-                        with open(self.localpath(filepath)) as file:
-                            self.cur.execute("begin")
-                            try:
-                                for row in self.loadfile(file):
-                                    #print "    %(datetime)s: %(mmsi)s" % row
-                                    if 'filename' not in row: row['filename'] = filename
-                                    if 'SRC' not in row: row['SRC'] = self.SRC
-                                    self.filterrow(row)
-                                    try:
-                                        self.insertrow(row)
-                                    except:
-                                        print row
-                                        raise
+                try:
+                    self.download(filepath)
+                    with open(self.localpath(filepath)) as file:
+                        self.cur.execute("begin")
+                        try:
+                            for row in self.loadfile(file):
+                                #print "    %(datetime)s: %(mmsi)s" % row
+                                if 'filename' not in row: row['filename'] = filename
+                                if 'SRC' not in row: row['SRC'] = self.SRC
+                                self.filterrow(row)
+                                try:
+                                    self.insertrow(row)
+                                except:
+                                    print row
+                                    raise
 
-                                self.cur.execute("insert into appomatic_mapimport_downloaded (src, filename, datetime) values (%(SRC)s, %(filename)s, %(datetime)s)", {'SRC': self.SRC, 'filename': filename, 'datetime': datetime.datetime.now()})
-                                print "    DONE"
-                            except Exception, e:
-                                print "    Error loading file " + str(e)
-                                import traceback
-                                traceback.print_exc()
-                                self.cur.execute("rollback")
-                            else:
-                                self.cur.execute("commit")
+                            self.cur.execute("insert into appomatic_mapimport_downloaded (src, filename, datetime) values (%(SRC)s, %(filename)s, %(datetime)s)", {'SRC': self.SRC, 'filename': filename, 'datetime': datetime.datetime.now()})
+                            print "    DONE"
+                        except Exception, e:
+                            print "    Error loading file " + str(e)
+                            import traceback
+                            traceback.print_exc()
+                            self.cur.execute("rollback")
+                        else:
+                            self.cur.execute("commit")
 
-                    except Exception, e:
-                        print "    Unable to open file " + str(e)
+                except Exception, e:
+                    print "    Unable to open file " + str(e)
 
     def handle(self, *args, **kwargs):
         try:
@@ -128,7 +127,8 @@ class Import(django.core.management.base.BaseCommand):
         with contextlib.closing(django.db.connection.cursor()) as cur:
             self.cur = cur
 
-            self.mapimport()
+            with self.connect():
+                self.mapimport()
 
 
 class RowFilterEasterIsland(object):
