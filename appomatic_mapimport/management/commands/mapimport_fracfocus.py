@@ -168,7 +168,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
             row['filename'] = filename
             row['path'] = os.path.join(self.dstdir, filename)
             os.rename(src, row['path'])
-            logger.info("Downloaded PDF for %(API No.)s @ %(Job Start Dt)s" % row)
+            logger.debug("Downloaded PDF for %(API No.)s @ %(Job Start Dt)s" % row)
 
         if len(glob.glob(pattern)) > 0:
             self.clean_downloaddir()
@@ -206,7 +206,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
             data['Job End Dt'] = self.parsedate(data['Job End Dt'])
             data['Longitude'] = float(data['Longitude'])
             data['Latitude'] = float(data['Latitude'])
-            logger.info("Scraped %(API No.)s @ %(Job Start Dt)s" % data)
+            logger.debug("Scraped %(API No.)s @ %(Job Start Dt)s" % data)
             if self.is_new_record(data):
                 self.get_file_from_record(row, data)
                 if 'filename' in data:
@@ -232,15 +232,15 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
         if not self.connection.find_elements_by_xpath("//td[contains(text(), 'any documents')]"):
             while True:
-                current_page = self.connection.find_element_by_xpath("//*[@id='MainContent_GridView1_PageCurrent']").get_attribute("value")
-
                 for record in self.extract_records():
                     yield record
 
                 if not self.connection.find_elements_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']"):
                     break
 
-                @retry
+                current_page = self.connection.find_element_by_xpath("//*[@id='MainContent_GridView1_PageCurrent']").get_attribute("value")
+
+                @appomatic_mapimport.mapimport.retry()
                 def load_next():
                     logger.debug("Loading one more page of results for %(state)s / %(county)s" % {"state":state, "county":county})
                     self.connection.find_element_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']").click()
@@ -252,13 +252,13 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
         else:
             states = [self.get_state(state)]
         for cur_state in states:
-            logger.debug("Getting record for %(state)s" % {"state":cur_state.filename})
+            logger.info("Getting record for %(state)s" % {"state":cur_state.filename})
             if county is None:
                 counties = self.get_counties(cur_state)
             else:
                 counties = [self.get_county(cur_state, county)]
             for cur_county in counties:
-                logger.debug("Getting record for %(state)s / %(county)s" % {"state":cur_state.filename, "county":cur_county.filename})
+                logger.info("Getting record for %(state)s / %(county)s" % {"state":cur_state.filename, "county":cur_county.filename})
                 for record in self.get_records_for_county(cur_state.filename, cur_county.filename):
                     yield record
                 cur_county.save()

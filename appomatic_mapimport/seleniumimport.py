@@ -10,10 +10,18 @@ import appomatic_mapimport.mapimport
 import appomatic_mapimport.models
 import logging
 import contextlib
+import optparse
 
 logger = logging.getLogger(__name__)
 
 class SeleniumImport(appomatic_mapimport.mapimport.Import):
+    option_list = appomatic_mapimport.mapimport.Import.option_list + (
+        optparse.make_option('--no-proxy',
+            action='store_false',
+            dest='use_proxy',
+            default=True,
+            help='Do not use a proxy to connect'),
+    )
 
     def wait_for_xpath(self, xpath, negate=False):
         """Waits for an xpath to match the document, or of negate is True, to not match any longer."""
@@ -36,6 +44,7 @@ class SeleniumImport(appomatic_mapimport.mapimport.Import):
                 raise Exception("%s never showed up" % xpath)
 
     def proxyconf(self):
+        if not self.kwargs['use_proxy']: return {}
         proxyconf = appomatic_mapimport.models.Proxy.get()
         proxyurl = "%s:%s" % (proxyconf.ip_address, proxyconf.port)
         logger.info("Using proxy %s" % proxyconf)
