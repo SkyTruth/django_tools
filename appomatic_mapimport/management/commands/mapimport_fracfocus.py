@@ -240,7 +240,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
                 if not self.connection.find_elements_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']"):
                     break
 
-                @retry
+                @appomatic_mapimport.mapimport.retry
                 def load_next():
                     logger.debug("Loading one more page of results for %(state)s / %(county)s" % {"state":state, "county":county})
                     self.connection.find_element_by_xpath("//*[@id='MainContent_GridView1_ButtonNext']").click()

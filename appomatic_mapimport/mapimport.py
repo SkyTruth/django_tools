@@ -8,7 +8,10 @@ import os.path
 import appomatic_mapimport.ee
 from django.conf import settings 
 import datetime
+import logging
+import time
 
+logger = logging.getLogger(__name__)
 
 def retryable(times=3):
     def inner(fn):
