@@ -1,0 +1,57 @@
+@color-border: #999999;
+
+table {  
+  th, td {
+    vertical-align: top;
+  }
+  thead {
+    th {
+      text-align: left;
+    }
+  }
+  tbody {
+    th {
+      text-align: right;
+    }
+  }
+}
+
+body.index {
+  .content_outer {
+    position: absolute;
+    left: 0;
+    top: 50pt;
+    right: 0;
+    bottom: 0;
+    .map, .objinfo {
+      border: none;
+      position: absolute;
+      top: 0;
+      width: 50%;
+      height: 100%;
+    }
+    .map {
+      position: absolute;
+      left: 0;
+    }
+    .objinfo {
+      left: 50%;
+    }
+  }
+}
+
+.box {
+  display: block;
+  padding: 8pt;
+  margin: 8pt;
+  border: 3px double @color-border;
+  -moz-border-radius: 4px;
+  -webkit-border-radius: 4px;
+  -khtml-border-radius: 4px;
+}
+
+.excerpts {
+  .excerpt {
+    .box;
+  }
+}

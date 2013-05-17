@@ -1,0 +1,8 @@
+{% extends 'appomatic_siteinfo/models/OperatorEvent/page.html' %}
+
+{% block properties %}
+  {{block.super}}
+  {% for key, value in obj.info.items %}
+    <tr><th>{{key}}</th><td>{{value}}</td></tr>
+  {% endfor %}
+{% endblock %}

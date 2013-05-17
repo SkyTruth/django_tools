@@ -1,0 +1,38 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+{% load endless %}
+
+{% block body_class %}{{obj.types}}{% endblock %}
+
+{% block boxes %}
+  {% if request.user.is_staff %}
+    <div class="infobox">
+      <a href="{{obj.get_admin_url}}"><i class="icon-edit"></i> Edit</a>
+    </div>
+  {% endif %}
+  {{block.super}}
+{% endblock %}
+
+{% block content_title %}
+  <h1>{{obj.name}}</h1>
+{% endblock %}
+
+{% block content %}
+  <table>
+    <tr><th>Aliases</th><td>
+      {% for alias in obj.aliases.all %}
+        {{alias.name}},
+      {% endfor %}
+    </td></tr>
+  </table>
+
+  <h2>Events</h2>
+
+  {% paginate 10 obj.events.all as paginated_events %}
+  <div class="excerpts">
+    {% for event in paginated_events %}
+      {{ event.render_as.excerpt|safe }}
+    {% endfor %}
+  </div>
+  <div class="pagination">{% show_pages %}</div>
+ 
+{% endblock %}

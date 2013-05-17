@@ -1,0 +1,22 @@
+<div onclick="window.location='{% block content_link %}{{obj.get_absolute_url}}{% endblock %}';" class="excerpt">
+  <div class="excerpt_title">
+    {% block content_title %}
+      <h2>{{ obj.datetime }} @ {{obj.longitude}}E {{obj.latitude}}N</h2>
+    {% endblock %}
+  </div>
+  <div class="excerpt_content">
+    {% block content %}
+      <table>
+        {% block properties %}{% endblock %}
+      </table>
+    {% endblock %}
+  </div>
+  <div class="excerpt_footer">
+    {% block footer %}
+      <div class="excerpt_buttons">
+        {% block buttons %}
+        {% endblock %}
+      </div>
+    {% endblock %}
+  </div>
+</div>

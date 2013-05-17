@@ -1,0 +1,9 @@
+{% extends 'appomatic_siteinfo/models/Event/page.html' %}
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Site</th><td><a href="{{obj.site.get_absolute_url}}">{{obj.site}}</a></td></tr>
+  {% if obj.well %}
+    <tr><th>Well</th><td><a href="{{obj.well.get_absolute_url}}">{{obj.well}}</a></td></tr>
+  {% endif %}
+{% endblock %}

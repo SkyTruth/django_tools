@@ -1,0 +1,8 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+
+{% block body_class %}index{% endblock %}
+
+{% block content_outer %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='siteinfo' %}"></iframe>
+  <iframe class="objinfo" name="objinfo" src=""></iframe>
+{% endblock %}

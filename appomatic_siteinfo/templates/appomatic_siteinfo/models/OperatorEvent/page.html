@@ -1,0 +1,6 @@
+{% extends 'appomatic_siteinfo/models/SiteEvent/page.html' %}
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Operator</th><td><a href="{{obj.operator.get_absolute_url}}">{{obj.operator.name}}</a></td></tr>
+{% endblock %}
