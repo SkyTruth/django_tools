@@ -22,8 +22,14 @@
       $(function () {
         MapServer.apiurl = "{% url 'appomatic_mapserver.views.mapserver' application=application.slug %}";
         MapServer.proxyurl = "{% url 'appomatic_mapserver.proxy.proxy' %}?url=";
-        MapServer.exportkmlurl = "{% url 'appomatic_mapexport.views.kmlformat' %}";
-        MapServer.exportcsvurl = "{% url 'appomatic_mapexport.views.csvformat' %}";
+        {% url 'appomatic_mapexport.views.kmlformat' as kmlformaturl %}
+        {% if kmlformaturl %}
+          MapServer.exportkmlurl = "{{kmlformaturl}}";
+        {% endif%}
+        {% url 'appomatic_mapexport.views.csvformat' as csvformaturl %}
+        {% if csvformaturl %}
+          MapServer.exportcsvurl = "{{csvformaturl}}";
+        {% endif%}
         MapServer.fileurl = document.location.protocol + "//" + document.location.host + "{{ MEDIA_URL }}";
         MapServer.init();
       });

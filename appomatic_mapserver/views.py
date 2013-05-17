@@ -13,12 +13,10 @@ import geojson
 import json
 import datetime
 import math
-import appomatic_mapdata.models
 import os
 import os.path
 import re
 import uuid
-import appomatic_mapserver.models
 from django.conf import settings
 import cProfile
 

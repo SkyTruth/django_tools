@@ -395,22 +395,29 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
           attrs.name = attrs.mmsi;
         }
       }
-      var popup = new OpenLayers.Popup.FramedCloud("popup",
-        new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom),
-        new OpenLayers.Size(400,300),
-        attrs.description,
-        null,
-        true
-      );
-      popup.autoSize = false;
-      feature.popup = popup;
-      this.map.addPopup(popup);
+      if (!attrs.target) attrs.target = '_blank';
+      if (!attrs.description) {
+        window.open(attrs.url, attrs.target);
+      } else {
+        var popup = new OpenLayers.Popup.FramedCloud("popup",
+          new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom),
+          new OpenLayers.Size(400,300),
+          attrs.description,
+          null,
+          true
+        );
+        popup.autoSize = false;
+        feature.popup = popup;
+        this.map.addPopup(popup);
+      }
     },
     'featureunselected': function(evt){
       var feature = evt.feature;
-      this.map.removePopup(feature.popup);
-      feature.popup.destroy();
-      feature.popup = null;
+      if (feature.popup) {
+        this.map.removePopup(feature.popup);
+        feature.popup.destroy();
+        feature.popup = null;
+      }
     },
     'loadend': function(evt) {
       this.map.events.triggerEvent('loadend', evt);
@@ -511,7 +518,8 @@ MapServer.updateUrlFromMap = function (map) {
     center: map.getCenter().transform(
       map.getProjection(),
       new OpenLayers.Projection("EPSG:4326")),
-    zoom: map.getZoom()
+    zoom: map.getZoom(),
+    classes: $("body").attr("class")
   }));
 }
 
@@ -519,6 +527,9 @@ MapServer.updateUrlFromMap = function (map) {
 MapServer.updateMapFromUrl = function (map) {
   MapServer.updateUrlFromMap.noUpdate = true;
   var data = JSON.parse(decodeURIComponent(top.window.location.hash.substr(1)));
+  if (data.classes) {
+    $("body").addClass(data.classes);
+  }
   map.setCenter(
     (new OpenLayers.LonLat(data.center.lon, data.center.lat)).transform(
       new OpenLayers.Projection("EPSG:4326"),
@@ -687,6 +698,8 @@ MapServer.init = function () {
            for (key in d) {
              defaults[key] = d[key];
            }
+           if (defaults.timemin == 'start') defaults.timemin = data.timemin;
+           if (defaults.timemax == 'end') defaults.timemax = data.timemax;
            top.window.location.hash = "#" + encodeURIComponent(JSON.stringify(defaults));
            cb();
          },
