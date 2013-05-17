@@ -1,0 +1,8 @@
+{% extends 'appomatic_renderable/base.html' %}
+
+{% block meta %}
+  <link rel="stylesheet/less" type="text/css" href="{{STATIC_URL}}appomatic_siteinfo/styles.less" />
+  {{block.super}}
+{% endblock %}
+
+{% block content_title %}<h1>SkyTruth SiteInfo</h1>{% endblock %}

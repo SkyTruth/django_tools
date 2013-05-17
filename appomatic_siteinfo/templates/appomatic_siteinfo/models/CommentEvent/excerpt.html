@@ -1,0 +1,6 @@
+{% extends 'appomatic_siteinfo/models/UserEvent/excerpt.html' %}
+
+{% block content %}
+  {{block.super}}
+  {{obj.content|safe}}
+{% endblock %}

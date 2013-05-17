@@ -1,9 +1,13 @@
-import appomatic_mapdata.models
 import datetime
 import django.db
 import math
 from django.conf import settings
 import fcdjangoutils.sqlutils
+
+
+URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
+URL_PATTERN_ITU = "http://www.itu.int/cgi-bin/htsh/mars/ship_search.sh?sh_mmsi=%(mmsi)s"
+
 
 def dictreader(cur):
     for row in cur:
@@ -44,7 +48,7 @@ class MapSource(object):
                 try:
                     return int(datetime.datetime.strptime(s, "%Y-%m-%d").strftime("%s"))
                 except Exception, e:
-                    return int(s)
+                    return int(float(s))
 
         datetimemin = converttime(self.urlquery.get('datetime__gte', '0'))
         datetimemax = converttime(self.urlquery.get('datetime__lte', '0'))
@@ -91,9 +95,9 @@ class MapSource(object):
                 if not row.get('name', None):
                     row['name'] = row['mmsi']
                 if not row.get('url', None):
-                    row['url'] = appomatic_mapdata.models.Ais.URL_PATTERN % row
+                    row['url'] = URL_PATTERN % row
 
-                row['itu_url'] = appomatic_mapdata.models.Ais.URL_PATTERN_ITU % row
+                row['itu_url'] = URL_PATTERN_ITU % row
 
             if not row.get('mmsi', None):
                 row['mmsi'] = ''

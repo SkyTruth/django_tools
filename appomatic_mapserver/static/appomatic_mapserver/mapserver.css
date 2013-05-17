@@ -60,6 +60,13 @@
   bottom: 0;
 }
 
+.noeventlist #eventlist {
+  display: none;
+}
+.noeventlist #map {
+  left: 0;
+}
+
 .MapServerControlMenu {
   position: absolute;
   top: 2px;

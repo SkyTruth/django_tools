@@ -1,0 +1,7 @@
+{% extends 'appomatic_siteinfo/models/SiteEvent/excerpt.html' %}
+
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Author</th><td><a href="{{obj.author.get_absolute_url}}">{{obj.author.username}} ({{obj.author.get_full_name}})</a></td></tr>
+{% endblock %}
