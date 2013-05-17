@@ -11,7 +11,7 @@ import csv
 import django.contrib.gis.geos
 from django.conf import settings 
 import django.db.transaction
-
+import pytz
 
 class Command(django.core.management.base.BaseCommand):
 
@@ -59,7 +59,7 @@ class Command(django.core.management.base.BaseCommand):
                     latitude = latitude,
                     longitude = longitude,
                     location = location,
-                    datetime = datetime.datetime.strptime(row['Date_Disposed'], "%Y-%m-%d"),
+                    datetime = datetime.datetime.strptime(row['Date_Disposed'], "%Y-%m-%d").replace(tzinfo=pytz.utc),
                     site = site,
                     well = well,
                     operator = operator,
