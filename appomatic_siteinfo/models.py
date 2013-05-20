@@ -233,7 +233,7 @@ class UserEvent(SiteEvent):
         return "%s @ %s for %s" % (self.datetime, self.well or self.site, self.author)
 
 class CommentEvent(UserEvent):
-    content = ckeditor.fields.RichTextField(verbose_name="Comment")
+    content = ckeditor.fields.RichTextField(verbose_name="Comment", config_name='small')
 
 
 
@@ -254,3 +254,13 @@ class MapTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
         row['target'] = 'objinfo'
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
         del row['description']
+
+        row['style'] = {
+          "graphicName": "circle",
+          "fillOpacity": 1.0,
+          "fillColor": "#0000ff",
+          "strokeOpacity": 1.0,
+          "strokeColor": "#ff0000",
+          "strokeWidth": 1,
+          "pointRadius": 6,
+          }
