@@ -3,6 +3,6 @@
 {% block body_class %}index{% endblock %}
 
 {% block content_outer %}
-  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='siteinfo' %}"></iframe>
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}"></iframe>
   <iframe class="objinfo" name="objinfo" src=""></iframe>
 {% endblock %}

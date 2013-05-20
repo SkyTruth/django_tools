@@ -4,6 +4,7 @@ import appomatic_siteinfo.models
 django.contrib.admin.site.register(appomatic_siteinfo.models.Operator)
 class WellInline(django.contrib.admin.TabularInline):
     model = appomatic_siteinfo.models.Well
+    fk_name = 'site'
 class SiteAdmin(django.contrib.admin.ModelAdmin):
     inlines = [WellInline]
     list_display = ('name', 'latitude', 'longitude')

@@ -25,6 +25,44 @@
     </td></tr>
   </table>
 
+
+  <h2>Sites</h2>
+
+  {% paginate 10 obj.wells.all as paginated_wells %}
+  <table>
+    <thead><tr><th>API</th><th>Latitude</th><th>Longitude</th></tr></thead>
+    <tbody>
+      {% for well in paginated_wells %}
+        <tr>
+          <td><a href="{{well.get_absolute_url}}">{{well.api}}</td>
+          <td><a href="{{well.get_absolute_url}}">{{well.latitude}}</td>
+          <td><a href="{{well.get_absolute_url}}">{{well.longitude}}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="pagination">{% show_pages %}</div>
+
+
+  <h2>Wells</h2>
+
+  {% paginate 10 obj.wells.all as paginated_wells %}
+  <table>
+    <thead><tr><th>API</th><th>Latitude</th><th>Longitude</th></tr></thead>
+    <tbody>
+      {% for well in paginated_wells %}
+        <tr>
+          <td><a href="{{well.get_absolute_url}}">{{well.api}}</td>
+          <td><a href="{{well.get_absolute_url}}">{{well.latitude}}</td>
+          <td><a href="{{well.get_absolute_url}}">{{well.longitude}}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="pagination">{% show_pages %}</div>
+
+
+
   <h2>Events</h2>
 
   {% paginate 10 obj.events.all as paginated_events %}

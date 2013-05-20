@@ -31,8 +31,8 @@
   <form method="post" class="uniForm">
    {% csrf_token %}
    <input type="hidden" name="method" value="comment">
-   {{comment_form.as_p}}
-   <button type="submit" name="submit">Save</button>
+   {{comment_form.content}}
+   <button type="submit" name="submit" class="comment_button">Comment</button>
   </form>
 
 
