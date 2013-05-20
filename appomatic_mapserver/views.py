@@ -86,9 +86,11 @@ def mapserver(request, application):
                           if datetimemin < kmldir < datetimemax]}
 
 def application(request, application):
+    urlquery = dict(request.GET.iteritems())
+    urlquery['application'] = application
     return django.shortcuts.render_to_response(
         'appomatic_mapserver/application.html',
-        {'application': appomatic_mapserver.models.Application.objects.get(slug=application)},
+        {'application': appomatic_mapserver.models.BaseApplication(urlquery)},
         context_instance=django.template.RequestContext(request))
 
 def index(request):
