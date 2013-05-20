@@ -709,6 +709,16 @@ MapServer.init = function () {
 
     function(cb) {
       MapServer.updateMapFromUrl(map);
+
+      window.onresize = function() {
+        setTimeout(
+          function() {
+            map.updateSize();
+          },
+          0);
+      }
+      map.updateSize();
+
       cb();
     }
 
