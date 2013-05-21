@@ -2,8 +2,8 @@
 
 {% block properties %}
   {{block.super}}
-  <tr><th>Site</th><td><a href="{{obj.site.get_absolute_url}}">{{obj.site}}</a></td></tr>
+  <tr><th>Site</th><td>{{obj.site.render_as.link|safe}}</a></td></tr>
   {% if obj.well %}
-    <tr><th>Well</th><td><a href="{{obj.well.get_absolute_url}}">{{obj.well}}</a></td></tr>
+    <tr><th>Well</th><td>{{obj.well.render_as.link|safe}}</td></tr>
   {% endif %}
 {% endblock %}

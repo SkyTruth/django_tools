@@ -1,6 +1,14 @@
 {% extends 'appomatic_siteinfo/base.html' %}
 {% load endless %}
 
+{% block meta %}
+  {{block.super}}
+  <script>
+    $(parent.document).find('body').css({class: 'index'});
+    $(parent.document).find('body').addClass('{% block frame_body_class %}{{obj.types}}{% endblock %}');
+  </script>
+{% endblock %}
+
 {% block body_class %}{{obj.types}}{% endblock %}
 
 {% block boxes %}

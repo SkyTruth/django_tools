@@ -2,5 +2,5 @@
 
 {% block properties %}
   {{block.super}}
-  <tr><th>Operator</th><td><a href="{{obj.operator.get_absolute_url}}">{{obj.operator.name}}</a></td></tr>
+  <tr><th>Operator</th><td>{{obj.operator.render_as.link|safe}}</td></tr>
 {% endblock %}

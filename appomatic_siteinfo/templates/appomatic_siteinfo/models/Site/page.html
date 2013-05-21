@@ -12,6 +12,11 @@
       {{alias.name}},
     {% endfor %}
   </td></tr>
+  <tr><th>Operators</th><td>
+    {% for operator in obj.operators.all %}
+      {{operator.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
 {% endblock %}
 
 {% block content %}

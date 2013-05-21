@@ -27,15 +27,26 @@ body.index {
       border: none;
       position: absolute;
       top: 0;
-      width: 50%;
       height: 100%;
     }
     .map {
       position: absolute;
       left: 0;
+      width: 100%;
     }
     .objinfo {
-      left: 50%;
+      width: 0;
+    }
+  }
+  &.appomatic_siteinfo-models-BaseModel {
+    .map {
+      position: absolute;
+      left: 0;
+      width: 30%;
+    }
+    .objinfo {
+      left: 30%;
+      width: 70%;
     }
   }
 }
