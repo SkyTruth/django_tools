@@ -1,32 +1,21 @@
-{% extends 'appomatic_siteinfo/base.html' %}
+{% extends 'appomatic_siteinfo/models/LocationData/page.html' %}
 {% load endless %}
-
-{% block body_class %}{{obj.types}}{% endblock %}
-
-{% block boxes %}
-  {% if request.user.is_staff %}
-    <div class="infobox">
-      <a href="{{obj.get_admin_url}}"><i class="icon-edit"></i> Edit</a>
-    </div>
-  {% endif %}
-  {{block.super}}
-{% endblock %}
 
 {% block content_title %}
   <h1>{{obj.name}}</h1>
 {% endblock %}
 
-{% block content %}
-  <table>
-    <tr><th>Latitude</th><td>{{obj.latitude}}</td></tr>
-    <tr><th>Longitude</th><td>{{obj.longitude}}</td></tr>
-    <tr><th>Aliases</th><td>
-      {% for alias in obj.aliases.all %}
-        {{alias.name}},
-      {% endfor %}
-    </td></tr>
-  </table>
+{% block properties %}
+  {{block.super}}
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}
 
+{% block content %}
+  {{block.super}}
 
   <form method="post" class="uniForm">
    {% csrf_token %}

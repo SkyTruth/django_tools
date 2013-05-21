@@ -1,29 +1,20 @@
-{% extends 'appomatic_siteinfo/base.html' %}
+{% extends 'appomatic_siteinfo/models/BaseModel/page.html' %}
 {% load endless %}
-
-{% block body_class %}{{obj.types}}{% endblock %}
-
-{% block boxes %}
-  {% if request.user.is_staff %}
-    <div class="infobox">
-      <a href="{{obj.get_admin_url}}"><i class="icon-edit"></i> Edit</a>
-    </div>
-  {% endif %}
-  {{block.super}}
-{% endblock %}
 
 {% block content_title %}
   <h1>{{obj.name}}</h1>
 {% endblock %}
 
+{% block properties %}
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}
+
 {% block content %}
-  <table>
-    <tr><th>Aliases</th><td>
-      {% for alias in obj.aliases.all %}
-        {{alias.name}},
-      {% endfor %}
-    </td></tr>
-  </table>
+  {{block.super}}
 
 
   <h2>Sites</h2>

@@ -1,0 +1,19 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+{% load endless %}
+
+{% block body_class %}{{obj.types}}{% endblock %}
+
+{% block boxes %}
+  {% if request.user.is_staff %}
+    <div class="infobox">
+      <a href="{{obj.get_admin_url}}"><i class="icon-edit"></i> Edit</a>
+    </div>
+  {% endif %}
+  {{block.super}}
+{% endblock %}
+
+{% block content %}
+  <table>
+    {% block properties %}{% endblock %}
+  </table>
+{% endblock %}
