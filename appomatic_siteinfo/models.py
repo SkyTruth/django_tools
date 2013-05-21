@@ -301,7 +301,7 @@ class SiteInfoLayer(appomatic_mapserver.models.BuiltinLayer):
     @property
     def query(self):
         # Maybe compile using the right sql compiler here?
-        return "(%s)" % (Event.objects.all().query,)
+        return "(%s)" % (Site.objects.all().query,)
 
 class MapTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
