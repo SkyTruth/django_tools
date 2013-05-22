@@ -315,8 +315,7 @@ class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
 
     @property
     def query(self):
-        # Maybe compile using the right sql compiler here?
-        return "(%s)" % (Site.objects.all().query,)
+        return Site.objects.all()
 
 class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     name="Selected sites"
@@ -338,15 +337,11 @@ class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     @property
     def query(self):
         if 'operator' in self.application.urlquery:
-            query = Site.objects.filter(operators__id=self.application.urlquery['operator'])
+            return Site.objects.filter(operators__id=self.application.urlquery['operator'])
         elif 'query' in self.application.urlquery:
-            query = Site.search(self.application.urlquery['query'])
+            return Site.search(self.application.urlquery['query'])
         else:
-            query = Site.objects.filter(id=None)
-
-        # Maybe compile using the right sql compiler here?
-        return "(%s)" % (query.query,)
-
+            return Site.objects.filter(id=None)
 
 class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
