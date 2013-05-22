@@ -1,0 +1,7 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+
+{% block body_class %}{{obj.types}}{% endblock %}
+
+{% block body %}
+  {{obj.render_as.excerpt}}
+{% endblock %}
