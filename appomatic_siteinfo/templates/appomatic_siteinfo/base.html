@@ -6,3 +6,10 @@
 {% endblock %}
 
 {% block content_title %}<h1>SkyTruth SiteInfo</h1>{% endblock %}
+
+{% block menu %}
+  <a href="{% url 'appomatic_siteinfo_index' %}">Home</a>
+  <form action="{% url 'appomatic_siteinfo.views.search' %}">
+    Search: <input name="query" type="text">
+  </form>
+{% endblock %}
