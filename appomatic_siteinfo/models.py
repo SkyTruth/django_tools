@@ -66,6 +66,11 @@ class Operator(BaseModel):
     def __unicode__(self):
         return self.name
 
+    @classmethod
+    def search(cls, query):
+        return cls.objects.filter(aliases__name__icontains=query)
+
+
 class OperatorAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     operator = django.db.models.ForeignKey(Operator, related_name="aliases")
@@ -120,6 +125,10 @@ class Site(LocationData):
             form = CommentForm()
         return {'comment_form': form}
 
+    @classmethod
+    def search(cls, query):
+        return cls.objects.filter(name__icontains=query)
+
 class SiteAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     site = django.db.models.ForeignKey(Site, related_name="aliases")
@@ -172,6 +181,9 @@ class Well(LocationData):
             form = CommentForm()
         return {'comment_form': form}
 
+    @classmethod
+    def search(cls, query):
+        return cls.objects.filter(api__icontains=query)
 
 # Event types
 
@@ -325,8 +337,15 @@ class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
 
     @property
     def query(self):
+        if 'operator' in self.application.urlquery:
+            query = Site.objects.filter(operators__id=self.application.urlquery['operator'])
+        elif 'query' in self.application.urlquery:
+            query = Site.search(self.application.urlquery['query'])
+        else:
+            query = Site.objects.filter(id=None)
+
         # Maybe compile using the right sql compiler here?
-        return "(%s)" % (Site.objects.filter(operators__id=self.application.urlquery.get('operator', None)).query,)
+        return "(%s)" % (query.query,)
 
 
 class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
