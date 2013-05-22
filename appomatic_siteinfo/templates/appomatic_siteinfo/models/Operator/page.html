@@ -13,9 +13,16 @@
   </td></tr>
 {% endblock %}
 
+{% block body %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?operator={{obj.id}}"></iframe>
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
+
 {% block content %}
   {{block.super}}
-
 
   <h2>Sites</h2>
 

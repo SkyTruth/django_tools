@@ -16,39 +16,26 @@ table {
   }
 }
 
-body.index {
-  .content_outer {
-    position: absolute;
-    left: 0;
-    top: 50pt;
-    right: 0;
-    bottom: 0;
-    .map, .objinfo {
-      border: none;
-      position: absolute;
-      top: 0;
-      height: 100%;
-    }
-    .map {
-      position: absolute;
-      left: 0;
-      width: 100%;
-    }
-    .objinfo {
-      width: 0;
-    }
-  }
-  &.appomatic_siteinfo-models-BaseModel {
-    .map {
-      position: absolute;
-      left: 0;
-      width: 30%;
-    }
-    .objinfo {
-      left: 30%;
-      width: 70%;
-    }
-  }
+.map, .objinfo {
+  border: none;
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+.map {
+  position: absolute;
+  left: 0;
+  width: 30%;
+}
+.objinfo {
+  left: 30%;
+  width: 70%;
+  padding-left: 10pt;
+  padding-right: 10pt;
+}
+
+body.index .map {
+  width: 100%;
 }
 
 .box {

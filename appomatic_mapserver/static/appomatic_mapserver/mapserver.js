@@ -9,6 +9,17 @@ MapServer.Control = {};
 MapServer.TIME_FORMAT = "UTC:yyyy-mm-dd HH:MM:ss";
 MapServer.DATE_FORMAT = "UTC:yyyy-mm-dd";
 
+MapServer.getJsonFromUrl = function() {
+  var query = location.search.substr(1);
+  var data = query.split("&");
+  var result = {};
+  for(var i=0; i<data.length; i++) {
+    var item = data[i].split("=");
+    result[item[0]] = item[1];
+  }
+  return result;
+}
+
 MapServer.epochToDate = function (e) {
   d = new Date(0);
   d.setUTCSeconds(e);
@@ -368,8 +379,9 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
         OpenLayers.Util.extend(options.protocol, {
           url: MapServer.apiurl,
           format: new OpenLayers.Format.GeoJSON(),
-          params: OpenLayers.Util.extend(options.protocol.params, {
-            action:'map'}),
+          params: OpenLayers.Util.extend(options.protocol.params,
+            OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {
+              action:'map'})),
         })),
       styleMap: new OpenLayers.StyleMap({
           "default": new OpenLayers.Style({}, {createSymbolizer: function(feature) {

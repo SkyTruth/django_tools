@@ -276,16 +276,19 @@ class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
 
 
     def get_layer(self, urlquery):
-        return SiteInfoLayer(self)
+        if urlquery['layer'] == 'appomatic_siteinfo.models.AllSitesLayer':
+            return AllSitesLayer(self)
+        elif urlquery['layer'] == 'appomatic_siteinfo.models.SelectedSitesLayer':
+            return SelectedSitesLayer(self)
 
     def get_layers(self):
-        return [SiteInfoLayer(self)]
+        return [AllSitesLayer(self), SelectedSitesLayer(self)]
 
-class SiteInfoLayer(appomatic_mapserver.models.BuiltinLayer):
+class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     name="Sites"
 
     backend_type = "appomatic_mapserver.mapsources.EventMap"
-    template = "appomatic_siteinfo.models.MapTemplate"
+    template = "appomatic_siteinfo.models.AllSitesTemplate"
 
     definition = {
         "classes": "noeventlist",
@@ -303,21 +306,51 @@ class SiteInfoLayer(appomatic_mapserver.models.BuiltinLayer):
         # Maybe compile using the right sql compiler here?
         return "(%s)" % (Site.objects.all().query,)
 
-class MapTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
+class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
+    name="Selected sites"
+
+    backend_type = "appomatic_mapserver.mapsources.StaticMap"
+    template = "appomatic_siteinfo.models.SelectedSitesTemplate"
+
+    @property
+    def definition(self):
+        return {
+            "classes": "noeventlist",
+            "options": {
+                "protocol": {
+                    "params": self.application.urlquery
+                    }
+                }
+            }
+
+    @property
+    def query(self):
+        # Maybe compile using the right sql compiler here?
+        return "(%s)" % (Site.objects.filter(operators__id=self.application.urlquery.get('operator', None)).query,)
+
+
+class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
     
     def row_generate_text(self, row):
         row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'id': row['id']})
-        row['target'] = 'objinfo'
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
-        del row['description']
+        row['description'] = u"""
+          <a href="%(url)s" target="_top">%(name)s: last event at %(datetime_time)s</a>
+        """ % row
 
         row['style'] = {
           "graphicName": "circle",
           "fillOpacity": 1.0,
           "fillColor": "#0000ff",
           "strokeOpacity": 1.0,
-          "strokeColor": "#ff0000",
+          "strokeColor": "#000055",
           "strokeWidth": 1,
           "pointRadius": 6,
           }
+
+class SelectedSitesTemplate(AllSitesTemplate):
+    def row_generate_text(self, row):
+        AllSitesTemplate.row_generate_text(self, row)
+        row['style']['fillColor'] = '#00ff00'
+        row['style']['strokeColor'] = '#005500'
