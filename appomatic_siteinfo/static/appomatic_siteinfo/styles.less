@@ -1,5 +1,15 @@
 @color-border: #999999;
 
+.box {
+  display: block;
+  padding: 8pt;
+  margin: 8pt;
+  border: 3px double @color-border;
+  -moz-border-radius: 4px;
+  -webkit-border-radius: 4px;
+  -khtml-border-radius: 4px;
+}
+
 table {  
   th, td {
     vertical-align: top;
@@ -16,43 +26,47 @@ table {
   }
 }
 
-.map, .objinfo {
-  border: none;
-  position: absolute;
-  top: 0;
-  height: 100%;
-}
-.map {
+.menu {
   position: absolute;
   left: 0;
-  width: 30%;
-}
-.objinfo {
-  left: 30%;
-  width: 70%;
-  padding-left: 10pt;
-  padding-right: 10pt;
-  overflow: auto;
+  top: 0;
+  right: 0;
+  height: 42px;
 }
 
-body.index {
-  .menu, .content_title {
-    display: none;
+.content_outer {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  .map, .objinfo {
+    border: none;
+    position: absolute;
+    top: 0;
+    height: 100%;
   }
   .map {
+    position: absolute;
+    left: 0;
+    width: 30%;
+  }
+  .objinfo {
+    left: 30%;
+    width: 70%;
+    overflow: auto;
+  }
+  .map.fullscreen {
     width: 100%;
   }
 }
 
-.box {
-  display: block;
-  padding: 8pt;
-  margin: 8pt;
-  border: 3px double @color-border;
-  -moz-border-radius: 4px;
-  -webkit-border-radius: 4px;
-  -khtml-border-radius: 4px;
+.content {
+  padding-left: 10pt;
+  padding-right: 10pt;
 }
+
 
 .excerpts {
   .excerpt {
@@ -61,7 +75,8 @@ body.index {
 }
 
 .comment_button {
-  top: -10pt;
+  top: -10px;
   position: relative;
-  left: 327px;
+  left: 316px;
 }
+

@@ -2,7 +2,7 @@
 {% load endless %}
 
 {% block content_title %}
-  <h1>{{ obj.datetime }} @ {{obj.longitude}}E {{obj.latitude}}N</h1>
+  {{ obj.datetime }} @ {{obj.longitude}}E {{obj.latitude}}N
 {% endblock %}
 
 {% block properties %}

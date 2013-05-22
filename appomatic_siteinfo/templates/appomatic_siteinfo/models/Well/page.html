@@ -2,7 +2,7 @@
 {% load endless %}
 
 {% block content_title %}
-  <h1>{{obj.site.render_as.link|safe}} / {{obj.api}}</h1>
+  {{obj.site.render_as.link|safe}} / {{obj.api}}
 {% endblock %}
 
 {% block properties %}
@@ -24,7 +24,7 @@
    {% csrf_token %}
    <input type="hidden" name="method" value="comment">
    {{comment_form.content}}
-   <button type="submit" name="submit" class="comment_button">Comment</button>
+   <button type="submit" name="submit" class="comment_button btn btn-primary">Comment</button>
   </form>
 
   <h2>Events</h2>
