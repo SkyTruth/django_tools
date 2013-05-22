@@ -336,7 +336,7 @@ class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
         row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'id': row['id']})
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
         row['description'] = u"""
-          <a href="%(url)s" target="_top">%(name)s: last event at %(datetime_time)s</a>
+          <iframe src="%(url)s?style=iframe.html" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
         """ % row
 
         row['style'] = {
