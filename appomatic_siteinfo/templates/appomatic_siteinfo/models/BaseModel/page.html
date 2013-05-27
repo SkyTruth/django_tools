@@ -3,6 +3,12 @@
 
 {% block body_class %}{{obj.types}}{% endblock %}
 
+{% block content_title %}
+    {% block content_title_content %}
+      {{obj.type_name}}:
+    {% endblock %}
+{% endblock %}
+
 {% block boxes %}
   {% if request.user.is_staff %}
     <div class="infobox">
@@ -14,6 +20,7 @@
 
 {% block content %}
   <table>
+    <tr><th>Type</th><td>{{obj.type_name}}</td></tr>
     {% block properties %}{% endblock %}
   </table>
 {% endblock %}

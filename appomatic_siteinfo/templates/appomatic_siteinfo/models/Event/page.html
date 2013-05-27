@@ -1,8 +1,9 @@
 {% extends 'appomatic_siteinfo/models/LocationData/page.html' %}
 {% load endless %}
 
-{% block content_title %}
-  {{ obj.datetime }} @ {{obj.longitude}}E {{obj.latitude}}N
+{% block content_title_content %}
+  {{block.super}}
+  @ {{ obj.datetime }}
 {% endblock %}
 
 {% block properties %}

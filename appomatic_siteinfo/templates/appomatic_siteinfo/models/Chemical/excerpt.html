@@ -1,6 +1,7 @@
 {% extends 'appomatic_siteinfo/models/BaseModel/excerpt.html' %}
+{% load endless %}
 
 {% block content_title_content %}
   {{block.super}}
-  {{obj.longitude}}E {{obj.latitude}}N
+  {{obj}}
 {% endblock %}

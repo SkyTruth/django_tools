@@ -1,5 +1,7 @@
 {% extends 'appomatic_siteinfo/models/LocationData/excerpt.html' %}
 
-{% block content_title %}
-  <h2>{{ obj.datetime }} @ {{obj.longitude}}E {{obj.latitude}}N</h2>
+
+{% block content_title_content %}
+  {{block.super}}
+  @ {{ obj.datetime }}
 {% endblock %}

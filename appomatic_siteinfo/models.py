@@ -21,6 +21,7 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     objects = django.contrib.gis.db.models.GeoManager()
     
     src = django.db.models.ForeignKey(appomatic_renderable.models.Source, blank=True, null=True)
+    import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True)
     quality = django.db.models.FloatField(default = 1.0, db_index=True)
 
     def get_absolute_url(self):
@@ -145,6 +146,8 @@ class Well(LocationData):
 
     operators = django.db.models.ManyToManyField(Operator, related_name='wells')
 
+    well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
+
     def update_location(self, latitude, longitude):
         LocationData.update_location(self, latitude, longitude)
         self.site.update_location(latitude, longitude)
@@ -256,8 +259,98 @@ class CommentEvent(UserEvent):
 
     content = ckeditor.fields.RichTextField(verbose_name="Comment", config_name='small')
 
+class ChemicalUsageEvent(OperatorInfoEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
 
+class Supplier(BaseModel):
+    objects = django.contrib.gis.db.models.GeoManager()
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
 
+    @classmethod
+    def get(cls, name):
+        suppliers = Supplier.objects.filter(name=name)
+        if suppliers:
+            return suppliers[0]
+        else:
+            supplier = Supplier(name=name)
+            supplier.save()
+            return supplier
+
+    def __unicode__(self):
+        return self.name
+
+class ChemicalPurpose(BaseModel):
+    objects = django.contrib.gis.db.models.GeoManager()
+    name = django.db.models.CharField(max_length=256, db_index=True)
+
+    @classmethod
+    def get(cls, name):
+        purposes = ChemicalPurpose.objects.filter(name=name)
+        if purposes:
+            return purposes[0]
+        else:
+            purpose = ChemicalPurpose(name=name)
+            purpose.save()
+            return purpose
+
+    def __unicode__(self):
+        return self.name
+
+class Chemical(BaseModel):
+    objects = django.contrib.gis.db.models.GeoManager()
+    
+    trade_name = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+    ingredients = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+    cas_type = django.db.models.CharField(max_length=32, null=True, blank=True, db_index=True)
+    cas_number = django.db.models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    suppliers = django.db.models.ManyToManyField(Supplier, related_name="supplies")
+    purposes = django.db.models.ManyToManyField(ChemicalPurpose, related_name="chemicals")
+    comments = django.db.models.TextField(null=True, blank=True)
+    
+    @classmethod
+    def get(cls, trade_name, ingredients, cas_type, cas_number, comments):
+        chemicals = Chemical.objects.filter(trade_name=trade_name)
+        if chemicals:
+            return chemicals[0]
+        else:
+            chemical = Chemical(trade_name=trade_name, ingredients=ingredients, cas_type=cas_type, cas_number=cas_number, comments=comments)
+            chemical.save()
+            return chemical
+
+    def __unicode__(self):
+        return self.trade_name or self.ingredients or ("CAS: " + self.cas_number)
+
+class ChemicalUsageEventChemical(BaseModel):
+    objects = django.contrib.gis.db.models.GeoManager()
+    
+    event = django.db.models.ForeignKey(ChemicalUsageEvent, related_name="chemicals")
+    
+    chemical = django.db.models.ForeignKey(Chemical, related_name="used_in_events")
+    supplier = django.db.models.ForeignKey(Supplier, null=True, blank=True, related_name="supplied_event")
+    purpose = django.db.models.ForeignKey(ChemicalPurpose, null=True, blank=True, related_name="events")
+    additive_concentration = django.db.models.FloatField(null=True, blank=True)
+    weight = django.db.models.FloatField(null=True, blank=True)
+    ingredient_weight = django.db.models.FloatField(null=True, blank=True)
+    hf_fluid_concentration = django.db.models.FloatField(null=True, blank=True)
+    
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+
+    def save(self, *arg, **kw):
+        BaseModel.save(self, *arg, **kw)
+        if self.purpose:
+            self.chemical.purposes.add(self.purpose)
+        if self.supplier:
+            self.chemical.suppliers.add(self.supplier)
+
+    def __unicode__(self):
+        return "%s used in %s" % (self.chemical, self.event)
+
+class FracEvent(ChemicalUsageEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+    true_vertical_depth = django.db.models.FloatField(null=True, blank=True)
+    total_water_volume = django.db.models.FloatField(null=True, blank=True)
+    published = django.db.models.DateTimeField(null=True, blank=True)
+    
 
 class CommentForm(django.forms.ModelForm):
     class Meta:

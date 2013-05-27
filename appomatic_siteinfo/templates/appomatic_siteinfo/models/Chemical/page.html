@@ -1,0 +1,40 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj}}
+{% endblock %}
+
+{% block properties %}
+  <tr><th>Ingredients</th><td>{{obj.ingredients}}</td></tr>
+  <tr><th>CAS type</th><td>{{obj.cas_type}}</td></tr>
+  <tr><th>CAS number</th><td>{{obj.cas_number}}</td></tr>
+  <tr><th>Suppliers</th><td>
+    {% for supplier in obj.suppliers.all %}
+      {{supplier.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
+  <tr><th>Purposes</th><td>
+    {% for purpose in obj.purposes.all %}
+      {{purpose.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}
+
+{% block content %}
+  {{block.super}}
+
+  {{obj.comments|default:""}}
+
+  <h2>Events</h2>
+
+  {% paginate 10 obj.used_in_events.all as paginated_events %}
+  <div class="excerpts">
+    {% for event in paginated_events %}
+      {{ event.event.render_as.excerpt|safe }}
+    {% endfor %}
+  </div>
+  <div class="pagination">{% show_pages %}</div>
+ 
+{% endblock %}
