@@ -13,9 +13,7 @@ import appomatic_mapserver.models
 import datetime
 from django.conf import settings
 import pytz
-
-
-# Some basic abstract classes
+import re
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -61,22 +59,31 @@ class LocationData(BaseModel):
             self.save()
 
 
-# Concrete classes
+class Aliased(object):
+    AliasClass = NotImplemented
 
-class Operator(BaseModel):
-    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
 
     @classmethod
-    def get(cls, name):
+    def get_or_create(cls, name, **kw):
+        self = cls(name = name, **kw)
+        self.save()
+        return self
+
+    @classmethod
+    def get(cls, name, *arg, **kw):
         if not name: return None
-        aliases = OperatorAlias.objects.filter(name=name)
+        lookup_name = re.sub(r'[^a-zA-Z0-9][^a-zA-Z0-9]*', '%', name.lower())
+        aliases = cls.AliasClass.objects.filter(name__iexact=lookup_name)
         if aliases:
-            return aliases[0].operator
-        operator = Operator(name = name)
-        operator.save()
-        alias = OperatorAlias(operator = operator, name = name)
+            return aliases[0].alias_for
+        self = cls.get_or_create(name, *arg, **kw)
+        alias = cls.AliasClass(alias_for = self, name = name)
         alias.save()
-        return operator
+        return self
+
+
+class Company(BaseModel, Aliased):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
 
     def __unicode__(self):
         return self.name
@@ -86,42 +93,41 @@ class Operator(BaseModel):
         return cls.objects.filter(aliases__name__icontains=query)
 
 
-class OperatorAlias(BaseModel):
+class CompanyAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
-    operator = django.db.models.ForeignKey(Operator, related_name="aliases")
+    alias_for = django.db.models.ForeignKey(Company, related_name="aliases")
 
     def __unicode__(self):
-        return "%s: %s" % (self.operator.name, self.name)
+        return "%s: %s" % (self.alias_for.name, self.name)
+Company.AliasClass = CompanyAlias
 
-class Site(LocationData):
+class Site(LocationData, Aliased):
     objects = django.contrib.gis.db.models.GeoManager()
 
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     datetime = django.db.models.DateTimeField(null=True, blank=True, db_index=True)
 
-    operators = django.db.models.ManyToManyField(Operator, related_name='sites')
+    operators = django.db.models.ManyToManyField(Company, related_name='sites')
+
+    @classmethod
+    def get_or_create(cls, name, latitude, longitude):
+        if longitude is not None and latitude is not None:
+            location = django.contrib.gis.geos.Point(longitude, latitude)
+            sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=300)))
+        else:
+            sites = []
+        if sites:
+            site = sites[0]
+        else:
+            site = Site(name = name)
+            site.save()
+        return site
 
     @classmethod
     def get(cls, name, latitude, longitude):
-        aliases = SiteAlias.objects.filter(name=name)
-        if aliases:
-            site = aliases[0].site
-        else:
-            if longitude is not None and latitude is not None:
-                location = django.contrib.gis.geos.Point(longitude, latitude)
-                sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=300)))
-            else:
-                sites = []
-            if sites:
-                site = sites[0]
-            else:
-                site = Site(name = name)
-                site.save()
-            alias = SiteAlias(site = site, name = name)
-            alias.save()
-
-        site.update_location(latitude, longitude)
-        return site
+        self = super(Site, cls).get(name, latitude, longitude)
+        self.update_location(latitude, longitude)
+        return self
 
     def __unicode__(self):
         return self.name
@@ -146,10 +152,11 @@ class Site(LocationData):
 
 class SiteAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
-    site = django.db.models.ForeignKey(Site, related_name="aliases")
+    alias_for = django.db.models.ForeignKey(Site, related_name="aliases")
 
     def __unicode__(self):
         return "%s: %s" % (self.site, self.name)
+Site.AliasClass = SiteAlias
 
 class Well(LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -158,7 +165,7 @@ class Well(LocationData):
     site = django.db.models.ForeignKey(Site, related_name="wells")
     datetime = django.db.models.DateTimeField(null=True, blank=True, db_index=True)
 
-    operators = django.db.models.ManyToManyField(Operator, related_name='wells')
+    operators = django.db.models.ManyToManyField(Company, related_name='wells')
 
     well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
 
@@ -202,6 +209,46 @@ class Well(LocationData):
     def search(cls, query):
         return cls.objects.filter(api__icontains=query)
 
+
+class ChemicalPurpose(BaseModel, Aliased):
+    objects = django.contrib.gis.db.models.GeoManager()
+    name = django.db.models.CharField(max_length=256, db_index=True)
+
+    def __unicode__(self):
+        return self.name
+
+class ChemicalPurposeAlias(BaseModel):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
+    alias_for = django.db.models.ForeignKey(ChemicalPurpose, related_name="aliases")
+
+    def __unicode__(self):
+        return "%s: %s" % (self.alias_for.name, self.name)
+ChemicalPurpose.AliasClass = ChemicalPurposeAlias
+
+
+class Chemical(BaseModel, Aliased):
+    objects = django.contrib.gis.db.models.GeoManager()
+    
+    name = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+    ingredients = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+    cas_type = django.db.models.CharField(max_length=32, null=True, blank=True, db_index=True)
+    cas_number = django.db.models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    suppliers = django.db.models.ManyToManyField(Company, related_name="supplies")
+    purposes = django.db.models.ManyToManyField(ChemicalPurpose, related_name="chemicals")
+    comments = django.db.models.TextField(null=True, blank=True)
+    
+    def __unicode__(self):
+        return self.trade_name or self.ingredients or ("CAS: " + self.cas_number)
+
+class ChemicalAlias(BaseModel):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
+    alias_for = django.db.models.ForeignKey(Chemical, related_name="aliases")
+
+    def __unicode__(self):
+        return "%s: %s" % (self.alias_for.name, self.name)
+Chemical.AliasClass = ChemicalAlias
+
+
 # Event types
 
 class Event(LocationData):
@@ -236,7 +283,7 @@ class SiteEvent(Event):
 class OperatorEvent(SiteEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
-    operator = django.db.models.ForeignKey(Operator, related_name="events", null=True, blank=True)
+    operator = django.db.models.ForeignKey(Company, related_name="events", null=True, blank=True)
 
     def save(self, *arg, **kw):
         SiteEvent.save(self, *arg, **kw)
@@ -277,72 +324,13 @@ class CommentEvent(UserEvent):
 class ChemicalUsageEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
-class Supplier(BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
-    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
-
-    @classmethod
-    def get(cls, name):
-        if not name: return None
-        suppliers = Supplier.objects.filter(name__ilike=name)
-        if suppliers:
-            return suppliers[0]
-        else:
-            supplier = Supplier(name=name)
-            supplier.save()
-            return supplier
-
-    def __unicode__(self):
-        return self.name
-
-class ChemicalPurpose(BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
-    name = django.db.models.CharField(max_length=256, db_index=True)
-
-    @classmethod
-    def get(cls, name):
-        purposes = ChemicalPurpose.objects.filter(name__ilike=name)
-        if purposes:
-            return purposes[0]
-        else:
-            purpose = ChemicalPurpose(name=name)
-            purpose.save()
-            return purpose
-
-    def __unicode__(self):
-        return self.name
-
-class Chemical(BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
-    
-    trade_name = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
-    ingredients = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
-    cas_type = django.db.models.CharField(max_length=32, null=True, blank=True, db_index=True)
-    cas_number = django.db.models.CharField(max_length=64, null=True, blank=True, db_index=True)
-    suppliers = django.db.models.ManyToManyField(Supplier, related_name="supplies")
-    purposes = django.db.models.ManyToManyField(ChemicalPurpose, related_name="chemicals")
-    comments = django.db.models.TextField(null=True, blank=True)
-    
-    @classmethod
-    def get(cls, trade_name, ingredients, cas_type, cas_number, comments):
-        chemicals = Chemical.objects.filter(trade_name__ilike=trade_name)
-        if chemicals:
-            return chemicals[0]
-        else:
-            chemical = Chemical(trade_name=trade_name, ingredients=ingredients, cas_type=cas_type, cas_number=cas_number, comments=comments)
-            chemical.save()
-            return chemical
-
-    def __unicode__(self):
-        return self.trade_name or self.ingredients or ("CAS: " + self.cas_number)
-
 class ChemicalUsageEventChemical(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     
     event = django.db.models.ForeignKey(ChemicalUsageEvent, related_name="chemicals")
     
     chemical = django.db.models.ForeignKey(Chemical, related_name="used_in_events")
-    supplier = django.db.models.ForeignKey(Supplier, null=True, blank=True, related_name="supplied_event")
+    supplier = django.db.models.ForeignKey(Company, null=True, blank=True, related_name="supplied_event")
     purpose = django.db.models.ForeignKey(ChemicalPurpose, null=True, blank=True, related_name="events")
     additive_concentration = django.db.models.FloatField(null=True, blank=True)
     weight = django.db.models.FloatField(null=True, blank=True)

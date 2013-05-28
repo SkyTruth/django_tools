@@ -32,7 +32,7 @@ class Command(django.core.management.base.BaseCommand):
 
             print "%s @ %s" % (row.well_api_field, row.spud_date)
             
-            operator = appomatic_siteinfo.models.Operator.get(row.operator_s_name)
+            operator = appomatic_siteinfo.models.Company.get(row.operator_s_name)
 
             try:
                 latitude = row.latitude

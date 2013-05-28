@@ -35,7 +35,7 @@ class Command(django.core.management.base.BaseCommand):
             longitude = row.longitude
             location = django.contrib.gis.geos.Point(longitude, latitude)
 
-            operator = appomatic_siteinfo.models.Operator.get(row.operator)
+            operator = appomatic_siteinfo.models.Company.get(row.operator)
             site = appomatic_siteinfo.models.Site.get(row.well_name, latitude, longitude)
 
             api = row.api

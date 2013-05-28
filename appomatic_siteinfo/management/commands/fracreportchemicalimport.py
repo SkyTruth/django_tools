@@ -36,8 +36,8 @@ class Command(django.core.management.base.BaseCommand):
 
             appomatic_siteinfo.models.ChemicalUsageEventChemical(
                 event = appomatic_siteinfo.models.FracEvent.objects.get(import_id = row.pdf_seqid),    
-                chemical = appomatic_siteinfo.models.Chemical.get(trade_name = row.trade_name, ingredients = row.ingredients, cas_type = row.cas_type, cas_number = row.cas_number, comments = row.comments),
-                supplier = appomatic_siteinfo.models.Supplier.get(row.supplier),
+                chemical = appomatic_siteinfo.models.Chemical.get(name = row.trade_name, ingredients = row.ingredients, cas_type = row.cas_type, cas_number = row.cas_number, comments = row.comments),
+                supplier = appomatic_siteinfo.models.Company.get(row.supplier),
                 purpose = appomatic_siteinfo.models.ChemicalPurpose.get(row.purpose),
                 additive_concentration = row.additive_concentration,
                 weight = row.weight,

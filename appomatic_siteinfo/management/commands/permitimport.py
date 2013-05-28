@@ -14,6 +14,7 @@ import django.db.transaction
 import pytz
 
 class Command(django.core.management.base.BaseCommand):
+    @django.db.transaction.commit_manually
     def handle(self, *args, **kwargs):
         try:
             return self.handle2(*args, **kwargs)
@@ -22,23 +23,21 @@ class Command(django.core.management.base.BaseCommand):
             import traceback
             traceback.print_exc()
 
-    @django.db.transaction.commit_on_success
     def handle2(self, *args, **kwargs):
         src = appomatic_siteinfo.models.Source.get("Permit", "")
 
-        for row in appomatic_legacymodels.models.PaDrillingpermit.objects.filter(st_id__gt = src.import_id).order_by("st_id"):
+        for idx, row in enumerate(appomatic_legacymodels.models.PaDrillingpermit.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
             print "%s @ %s" %(row.complete_api_field, row.date_disposed)
             
             latitude = row.latitude_decimal
             longitude = row.longitude_decimal
             location = django.contrib.gis.geos.Point(longitude, latitude)
             
-            operator = appomatic_siteinfo.models.Operator.get(row.operator)
-            site = appomatic_siteinfo.models.Site.get(row.site_name, latitude, longitude)
+            operator = appomatic_siteinfo.models.Company.get(row.operator)
             
             api = row.complete_api_field[:-6]
             
-            well = appomatic_siteinfo.models.Well.get(api, site, latitude, longitude)
+            well = appomatic_siteinfo.models.Well.get(api, row.site_name, latitude, longitude)
             
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaDrillingpermit._meta.get_all_field_names())
@@ -49,7 +48,7 @@ class Command(django.core.management.base.BaseCommand):
                 longitude = longitude,
                 location = location,
                 datetime = datetime.datetime(row.date_disposed.year, row.date_disposed.month, row.date_disposed.day).replace(tzinfo=pytz.utc),
-                site = site,
+                site = well.site,
                 well = well,
                 operator = operator,
                 infourl = None,
@@ -57,3 +56,7 @@ class Command(django.core.management.base.BaseCommand):
                 ).save()
             src.import_id = row.st_id
             src.save()
+
+            if idx % 50 == 0:
+                django.db.transaction.commit()
+        django.db.transaction.commit()
