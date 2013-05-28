@@ -1,6 +1,6 @@
 import django.core.management.base
 import appomatic_siteinfo.models
-import appomatic_renderable.models
+import appomatic_legacymodels.models
 import optparse
 import contextlib
 import datetime
@@ -16,6 +16,7 @@ import pytz
 
 class Command(django.core.management.base.BaseCommand):
 
+    @django.db.transaction.commit_manually
     def handle(self, *args, **kwargs):
         try:
             return self.handle2(*args, **kwargs)
@@ -24,55 +25,52 @@ class Command(django.core.management.base.BaseCommand):
             import traceback
             traceback.print_exc()
 
-    def get_source(self, tool, argument):
-        sources = appomatic_renderable.models.Source.objects.filter(tool=tool, argument=argument)
-        if sources:
-            return sources[0]
-        source = appomatic_renderable.models.Source(tool=tool, argument=argument)
-        source.save()
-        return source
-
-    @django.db.transaction.commit_on_success
     def handle2(self, *args, **kwargs):
-        src = self.get_source("Permit", args[0])
-        with open(args[0]) as f:
-            f = iter(csv.reader(f))
-            headers = f.next()
-            for row in f:
-                row = dict(zip(headers, row))
+        src = appomatic_siteinfo.models.Source.get("Spud", "")
 
-                print row['Well_API__']
-                
-                operator = appomatic_siteinfo.models.Operator.get(row['Operator_s_Name'])
+        for idx, row in enumerate(appomatic_legacymodels.models.PaSpud.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
 
-                try:
-                    latitude = float(row['Latitude'])
-                    longitude = float(row['Longitude'])
-                    location = django.contrib.gis.geos.Point(longitude, latitude)
-                except:
-                    latitude = None
-                    longitude = None
-                    location = None
+            print "%s @ %s" % (row.well_api_field, row.spud_date)
+            
+            operator = appomatic_siteinfo.models.Operator.get(row.operator_s_name)
 
-                api = row['Well_API__'][:-6]
+            try:
+                latitude = row.latitude
+                longitude = row.longitude
+                location = django.contrib.gis.geos.Point(longitude, latitude)
+            except:
+                latitude = None
+                longitude = None
+                location = None
 
-                well = appomatic_siteinfo.models.Well.get(api, row['Farm_Name'], latitude, longitude)
-                site = well.site
+            api = row.well_api_field[:-6]
 
-                if latitude is None:
-                    latitude = site.latitude
-                    longitude = site.longitude
-                    location = site.location
+            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, latitude, longitude)
+            site = well.site
 
-                appomatic_siteinfo.models.SpudEvent(
-                    src = src,
-                    latitude = latitude,
-                    longitude = longitude,
-                    location = location,
-                    datetime = datetime.datetime.strptime(row['SPUD_Date'], "%Y-%m-%d").replace(tzinfo=pytz.utc),
-                    site = site,
-                    well = well,
-                    operator = operator,
-                    infourl = None,
-                    info = row
-                    ).save()
+            info = dict((name, getattr(row, name))
+                        for name in appomatic_legacymodels.models.PaSpud._meta.get_all_field_names())
+
+            if latitude is None:
+                latitude = site.latitude
+                longitude = site.longitude
+                location = site.location
+
+            appomatic_siteinfo.models.SpudEvent(
+                src = src,
+                latitude = latitude,
+                longitude = longitude,
+                location = location,
+                datetime = datetime.datetime(row.spud_date.year, row.spud_date.month, row.spud_date.day).replace(tzinfo=pytz.utc),
+                site = site,
+                well = well,
+                operator = operator,
+                infourl = None,
+                info = info
+                ).save()
+            src.import_id = row.st_id
+            src.save()
+
+            if idx % 50 == 0:
+                django.db.transaction.commit()
+        django.db.transaction.commit()

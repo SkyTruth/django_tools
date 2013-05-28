@@ -17,10 +17,23 @@ import pytz
 
 # Some basic abstract classes
 
+class Source(appomatic_renderable.models.Source):
+    import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
+
+    @classmethod
+    def get(cls, tool, argument):
+        sources = cls.objects.filter(tool=tool, argument=argument)
+        if sources:
+            return sources[0]
+        else:
+            source = cls(tool=tool, argument=argument)
+            source.save()
+            return source
+
 class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable):
     objects = django.contrib.gis.db.models.GeoManager()
     
-    src = django.db.models.ForeignKey(appomatic_renderable.models.Source, blank=True, null=True)
+    src = django.db.models.ForeignKey(Source, blank=True, null=True)
     import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True)
     quality = django.db.models.FloatField(default = 1.0, db_index=True)
 
@@ -55,6 +68,7 @@ class Operator(BaseModel):
 
     @classmethod
     def get(cls, name):
+        if not name: return None
         aliases = OperatorAlias.objects.filter(name=name)
         if aliases:
             return aliases[0].operator
@@ -158,7 +172,7 @@ class Well(LocationData):
         if wells:
             well = wells[0]
         else:
-            site = Site.get(site_name, latitude, longitude)
+            site = Site.get(site_name or api, latitude, longitude)
             well = Well(
                 api=api,
                 site=site)
@@ -222,13 +236,14 @@ class SiteEvent(Event):
 class OperatorEvent(SiteEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
-    operator = django.db.models.ForeignKey(Operator, related_name="events")
+    operator = django.db.models.ForeignKey(Operator, related_name="events", null=True, blank=True)
 
     def save(self, *arg, **kw):
         SiteEvent.save(self, *arg, **kw)
-        self.operator.sites.add(self.site)
-        if self.well:
-            self.operator.wells.add(self.well)
+        if self.operator:
+            self.operator.sites.add(self.site)
+            if self.well:
+                self.operator.wells.add(self.well)
 
     def __unicode__(self):
         return "%s @ %s for %s" % (self.datetime, self.well or self.site, self.operator)
@@ -268,7 +283,8 @@ class Supplier(BaseModel):
 
     @classmethod
     def get(cls, name):
-        suppliers = Supplier.objects.filter(name=name)
+        if not name: return None
+        suppliers = Supplier.objects.filter(name__ilike=name)
         if suppliers:
             return suppliers[0]
         else:
@@ -285,7 +301,7 @@ class ChemicalPurpose(BaseModel):
 
     @classmethod
     def get(cls, name):
-        purposes = ChemicalPurpose.objects.filter(name=name)
+        purposes = ChemicalPurpose.objects.filter(name__ilike=name)
         if purposes:
             return purposes[0]
         else:
@@ -309,7 +325,7 @@ class Chemical(BaseModel):
     
     @classmethod
     def get(cls, trade_name, ingredients, cas_type, cas_number, comments):
-        chemicals = Chemical.objects.filter(trade_name=trade_name)
+        chemicals = Chemical.objects.filter(trade_name__ilike=trade_name)
         if chemicals:
             return chemicals[0]
         else:

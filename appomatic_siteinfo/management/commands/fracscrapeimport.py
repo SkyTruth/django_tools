@@ -1,6 +1,6 @@
 import django.core.management.base
 import appomatic_siteinfo.models
-import appomatic_renderable.models
+import appomatic_legacymodels.models
 import optparse
 import contextlib
 import datetime
@@ -24,48 +24,43 @@ class Command(django.core.management.base.BaseCommand):
             import traceback
             traceback.print_exc()
 
-    def get_source(self, tool, argument):
-        sources = appomatic_renderable.models.Source.objects.filter(tool=tool, argument=argument)
-        if sources:
-            return sources[0]
-        source = appomatic_renderable.models.Source(tool=tool, argument=argument)
-        source.save()
-        return source
-
     def handle2(self, *args, **kwargs):
-        src = self.get_source("FracFocus", args[0])
-        with open(args[0]) as f:
-            f = iter(csv.reader(f))
-            headers = f.next()
-            for idx, row in enumerate(f):
-                row = dict(zip(headers, row))
+        src = appomatic_siteinfo.models.Source.get("FracFocus", "")
 
-                print row['api']
+        for idx, row in enumerate(appomatic_legacymodels.models.Fracfocusscrape.objects.filter(seqid__gt = src.import_id).order_by("seqid")):
 
-                latitude = float(row['latitude'])
-                longitude = float(row['longitude'])
-                location = django.contrib.gis.geos.Point(longitude, latitude)
+            print "%s @ %s" % (row.api, row.job_date)
 
-                operator = appomatic_siteinfo.models.Operator.get(row['operator'])
-                site = appomatic_siteinfo.models.Site.get(row['well_name'], latitude, longitude)
+            latitude = row.latitude
+            longitude = row.longitude
+            location = django.contrib.gis.geos.Point(longitude, latitude)
 
-                api = row['api']
+            operator = appomatic_siteinfo.models.Operator.get(row.operator)
+            site = appomatic_siteinfo.models.Site.get(row.well_name, latitude, longitude)
 
-                well = appomatic_siteinfo.models.Well.get(api, site, latitude, longitude)
+            api = row.api
 
-                appomatic_siteinfo.models.FracEvent(
-                    src = src,
-                    import_id = row['seqid'],
-                    latitude = latitude,
-                    longitude = longitude,
-                    location = location,
-                    datetime = datetime.datetime.strptime(row['job_date'], "%Y-%m-%d").replace(tzinfo=pytz.utc),
-                    site = site,
-                    well = well,
-                    operator = operator,
-                    infourl = None,
-                    info = row
-                    ).save()
-                if idx % 50 == 0:
-                    django.db.transaction.commit()
-            django.db.transaction.commit()
+            well = appomatic_siteinfo.models.Well.get(api, site, latitude, longitude)
+
+            info = dict((name, getattr(row, name))
+                        for name in appomatic_legacymodels.models.Fracfocusscrape._meta.get_all_field_names())
+
+            appomatic_siteinfo.models.FracEvent(
+                src = src,
+                import_id = row.seqid,
+                latitude = latitude,
+                longitude = longitude,
+                location = location,
+                datetime = datetime.datetime(row.job_date.year, row.job_date.month, row.job_date.day).replace(tzinfo=pytz.utc),
+                site = site,
+                well = well,
+                operator = operator,
+                infourl = None,
+                info = info
+                ).save()
+            src.import_id = row.seqid
+            src.save()
+
+            if idx % 50 == 0:
+                django.db.transaction.commit()
+        django.db.transaction.commit()
