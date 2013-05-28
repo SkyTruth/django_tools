@@ -1,7 +1,7 @@
 import django.contrib.admin
 import appomatic_siteinfo.models
 
-django.contrib.admin.site.register(appomatic_siteinfo.models.Operator)
+django.contrib.admin.site.register(appomatic_siteinfo.models.Company)
 class WellInline(django.contrib.admin.TabularInline):
     model = appomatic_siteinfo.models.Well
     fk_name = 'site'

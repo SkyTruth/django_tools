@@ -27,38 +27,71 @@ class Command(django.core.management.base.BaseCommand):
     def handle2(self, *args, **kwargs):
         src = appomatic_siteinfo.models.Source.get("FracFocus", "")
 
-        for idx, row in enumerate(appomatic_legacymodels.models.Fracfocusscrape.objects.filter(seqid__gt = src.import_id).order_by("seqid")):
+        for idx, scrape in enumerate(appomatic_legacymodels.models.Fracfocusscrape.objects.filter(seqid__gt = src.import_id).order_by("seqid")):
 
-            print "%s @ %s" % (row.api, row.job_date)
+            report = appomatic_legacymodels.models.Fracfocusreport.objects.filter(pdf_seqid = scrape.seqid)[0] # Don't use get, there are duplicates!
 
-            latitude = row.latitude
-            longitude = row.longitude
+            print "%s @ %s" % (scrape.api, scrape.job_date)
+
+            latitude = scrape.latitude
+            longitude = scrape.longitude
             location = django.contrib.gis.geos.Point(longitude, latitude)
 
-            operator = appomatic_siteinfo.models.Company.get(row.operator)
-            site = appomatic_siteinfo.models.Site.get(row.well_name, latitude, longitude)
+            operator = appomatic_siteinfo.models.Company.get(scrape.operator)
 
-            api = row.api
+            api = scrape.api
 
-            well = appomatic_siteinfo.models.Well.get(api, site, latitude, longitude)
+            well = appomatic_siteinfo.models.Well.get(api, scrape.well_name, latitude, longitude)
 
-            info = dict((name, getattr(row, name))
+            info = dict((name, getattr(scrape, name))
                         for name in appomatic_legacymodels.models.Fracfocusscrape._meta.get_all_field_names())
+            info.update(dict((name, getattr(report, name))
+                             for name in appomatic_legacymodels.models.Fracfocusreport._meta.get_all_field_names()))
 
-            appomatic_siteinfo.models.FracEvent(
+            event = appomatic_siteinfo.models.FracEvent(
                 src = src,
-                import_id = row.seqid,
+                import_id = scrape.seqid,
                 latitude = latitude,
                 longitude = longitude,
                 location = location,
-                datetime = datetime.datetime(row.job_date.year, row.job_date.month, row.job_date.day).replace(tzinfo=pytz.utc),
-                site = site,
+                datetime = datetime.datetime(report.fracture_date.year, report.fracture_date.month, report.fracture_date.day).replace(tzinfo=pytz.utc),
+                site = well.site,
                 well = well,
                 operator = operator,
+                true_vertical_depth = report.true_vertical_depth,
+                total_water_volume = report.total_water_volume,
+                published = report.published.replace(tzinfo=pytz.utc),
                 infourl = None,
                 info = info
-                ).save()
-            src.import_id = row.seqid
+                )
+            event.save()
+
+
+            for reportchemical in appomatic_legacymodels.models.Fracfocusreportchemical.objects.filter(pdf_seqid=scrape.seqid):
+                print "    %s" % (reportchemical.trade_name or reportchemical.ingredients or reportchemical.cas_number,)
+
+                info = dict((name, getattr(reportchemical, name))
+                            for name in appomatic_legacymodels.models.Fracfocusreportchemical._meta.get_all_field_names())
+
+                chemical = appomatic_siteinfo.models.Chemical.get(
+                    trade_name = reportchemical.trade_name,
+                    ingredients = reportchemical.ingredients,
+                    cas_type = reportchemical.cas_type,
+                    cas_number = reportchemical.cas_number,
+                    comments = reportchemical.comments)
+                               
+                appomatic_siteinfo.models.ChemicalUsageEventChemical(
+                    event = event,
+                    chemical = chemical,
+                    supplier = appomatic_siteinfo.models.Company.get(reportchemical.supplier),
+                    purpose = appomatic_siteinfo.models.ChemicalPurpose.get(reportchemical.purpose),
+                    additive_concentration = reportchemical.additive_concentration,
+                    weight = reportchemical.weight,
+                    ingredient_weight = reportchemical.ingredient_weight,
+                    hf_fluid_concentration = reportchemical.hf_fluid_concentration,
+                    info = info).save()
+
+            src.import_id = scrape.seqid
             src.save()
 
             if idx % 50 == 0:

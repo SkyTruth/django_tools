@@ -72,8 +72,9 @@ class Aliased(object):
     @classmethod
     def get(cls, name, *arg, **kw):
         if not name: return None
+        name = name.strip()
         lookup_name = re.sub(r'[^a-zA-Z0-9][^a-zA-Z0-9]*', '%', name.lower())
-        aliases = cls.AliasClass.objects.filter(name__iexact=lookup_name)
+        aliases = cls.AliasClass.objects.all().extra(where=["name ilike %s"], params=[lookup_name])
         if aliases:
             return aliases[0].alias_for
         self = cls.get_or_create(name, *arg, **kw)
@@ -229,16 +230,27 @@ ChemicalPurpose.AliasClass = ChemicalPurposeAlias
 class Chemical(BaseModel, Aliased):
     objects = django.contrib.gis.db.models.GeoManager()
     
-    name = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+    name = django.db.models.CharField(max_length=256, db_index=True)
+    trade_name = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
     ingredients = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
     cas_type = django.db.models.CharField(max_length=32, null=True, blank=True, db_index=True)
     cas_number = django.db.models.CharField(max_length=64, null=True, blank=True, db_index=True)
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplies")
     purposes = django.db.models.ManyToManyField(ChemicalPurpose, related_name="chemicals")
     comments = django.db.models.TextField(null=True, blank=True)
+
+    @classmethod
+    def get(cls, trade_name, ingredients, cas_type, cas_number, comments):
+        return super(Chemical, cls).get(
+            name=trade_name or ingredients or cas_number or cas_type or comments,
+            trade_name=trade_name,
+            ingredients=ingredients,
+            cas_type=cas_type,
+            cas_number=cas_number,
+            comments=comments)
     
     def __unicode__(self):
-        return self.trade_name or self.ingredients or ("CAS: " + self.cas_number)
+        return self.name
 
 class ChemicalAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
