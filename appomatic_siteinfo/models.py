@@ -108,7 +108,9 @@ class Site(LocationData, Aliased):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     datetime = django.db.models.DateTimeField(null=True, blank=True, db_index=True)
 
-    operators = django.db.models.ManyToManyField(Company, related_name='sites')
+    operators = django.db.models.ManyToManyField(Company, related_name='operates_at_sites')
+    suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_sites")
+    chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_sites")
 
     @classmethod
     def get_or_create(cls, name, latitude, longitude):
@@ -166,7 +168,9 @@ class Well(LocationData):
     site = django.db.models.ForeignKey(Site, related_name="wells")
     datetime = django.db.models.DateTimeField(null=True, blank=True, db_index=True)
 
-    operators = django.db.models.ManyToManyField(Company, related_name='wells')
+    operators = django.db.models.ManyToManyField(Company, related_name='operates_at_wells')
+    suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_wells")
+    chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_wells")
 
     well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
 
@@ -300,9 +304,9 @@ class OperatorEvent(SiteEvent):
     def save(self, *arg, **kw):
         SiteEvent.save(self, *arg, **kw)
         if self.operator:
-            self.operator.sites.add(self.site)
+            self.site.operators.add(self.operator)
             if self.well:
-                self.operator.wells.add(self.well)
+                self.well.operators.add(self.operator)
 
     def __unicode__(self):
         return "%s @ %s for %s" % (self.datetime, self.well or self.site, self.operator)
@@ -353,10 +357,16 @@ class ChemicalUsageEventChemical(BaseModel):
 
     def save(self, *arg, **kw):
         BaseModel.save(self, *arg, **kw)
+        self.event.site.chemicals.add(self.chemical)
+        if self.event.well:
+            self.event.well.chemicals.add(self.chemical)
         if self.purpose:
             self.chemical.purposes.add(self.purpose)
         if self.supplier:
             self.chemical.suppliers.add(self.supplier)
+            self.event.site.suppliers.add(self.supplier)
+            if self.event.well:
+                self.event.well.suppliers.add(self.supplier)
 
     def __unicode__(self):
         return "%s used in %s" % (self.chemical, self.event)
@@ -448,8 +458,11 @@ class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
 
     @property
     def query(self):
-        if 'operator' in self.application.urlquery:
-            return Site.objects.filter(operators__id=self.application.urlquery['operator'])
+        if 'company' in self.application.urlquery:
+            return Site.objects.filter(django.db.models.Q(operators__id=self.application.urlquery['company'])
+                                       | django.db.models.Q(suppliers__id=self.application.urlquery['company']))
+        if 'chemical' in self.application.urlquery:
+            return Site.objects.filter(chemicals__id=self.application.urlquery['chemical'])
         elif 'query' in self.application.urlquery:
             return Site.search(self.application.urlquery['query'])
         else:

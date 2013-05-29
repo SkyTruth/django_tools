@@ -6,6 +6,14 @@
   {{obj}}
 {% endblock %}
 
+
+{% block content_outer %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?chemical={{obj.id}}"></iframe>
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
 {% block properties %}
   <tr><th>Ingredients</th><td>{{obj.ingredients}}</td></tr>
   <tr><th>CAS type</th><td>{{obj.cas_type}}</td></tr>
@@ -32,25 +40,63 @@
 
   {{obj.comments|default:""}}
 
-  <h2>Events</h2>
-  {% paginate 10 obj.used_in_events.all as paginated_usage %}
-  <table class="table table-striped table-bordered table-condesed">
-    <thead><tr><th>Time</th><th>Supplier</th><th>Purpose</th><th>Type</th><th>Site</th><th>Well</th></tr></thead>
-    <tbody>
-      {% for usage in paginated_usage %}
-        {% with event=usage.event.leafclassobject %}
+  {% if obj.used_at_sites.all %}
+    <h2>Used at these sites</h2>
+    {% paginate 10 obj.used_at_sites.all as paginated_sites %}
+    <table class="table table-striped table-bordered table-condesed">
+      <thead><tr><th>Name</th><th>Latitude</th><th>Longitude</th></tr></thead>
+      <tbody>
+        {% for site in paginated_sites %}
           <tr>
-            <td><a href="{{event.get_absolute_url}}">{{event.datetime}}</a></td>
-            <td>{{usage.supplier.render_as.link|safe}}</td>
-            <td>{{usage.purpose.render_as.link|safe}}</td>
-            <td><a href="{{event.get_absolute_url}}">{{event.type_name}}</a></td>
-            <td>{{event.site.render_as.link|safe}}</td>
-            <td>{{event.well.render_as.link|safe}}</td>
+            <td><a href="{{site.get_absolute_url}}">{{site.name}}</td>
+            <td><a href="{{site.get_absolute_url}}">{{site.latitude}}</td>
+            <td><a href="{{site.get_absolute_url}}">{{site.longitude}}</td>
           </tr>
-        {% endwith %}
-      {% endfor %}
-    </tbody>
-  </table>
-  <div class="pagination">{% show_pages %}</div>
- 
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination">{% show_pages %}</div>
+  {% endif %}
+
+  {% if obj.used_at_wells.all %}
+    <h2>Used at these wells</h2>
+    {% paginate 10 obj.used_at_wells.all as paginated_wells %}
+    <table class="table table-striped table-bordered table-condesed">
+      <thead><tr><th>API</th><th>Latitude</th><th>Longitude</th></tr></thead>
+      <tbody>
+        {% for well in paginated_wells %}
+          <tr>
+            <td><a href="{{well.get_absolute_url}}">{{well.api}}</td>
+            <td><a href="{{well.get_absolute_url}}">{{well.latitude}}</td>
+            <td><a href="{{well.get_absolute_url}}">{{well.longitude}}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination">{% show_pages %}</div>
+  {% endif %}
+
+  {% if obj.used_in_events.all %}
+    <h2>Events</h2>
+    {% paginate 10 obj.used_in_events.all as paginated_usage %}
+    <table class="table table-striped table-bordered table-condesed">
+      <thead><tr><th>Time</th><th>Supplier</th><th>Purpose</th><th>Type</th><th>Site</th><th>Well</th></tr></thead>
+      <tbody>
+        {% for usage in paginated_usage %}
+          {% with event=usage.event.leafclassobject %}
+            <tr>
+              <td><a href="{{event.get_absolute_url}}">{{event.datetime}}</a></td>
+              <td>{{usage.supplier.render_as.link|safe}}</td>
+              <td>{{usage.purpose.render_as.link|safe}}</td>
+              <td><a href="{{event.get_absolute_url}}">{{event.type_name}}</a></td>
+              <td>{{event.site.render_as.link|safe}}</td>
+              <td>{{event.well.render_as.link|safe}}</td>
+            </tr>
+          {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination">{% show_pages %}</div>
+   {% endif %}
+
 {% endblock %}
