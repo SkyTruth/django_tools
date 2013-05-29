@@ -16,13 +16,14 @@
 
   {% for result in results %}
     <h2>{{result.title}}</h2>
-
-    {% paginate 10 result.items.all as paginated_items %}
-    <div class="excerpts">
-      {% for item in paginated_items %}
-        {{ item.render_as.excerpt|safe }}
-      {% endfor %}
-    </div>
-    <div class="pagination">{% show_pages %}</div>
+    {% if result.items and result.items %}
+      {% paginate 10 result.items.all as paginated_items %}
+      <div class="excerpts">
+        {% for item in paginated_items %}
+          {{ item.render_as.excerpt|safe }}
+        {% endfor %}
+      </div>
+      <div class="pagination">{% show_pages %}</div>
+    {% endif %}
   {% endfor %} 
 {% endblock %}

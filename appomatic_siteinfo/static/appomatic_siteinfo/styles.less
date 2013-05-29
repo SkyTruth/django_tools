@@ -10,6 +10,10 @@
   -khtml-border-radius: 4px;
 }
 
+.box-active {
+  border: 3px solid @color-border;
+}
+
 table {  
   th, td {
     vertical-align: top;
@@ -71,6 +75,10 @@ table {
 .excerpts {
   .excerpt {
     .box;
+    cursor: pointer;
+    &:hover {
+      .box-active;
+    }
   }
 }
 

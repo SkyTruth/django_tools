@@ -256,6 +256,12 @@ class Chemical(BaseModel, Aliased):
     def __unicode__(self):
         return self.name
 
+
+    @classmethod
+    def search(cls, query):
+        return cls.objects.filter(django.db.models.Q(aliases__name__icontains=query)
+                                  |django.db.models.Q(purposes__aliases__name__icontains=query))
+
 class ChemicalAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(Chemical, related_name="aliases")

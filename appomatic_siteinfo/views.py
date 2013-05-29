@@ -10,11 +10,20 @@ def search(request):
     query = request.GET['query']
 
     results = []
-    results.append({'title': 'Company',
+    results.append({'title': 'Matching companies',
                     'items': appomatic_siteinfo.models.Company.search(query)})
-    results.append({'title': 'Sites',
+    results.append({'title': 'Matching chemicals',
+                    'items': appomatic_siteinfo.models.Chemical.search(query)})
+    results.append({'title': 'Matching sites',
                     'items': appomatic_siteinfo.models.Site.search(query)})
-    results.append({'title': 'Wells',
+    results.append({'title': 'Matching wells',
                     'items': appomatic_siteinfo.models.Well.search(query)})
+
+    for pos in xrange(len(results)-1, -1, -1):
+        if not results[pos]['items']:
+            del results[pos]
+
+    if not len(results):
+        results.append({'title': 'No results found'})
 
     return django.shortcuts.render(request, 'appomatic_siteinfo/search.html', {"results": results, "query": query})
