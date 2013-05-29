@@ -10,8 +10,8 @@ def search(request):
     query = request.GET['query']
 
     results = []
-    results.append({'title': 'Operators',
-                    'items': appomatic_siteinfo.models.Operator.search(query)})
+    results.append({'title': 'Company',
+                    'items': appomatic_siteinfo.models.Company.search(query)})
     results.append({'title': 'Sites',
                     'items': appomatic_siteinfo.models.Site.search(query)})
     results.append({'title': 'Wells',
