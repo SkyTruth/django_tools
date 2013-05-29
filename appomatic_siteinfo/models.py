@@ -361,6 +361,9 @@ class ChemicalUsageEventChemical(BaseModel):
     def __unicode__(self):
         return "%s used in %s" % (self.chemical, self.event)
 
+    class Meta:
+        ordering = ('-event__datetime', )
+
 class FracEvent(ChemicalUsageEvent):
     objects = django.contrib.gis.db.models.GeoManager()
     true_vertical_depth = django.db.models.FloatField(null=True, blank=True)

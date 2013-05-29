@@ -28,22 +28,47 @@
   {% if obj.supplies.all %}
     <h2>Supplied these chemicals</h2>
     {% paginate 10 obj.supplies.all as paginated_chemicals %}
-    <div class="excerpts">
-      {% for chemical in paginated_chemicals %}
-        {{ chemical.render_as.excerpt|safe }}
-      {% endfor %}
-    </div>
+    <table class="table table-striped table-bordered table-condesed">
+      <thead><tr><th>Trade name</th><th>Ingredients</th><th>CAS type</th><th>CAS number</th><th>Purposes</th></thead>
+      <tbody>
+        {% for chemical in paginated_chemicals %}
+          <tr>
+            <td><a href="{{chemical.get_absolute_url}}">{{chemical.trade_name}}</td>
+            <td><a href="{{chemical.get_absolute_url}}">{{chemical.ingredients}}</td>
+            <td><a href="{{chemical.get_absolute_url}}">{{chemical.cas_type}}</td>
+            <td><a href="{{chemical.get_absolute_url}}">{{chemical.cas_number}}</td>
+            <td>
+              {% for purpose in chemical.purposes.all %}
+                {{purpose.render_as.link|safe}}
+              {% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     <div class="pagination">{% show_pages %}</div>
   {% endif %}
 
   {% if obj.supplied_event.all %}
     <h2>Supplied chemicals to these events</h2>
-    {% paginate 10 obj.supplied_event.all as paginated_events %}
-    <div class="excerpts">
-      {% for event in paginated_events %}
-        {{ event.event.render_as.excerpt|safe }}
-      {% endfor %}
-    </div>
+    {% paginate 10 obj.supplied_event.all as paginated_supply %}
+    <table class="table table-striped table-bordered table-condesed">
+      <thead><tr><th>Time</th><th>Chemical</th><th>Purpose</th><th>Type</th><th>Site</th><th>Well</th></tr></thead>
+      <tbody>
+        {% for supply in paginated_supply %}
+          {% with event=supply.event.leafclassobject %}
+            <tr>
+              <td><a href="{{event.get_absolute_url}}">{{event.datetime}}</a></td>
+              <td>{{supply.chemical.render_as.link|safe}}</td>
+              <td>{{supply.purpose.render_as.link|safe}}</td>
+              <td><a href="{{event.get_absolute_url}}">{{event.type_name}}</a></td>
+              <td>{{event.site.render_as.link|safe}}</td>
+              <td>{{event.well.render_as.link|safe}}</td>
+            </tr>
+          {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
     <div class="pagination">{% show_pages %}</div>
   {% endif %}
 
@@ -87,11 +112,21 @@
   {% if obj.events.all %}
     <h2>Responsible for these events</h2>
     {% paginate 10 obj.events.all as paginated_events %}
-    <div class="excerpts">
-      {% for event in paginated_events %}
-        {{ event.render_as.excerpt|safe }}
-      {% endfor %}
-    </div>
+    <table class="table table-striped table-bordered table-condesed">
+      <thead><tr><th>Type</th><th>Time</th><th>Latitude</th><th>Longitude</th><th>Site</th><th>Well</th></tr></thead>
+      <tbody>
+        {% for event in paginated_events %}
+          <tr>
+            <td><a href="{{event.get_absolute_url}}">{{event.type_name}}</td>
+            <td><a href="{{event.get_absolute_url}}">{{event.datetime}}</td>
+            <td><a href="{{event.get_absolute_url}}">{{event.latitude}}</td>
+            <td><a href="{{event.get_absolute_url}}">{{event.longitude}}</td>
+            <td><a href="{{event.site.get_absolute_url}}">{{event.site}}</td>
+            <td><a href="{{event.well.get_absolute_url}}">{{event.well}}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     <div class="pagination">{% show_pages %}</div>
   {% endif %}
 
