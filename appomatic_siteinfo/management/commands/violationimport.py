@@ -24,7 +24,7 @@ class Command(django.core.management.base.BaseCommand):
             traceback.print_exc()
 
     def handle2(self, *args, **kwargs):
-        src = appomatic_siteinfo.models.Source.get("Permit", "")
+        src = appomatic_siteinfo.models.Source.get("Violation", "")
 
         for idx, row in enumerate(appomatic_legacymodels.models.PaViolation.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
             if row.permit_api is None:
@@ -34,14 +34,12 @@ class Command(django.core.management.base.BaseCommand):
             
             operator = appomatic_siteinfo.models.Company.get(row.operator)
             
-            api = row.permit_api[:-6]
-            
-            well = appomatic_siteinfo.models.Well.get(api)
+            well = appomatic_siteinfo.models.Well.get(row.permit_api)
             
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaViolation._meta.get_all_field_names())
 
-            appomatic_siteinfo.models.PermitEvent(
+            appomatic_siteinfo.models.ViolationEvent(
                 src = src,
                 latitude = well.latitude,
                 longitude = well.longitude,
