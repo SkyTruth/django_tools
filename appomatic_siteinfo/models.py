@@ -127,9 +127,10 @@ class Site(LocationData, Aliased):
         return site
 
     @classmethod
-    def get(cls, name, latitude, longitude):
+    def get(cls, name, latitude=None, longitude=None):
         self = super(Site, cls).get(name, latitude, longitude)
-        self.update_location(latitude, longitude)
+        if latitude is not None and longitude is not None:
+            self.update_location(latitude, longitude)
         return self
 
     def __unicode__(self):
@@ -179,7 +180,7 @@ class Well(LocationData):
         self.site.update_location(latitude, longitude)
 
     @classmethod
-    def get(cls, api, site_name, latitude, longitude):
+    def get(cls, api, site_name=None, latitude=None, longitude=None):
         wells = cls.objects.filter(api=api)
         if wells:
             well = wells[0]
@@ -189,7 +190,8 @@ class Well(LocationData):
                 api=api,
                 site=site)
             well.save()
-        well.update_location(latitude, longitude)
+        if latitude is not None and longitude is not None:
+            well.update_location(latitude, longitude)
         return well
 
     def __unicode__(self):
@@ -328,6 +330,9 @@ class PermitEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
 class SpudEvent(OperatorInfoEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+class ViolationEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
 class UserEvent(SiteEvent):
