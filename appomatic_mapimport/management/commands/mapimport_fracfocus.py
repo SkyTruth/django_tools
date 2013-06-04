@@ -16,18 +16,26 @@ import appomatic_mapimport.models
 from django.conf import settings
 import logging
 import psycopg2
+import contextlib
+import django.db
 
 logger = logging.getLogger(__name__)
 
+def dictreader(cur):
+    for row in cur:
+        yield dict(zip([col[0] for col in cur.description], row))
 
 class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
     help = """Import fracfocusdata.org data
       Usage:
-      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus 3 Texas Mitchell
-
-      County and State are optional. You do want to specify screen-size (and set it that big) to avoid bugs in selenium.
+      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus find 3 Texas Mitchell
+          Find all wells in Mitchell, Texas and marks them for download. County and State are optional.
+      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus download
+          Downloads PDFs for all marked wells
+      You do want to specify screen-size (and set it that big) to avoid bugs in selenium.
     """
     SRC='FRACFOCUS'
+
 
     FIREFOX_PROFILEDIR = settings.MAPIMPORT_FRACFOCUS['PROFILE']
 
@@ -50,6 +58,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
     @appomatic_mapimport.mapimport.retryable()
     def get_states_from_site(self):
+        self.connection.delete_all_cookies()
         self.connection.get(self.baseurl)
         time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
 
@@ -61,6 +70,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
     @appomatic_mapimport.mapimport.retryable()
     def get_counties_from_site(self, state):
+        self.connection.delete_all_cookies()
         self.connection.get(self.baseurl)
         time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
 
@@ -186,7 +196,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
         ''', record)
         return self.cur.next()[0] == 0
 
-    def extract_records(self):
+    def extract_records(self, download=False, redownload=False):
         # Wait for all of page to have loaded
         self.wait_for_xpath("//*[@id='lnkGroundWaterProtectionCouncil']")
 
@@ -207,17 +217,40 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
             data['Longitude'] = float(data['Longitude'])
             data['Latitude'] = float(data['Latitude'])
             logger.debug("Scraped %(API No.)s @ %(Job Start Dt)s" % data)
-            if self.is_new_record(data):
-                self.get_file_from_record(row, data)
-                if 'filename' in data:
+            if self.is_new_record(data) or redownload:
+                if download:
+                    self.get_file_from_record(row, data)
+                if 'filename' in data or not download:
                     yield data
             else:
                 logger.debug("Ignoring old entry for %(API No.)s @ %(Job Start Dt)s" % data)
+
+    def get_pdf(self, api):
+        @appomatic_mapimport.mapimport.retry()
+        def load_results():
+            self.connection.delete_all_cookies()
+            self.connection.get(self.baseurl)
+
+            self.wait_for_xpath("//*[@id='MainContent_btnSearch']")
+
+            apientry = self.connection.find_element_by_xpath("//*[@id='MainContent_tbAPINo']")
+            apientry.click()
+            for x in xrange(0, 20):
+                apientry.send_keys(selenium.webdriver.common.keys.Keys.ARROW_LEFT)
+            apientry.send_keys(api)
+
+            self.wait_for_xpath("//*[@id='MainContent_btnSearch']")
+            self.connection.find_element_by_xpath("//*[@id='MainContent_btnSearch']").click()
+            self.wait_for_xpath("//*[@id='MainContent_btnBackToFilter']")
+
+        return self.extract_records(download=True, redownload=True).next()
+
 
     # FIXME: Retry each page separately, and make sure the next-page button gets us to the right page...
     def get_records_for_county(self, state = 'Texas', county = 'Mitchell'):
         @appomatic_mapimport.mapimport.retry()
         def load_results():
+            self.connection.delete_all_cookies()
             self.connection.get(self.baseurl)
 
             self.wait_for_xpath("//*[@id='MainContent_btnSearch']")
@@ -267,61 +300,73 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
     def mapimport(self):
         try:
-
             self.clean_downloaddir()
 
-            for record in self.get_records(*self.args):
-                self.cur.execute('''
-                  insert into "FracFocusScrape" (
-                    api,
-                    job_date,
-                    state,
-                    county,
-                    operator,
-                    well_name,
-                    well_type,
-                    latitude,
-                    longitude,
-                    datum
-                  ) values (
-                    %(API No.)s,
-                    %(Job Start Dt)s,
-                    %(State)s,
-                    %(County)s,
-                    %(Operator)s,
-                    %(WellName)s,
-                    NULL,
-                    %(Latitude)s,
-                    %(Longitude)s,
-                    %(Datum)s
-                  )
-                ''', record)
-                self.cur.execute('select lastval()')
-                record['task_id'] = self.cur.next()[0]
+            if self.args[0] == 'find':
+                for record in self.get_records(*self.args[1:]):
+                    self.cur.execute('''
+                      insert into "FracFocusScrape" (
+                        api,
+                        job_date,
+                        state,
+                        county,
+                        operator,
+                        well_name,
+                        well_type,
+                        latitude,
+                        longitude,
+                        datum
+                      ) values (
+                        %(API No.)s,
+                        %(Job Start Dt)s,
+                        %(State)s,
+                        %(County)s,
+                        %(Operator)s,
+                        %(WellName)s,
+                        NULL,
+                        %(Latitude)s,
+                        %(Longitude)s,
+                        %(Datum)s
+                      )
+                    ''', record)
+                    self.cur.execute('select lastval()')
+                    record['task_id'] = self.cur.next()[0]
 
-                self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusReport', 'NEW')""", record)
+                    self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusReport', 'NEW')""", record)
+                    self.cur.execute("commit")
+                    logger.info("Stored %(API No.)s @ %(Job Start Dt)s" % record)
 
-                with open(record['path']) as f:
-                    record['data'] = psycopg2.Binary(f.read())
 
-                self.cur.execute('''
-                  insert into "FracFocusPDF" (
-                    seqid,
-                    pdf,
-                    filename
-                  ) select
-                    %(task_id)s,
-                    %(data)s,
-                    %(filename)s
-                ''', record)
-                record['fileid'] = self.cur.lastrowid
+            elif self.args[0] == 'download':
+                with contextlib.closing(django.db.connection.cursor()) as cur:
+                    cur.execute("""select a.task_id, b.api from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW'""")
+                    for record in dictreader(cur):
+                        record.update(self.get_pdf(record['api']))
 
-                self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
+                        with open(record['path']) as f:
+                            record['data'] = psycopg2.Binary(f.read())
 
-                self.cur.execute("commit")
-                logger.info("Stored %(API No.)s @ %(Job Start Dt)s" % record)
+                        self.cur.execute('''
+                          insert into "FracFocusPDF" (
+                            seqid,
+                            pdf,
+                            filename
+                          ) select
+                            %(task_id)s,
+                            %(data)s,
+                            %(filename)s
+                        ''', record)
+                        record['fileid'] = self.cur.lastrowid
 
-                time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
+                        self.cur.execute("""update "BotTaskStatus" set status='DONE' where task_id=%(task_id)s""", record)
+                        self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
+
+                        self.cur.execute("commit")
+
+                    logger.info("Downloaded %(API No.)s @ %(Job Start Dt)s" % record)
+
+                    time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
+                    
 
         except selenium.common.exceptions.TimeoutException, e:
             self.connection.get_screenshot_as_file('timeout-screenshot.png')
