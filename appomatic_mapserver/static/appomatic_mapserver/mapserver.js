@@ -1,5 +1,35 @@
 var map, data, layerdefs;
 
+$.widget("ui.betterslider", $.ui.slider, {
+  _mouseCapture: function(event) {
+    var self = this;
+    if ($(event.target).hasClass("ui-slider-range")) {
+      this.elementSize = {
+        width: this.element.outerWidth(),
+        height: this.element.outerHeight()
+      };
+      this.elementOffset = this.element.offset();
+      self._handleIndex = -1;
+      self._rangeStartMouseValue = self._normValueFromMouse({x:event.pageX, y:event.pageY});
+      self._rangeStartValues = self.values();
+      return true;
+    } else {
+      return $.ui.slider.prototype._mouseCapture.apply(this, arguments);
+    }
+  },
+  _slide: function(event, index, newVal) {
+    var self = this;
+    if (index == -1) {
+      self.values(self._rangeStartValues.map(function (v) {
+        return v + newVal - self._rangeStartMouseValue;
+      }));
+    } else {
+      $.ui.slider.prototype._slide.apply(self, arguments);
+    }
+  }
+});
+
+
 var MapServer = {};
 MapServer.Layer = {};
 MapServer.Format = {};
@@ -547,7 +577,7 @@ MapServer.updateMapFromUrl = function (map) {
       new OpenLayers.Projection("EPSG:4326"),
       map.getProjection()),
     data.zoom);
-  $("#time-slider").slider( "option", "values", [data.timemin, data.timemax]);
+  $("#time-slider").betterslider( "option", "values", [data.timemin, data.timemax]);
   map.setTimeRange(data.timemin, data.timemax);
   MapServer.updateUrlFromMap.noUpdate = false;
 }
@@ -675,7 +705,7 @@ MapServer.init = function () {
       $("#time-slider-label-max").html(
         MapServer.epochToDate(data.timemax).format(MapServer.TIME_FORMAT));
 
-      $("#time-slider").slider({
+      xx = $("#time-slider").betterslider({
         range: true,
         min: data.timemin,
         max: data.timemax,
