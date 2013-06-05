@@ -1,0 +1,1 @@
+{{object.render_as.page__txt|safe}}
