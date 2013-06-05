@@ -1,0 +1,9 @@
+{% extends 'appomatic_siteinfo/models/OperatorInfoEvent/page.txt' %}
+
+{% block properties %}{{block.super}}  Chemicals:
+{% for chemical in obj.chemicals.all %}    {{chemical.chemical}}
+      Used for: {{chemical.purpose}}
+      Supplied by: {{chemical.supplier}}
+      Weight: {{chemical.weight}}
+      Concentration:  {{chemical.hf_fluid_concentration}}
+{% endfor %}{% endblock %}
