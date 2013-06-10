@@ -29,7 +29,7 @@
 
 
   <h2>Events</h2>
-  {% paginate 10 obj.events.all as paginated_usage %}
+  {% paginate 10 obj.events.all using "events" as paginated_usage %}
   <table class="table table-striped table-bordered table-condesed">
     <thead><tr><th>Time</th><th>Chemical</th><th>Supplier</th><th>Type</th><th>Site</th><th>Well</th></tr></thead>
     <tbody>

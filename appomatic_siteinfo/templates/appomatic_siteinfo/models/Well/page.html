@@ -29,13 +29,8 @@
   </form>
 
   <h2>Events</h2>
-
-  {% paginate 10 obj.events.all as paginated_events %}
-  <div class="excerpts">
-    {% for event in paginated_events %}
-      {{ event.render_as.excerpt|safe }}
-    {% endfor %}
+  <div class="endless_page_template">
+    {{obj.render_as.events__html|safe}}
   </div>
-  <div class="pagination">{% show_pages %}</div>
  
 {% endblock %}
