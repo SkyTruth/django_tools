@@ -112,23 +112,25 @@ class Site(LocationData, Aliased):
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_sites")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_sites")
 
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+
     @classmethod
-    def get_or_create(cls, name, latitude, longitude):
-        if longitude is not None and latitude is not None:
+    def get_or_create(cls, name, latitude, longitude, conventional):
+        if longitude is not None and latitude is not None and not conventional:
             location = django.contrib.gis.geos.Point(longitude, latitude)
-            sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=300)))
+            sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=100)))
         else:
             sites = []
         if sites:
             site = sites[0]
         else:
-            site = Site(name = name)
+            site = Site(name = name, latitude=latitude, longitude=longitude, info={'conventional': conventional})
             site.save()
         return site
 
     @classmethod
-    def get(cls, name, latitude=None, longitude=None):
-        self = super(Site, cls).get(name, latitude, longitude)
+    def get(cls, name, latitude=None, longitude=None, conventional=True):
+        self = super(Site, cls).get(name, latitude, longitude, conventional)
         if latitude is not None and longitude is not None:
             self.update_location(latitude, longitude)
         return self
@@ -180,12 +182,12 @@ class Well(LocationData):
         self.site.update_location(latitude, longitude)
 
     @classmethod
-    def get(cls, api, site_name=None, latitude=None, longitude=None):
+    def get(cls, api, site_name=None, latitude=None, longitude=None, conventional=True):
         wells = cls.objects.filter(api=api)
         if wells:
             well = wells[0]
         else:
-            site = Site.get(site_name or api, latitude, longitude)
+            site = Site.get(site_name or api, latitude, longitude, conventional)
             well = Well(
                 api=api,
                 site=site)

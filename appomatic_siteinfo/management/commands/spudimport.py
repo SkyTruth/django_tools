@@ -45,7 +45,7 @@ class Command(django.core.management.base.BaseCommand):
 
             api = row.well_api_field[:-6]
 
-            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, latitude, longitude)
+            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, latitude, longitude, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
             site = well.site
 
             info = dict((name, getattr(row, name))
