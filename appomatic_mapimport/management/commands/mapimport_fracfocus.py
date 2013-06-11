@@ -339,7 +339,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
             elif self.args[0] == 'download':
                 with contextlib.closing(django.db.connection.cursor()) as cur:
-                    cur.execute("""select a.task_id, b.api from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW'""")
+                    cur.execute("""select a.task_id, b.api from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW' and a.bot='FracFocusReport'""")
                     for record in dictreader(cur):
                         record.update(self.get_pdf(record['api']))
 
@@ -358,7 +358,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
                         ''', record)
                         record['fileid'] = self.cur.lastrowid
 
-                        self.cur.execute("""update "BotTaskStatus" set status='DONE' where task_id=%(task_id)s""", record)
+                        self.cur.execute("""update "BotTaskStatus" set status='DONE' where task_id=%(task_id)s and bot='FracFocusReport'""", record)
                         self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
 
                         self.cur.execute("commit")
