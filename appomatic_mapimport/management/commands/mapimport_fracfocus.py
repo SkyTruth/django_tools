@@ -373,8 +373,16 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
                         except Exception, e:
                             record['exc'] = e
-                            logger.warn("Unable to download pdf for %(api)s @ %(job_date)s: %(exc)s" % record)
+                            record['msg'] = "Unable to download pdf for %(api)s @ %(job_date)s: %(exc)s" % record
+                            logger.warn(record['msg'])
                             self.cur.execute("rollback")
+                            try:
+                                self.cur.execute("""insert into "BotTaskError" (task_id, bot, code, message) values(%(task_id)s, 'FracFocusPDFDownloader', 'EXC', %(msg)s)""", record)
+                            except:
+                                # Silently fail - we've logged a warning, what else can you expect?
+                                self.cur.execute("rollback")
+                            else:
+                                self.cur.execute("commit")
                         else:
                             self.cur.execute("commit")
                             logger.info("Downloaded %(API No.)s @ %(Job Start Dt)s" % record)
