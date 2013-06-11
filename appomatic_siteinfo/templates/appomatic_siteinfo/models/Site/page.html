@@ -32,31 +32,14 @@
 
 
   <h2>Wells</h2>
-
-  {% paginate 10 obj.wells.all as paginated_wells %}
-  <table class="table table-striped table-bordered table-condesed">
-    <thead><tr><th>API</th><th>Latitude</th><th>Longitude</th></tr></thead>
-    <tbody>
-      {% for well in paginated_wells %}
-        <tr>
-          <td><a href="{{well.get_absolute_url}}">{{well.api}}</td>
-          <td><a href="{{well.get_absolute_url}}">{{well.latitude}}</td>
-          <td><a href="{{well.get_absolute_url}}">{{well.longitude}}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <div class="pagination">{% show_pages %}</div>
+  <div class="endless_page_template">
+    {{obj.render_as.wells__html|safe}}
+  </div>
 
 
   <h2>Events</h2>
-
-  {% paginate 10 obj.events.all as paginated_events %}
-  <div class="excerpts">
-    {% for event in paginated_events %}
-      {{ event.render_as.excerpt|safe }}
-    {% endfor %}
+  <div class="endless_page_template">
+    {{obj.render_as.events__html|safe}}
   </div>
-  <div class="pagination">{% show_pages %}</div>
 
 {% endblock %}

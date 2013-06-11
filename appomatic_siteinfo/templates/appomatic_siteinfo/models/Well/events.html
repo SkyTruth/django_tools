@@ -1,0 +1,8 @@
+{% load endless %}
+{% paginate 10 obj.events.all using "events" as paginated_events %}
+<div class="excerpts">
+  {% for event in paginated_events %}
+    {{ event.render_as.excerpt|safe }}
+  {% endfor %}
+</div>
+<div class="pagination">{% show_pages %}</div>

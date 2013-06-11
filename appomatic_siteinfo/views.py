@@ -3,8 +3,12 @@ import urllib
 import django.http
 
 def basemodel(request, id):
+    style = None
+    # Handle endless pagination
+    if 'querystring_key' in request.REQUEST:
+        style = request.REQUEST['querystring_key'] + ".html"
     return django.http.HttpResponse(
-        appomatic_siteinfo.models.BaseModel.objects.get(id=id).render(request))
+        appomatic_siteinfo.models.BaseModel.objects.get(id=id).render(request, style=style))
 
 def search(request):
     query = request.GET['query']

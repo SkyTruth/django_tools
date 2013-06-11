@@ -5,6 +5,12 @@
   <link href="{{STATIC_URL}}appomatic_siteinfo/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
   {{block.super}}
   <script src="{{STATIC_URL}}appomatic_siteinfo/bootstrap/js/bootstrap.min.js"></script>
+  <script src="{{STATIC_URL}}endless_pagination/js/endless-pagination.js"></script>
+  <script>
+    $(document).ready(function() {
+      $.endlessPaginate({});
+    });
+  </script>
 {% endblock %}
 
 {% block body %}

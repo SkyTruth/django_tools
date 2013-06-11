@@ -41,7 +41,7 @@ class Command(django.core.management.base.BaseCommand):
 
             api = scrape.api
 
-            well = appomatic_siteinfo.models.Well.get(api, scrape.well_name, latitude, longitude)
+            well = appomatic_siteinfo.models.Well.get(api, scrape.well_name, latitude, longitude, conventional = False)
 
             info = dict((name, getattr(scrape, name))
                         for name in appomatic_legacymodels.models.Fracfocusscrape._meta.get_all_field_names())

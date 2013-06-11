@@ -37,7 +37,7 @@ class Command(django.core.management.base.BaseCommand):
             
             api = row.complete_api_field[:-6]
             
-            well = appomatic_siteinfo.models.Well.get(api, row.site_name, latitude, longitude)
+            well = appomatic_siteinfo.models.Well.get(api, row.site_name, latitude, longitude, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
             
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaDrillingpermit._meta.get_all_field_names())
