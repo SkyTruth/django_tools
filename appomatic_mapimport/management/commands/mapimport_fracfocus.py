@@ -44,7 +44,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
     def parsedate(self, date):
         """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
         month, day, year = [int(x.lstrip("0")) for x in date.split("/")]
-        return datetime.datetime(year, month, day)
+        return datetime.date(year, month, day)
 
     def clean_downloaddir(self):
         for item in glob.glob(os.path.join(settings.MAPIMPORT_FRACFOCUS['DOWNLOADDIR'], '*')):
@@ -225,7 +225,7 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
             else:
                 logger.debug("Ignoring old entry for %(API No.)s @ %(Job Start Dt)s" % data)
 
-    def get_pdf(self, api):
+    def get_pdf(self, api, job_date):
         @appomatic_mapimport.mapimport.retry()
         def load_results():
             self.connection.delete_all_cookies()
@@ -243,7 +243,10 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
             self.connection.find_element_by_xpath("//*[@id='MainContent_btnSearch']").click()
             self.wait_for_xpath("//*[@id='MainContent_btnBackToFilter']")
 
-        return self.extract_records(download=True, redownload=True).next()
+        for record in self.extract_records(download=True, redownload=True):
+            if record['Job Start Dt'] == job_date:
+                return record
+        raise Exception("Record not found %s/%s" % (api, job_date))
 
 
     # FIXME: Retry each page separately, and make sure the next-page button gets us to the right page...
@@ -304,66 +307,77 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
             if self.args[0] == 'find':
                 for record in self.get_records(*self.args[1:]):
-                    self.cur.execute('''
-                      insert into "FracFocusScrape" (
-                        api,
-                        job_date,
-                        state,
-                        county,
-                        operator,
-                        well_name,
-                        well_type,
-                        latitude,
-                        longitude,
-                        datum
-                      ) values (
-                        %(API No.)s,
-                        %(Job Start Dt)s,
-                        %(State)s,
-                        %(County)s,
-                        %(Operator)s,
-                        %(WellName)s,
-                        NULL,
-                        %(Latitude)s,
-                        %(Longitude)s,
-                        %(Datum)s
-                      )
-                    ''', record)
-                    self.cur.execute('select lastval()')
-                    record['task_id'] = self.cur.next()[0]
+                    try:
+                        self.cur.execute('''
+                          insert into "FracFocusScrape" (
+                            api,
+                            job_date,
+                            state,
+                            county,
+                            operator,
+                            well_name,
+                            well_type,
+                            latitude,
+                            longitude,
+                            datum
+                          ) values (
+                            %(API No.)s,
+                            %(Job Start Dt)s,
+                            %(State)s,
+                            %(County)s,
+                            %(Operator)s,
+                            %(WellName)s,
+                            NULL,
+                            %(Latitude)s,
+                            %(Longitude)s,
+                            %(Datum)s
+                          )
+                        ''', record)
+                        self.cur.execute('select lastval()')
+                        record['task_id'] = self.cur.next()[0]
 
-                    self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusReport', 'NEW')""", record)
-                    self.cur.execute("commit")
-                    logger.info("Stored %(API No.)s @ %(Job Start Dt)s" % record)
-
+                        self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusReport', 'NEW')""", record)
+                    
+                    except Exception, e:
+                        record['exc'] = e
+                        logger.warn("Unable to store record for %(API No.)s @ %(Job Start Dt)s: %(exc)s" % record)
+                        self.cur.execute("rollback")
+                    else:
+                        self.cur.execute("commit")
+                        logger.info("Stored %(API No.)s @ %(Job Start Dt)s" % record)
 
             elif self.args[0] == 'download':
                 with contextlib.closing(django.db.connection.cursor()) as cur:
-                    cur.execute("""select a.task_id, b.api from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW' and a.bot='FracFocusReport'""")
+                    cur.execute("""select a.task_id, b.api, b.job_date from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW' and a.bot='FracFocusReport'""")
                     for record in dictreader(cur):
-                        record.update(self.get_pdf(record['api']))
+                        try:
+                            record.update(self.get_pdf(record['api'], record['job_date']))
 
-                        with open(record['path']) as f:
-                            record['data'] = psycopg2.Binary(f.read())
+                            with open(record['path']) as f:
+                                record['data'] = psycopg2.Binary(f.read())
 
-                        self.cur.execute('''
-                          insert into "FracFocusPDF" (
-                            seqid,
-                            pdf,
-                            filename
-                          ) select
-                            %(task_id)s,
-                            %(data)s,
-                            %(filename)s
-                        ''', record)
-                        record['fileid'] = self.cur.lastrowid
+                            self.cur.execute('''
+                              insert into "FracFocusPDF" (
+                                seqid,
+                                pdf,
+                                filename
+                              ) select
+                                %(task_id)s,
+                                %(data)s,
+                                %(filename)s
+                            ''', record)
+                            record['fileid'] = self.cur.lastrowid
 
-                        self.cur.execute("""update "BotTaskStatus" set status='DONE' where task_id=%(task_id)s and bot='FracFocusReport'""", record)
-                        self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
+                            self.cur.execute("""update "BotTaskStatus" set status='DONE' where task_id=%(task_id)s and bot='FracFocusReport'""", record)
+                            self.cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(task_id)s, 'FracFocusPDFDownloader', 'DONE')""", record)
 
-                        self.cur.execute("commit")
-
-                    logger.info("Downloaded %(API No.)s @ %(Job Start Dt)s" % record)
+                        except Exception, e:
+                            record['exc'] = e
+                            logger.warn("Unable to download pdf for %(api)s @ %(job_date)s: %(exc)s" % record)
+                            self.cur.execute("rollback")
+                        else:
+                            self.cur.execute("commit")
+                            logger.info("Downloaded %(API No.)s @ %(Job Start Dt)s" % record)
 
                     time.sleep(settings.MAPIMPORT_FRACFOCUS['THROTTLE'])
                     
