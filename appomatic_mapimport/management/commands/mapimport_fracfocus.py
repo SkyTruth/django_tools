@@ -28,10 +28,16 @@ def dictreader(cur):
 class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
     help = """Import fracfocusdata.org data
       Usage:
-      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus find 3 Texas Mitchell
-          Find all wells in Mitchell, Texas and marks them for download. County and State are optional.
-      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus download
-          Downloads PDFs for all marked wells
+      xvfb-run -s "-screen scrn 1280x1280x24" appomatic mapimport_fracfocus COMMAND
+
+      Commands:
+          find Texas Mitchell
+              Find all wells in Mitchell, Texas and marks them for download. County and State are optional.
+          download
+              Downloads PDFs for all marked wells
+          download TASK_ID
+              Downloads the PDF for a specific marked well. This is for testing only...
+
       You do want to specify screen-size (and set it that big) to avoid bugs in selenium.
     """
     SRC='FRACFOCUS'
@@ -348,7 +354,10 @@ class Command(appomatic_mapimport.seleniumimport.SeleniumImport):
 
             elif self.args[0] == 'download':
                 with contextlib.closing(django.db.connection.cursor()) as cur:
-                    cur.execute("""select a.task_id, b.api, b.job_date from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW' and a.bot='FracFocusReport'""")
+                    if len(self.args) >= 2:
+                        cur.execute("""select a.task_id, b.api, b.job_date from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.task_id = %(task_id)s and a.bot='FracFocusReport'""", {'task_id': self.args[1]})
+                    else:
+                        cur.execute("""select a.task_id, b.api, b.job_date from "BotTaskStatus" a join "FracFocusScrape" b on b.seqid = a.task_id where a.status='NEW' and a.bot='FracFocusReport'""")
                     for record in dictreader(cur):
                         try:
                             record.update(self.get_pdf(record['api'], record['job_date']))
