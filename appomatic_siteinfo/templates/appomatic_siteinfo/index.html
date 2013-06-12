@@ -1,0 +1,7 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+
+{% block body_class %}index{% endblock %}
+
+{% block content_outer %}
+  <iframe class="fullscreen map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}"></iframe>
+{% endblock %}

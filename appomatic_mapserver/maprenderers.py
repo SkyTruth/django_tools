@@ -77,7 +77,7 @@ class MapRenderer(object):
 
     def __init__(self, urlquery):
         self.urlquery = urlquery
-        self.application = appomatic_mapserver.models.Application.objects.get(slug=self.urlquery['application'])
+        self.application = appomatic_mapserver.models.BaseApplication(self.urlquery)
 
     def __enter__(self):
         return self
@@ -87,13 +87,13 @@ class MapRenderer(object):
 
     def get_layers(self):
         if 'layer' in self.urlquery:
-            yield appomatic_mapserver.maplayer.MapLayer(self.urlquery)
+            yield appomatic_mapserver.maplayer.MapLayer(self.application, self.urlquery)
         else:
             for name, layer in self.get_layer_defs().iteritems():
                 urlquery = dict(self.urlquery)
                 urlquery.update(layer['options']['protocol']['params'])
                 urlquery['name'] = name
-                yield appomatic_mapserver.maplayer.MapLayer(urlquery)
+                yield appomatic_mapserver.maplayer.MapLayer(self.application, urlquery)
 
     def get_timeframe(self):
         timeframe = {'timemin': None, 'timemax':None}

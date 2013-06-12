@@ -28,6 +28,8 @@ class MapTemplate(object):
 class MapTemplateSimple(MapTemplate):
     name = 'Simple template'
 
+    excludecols = ("shape", "shape_binary", "location", "line")
+
     def row_generate_text(self, row):
         row['title'] = row.get(
             'title',
@@ -41,7 +43,7 @@ class MapTemplateSimple(MapTemplate):
 
         if "url" in row:
             header = "<h2><a href='%(url)s'>%(name)s</a></h2>"
-        cols = [col for col in row.keys() if col not in ("shape", "shape_binary", "location", "line")]
+        cols = [col for col in row.keys() if col not in self.excludecols]
         cols.sort()
         template = """
           <style>
@@ -54,7 +56,7 @@ class MapTemplateSimple(MapTemplate):
           </style>
           <table>%s</table>
         """
-        template = template % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
+        template = header + template % ''.join("<tr><th>%s</th><td>%%(%s)s</td></tr>" % (col, col) for col in cols)
         row['description'] = template % row
 
         row['style'] = {

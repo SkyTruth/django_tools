@@ -1,0 +1,29 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+{% load endless %}
+
+{% block body_class %}search{% endblock %}
+
+{% block content_outer %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?query={{query}}"></iframe>
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
+
+{% block content %}
+  {{block.super}}
+
+  {% for result in results %}
+    <h2>{{result.title}}</h2>
+    {% if result.items and result.items %}
+      {% paginate 10 result.items.all as paginated_items %}
+      <div class="excerpts">
+        {% for item in paginated_items %}
+          {{ item.render_as.excerpt|safe }}
+        {% endfor %}
+      </div>
+      <div class="pagination">{% show_pages %}</div>
+    {% endif %}
+  {% endfor %} 
+{% endblock %}

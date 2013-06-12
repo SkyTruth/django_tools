@@ -1,9 +1,13 @@
-import appomatic_mapdata.models
 import datetime
 import django.db
 import math
 from django.conf import settings
 import fcdjangoutils.sqlutils
+
+
+URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
+URL_PATTERN_ITU = "http://www.itu.int/cgi-bin/htsh/mars/ship_search.sh?sh_mmsi=%(mmsi)s"
+
 
 def dictreader(cur):
     for row in cur:
@@ -44,7 +48,7 @@ class MapSource(object):
                 try:
                     return int(datetime.datetime.strptime(s, "%Y-%m-%d").strftime("%s"))
                 except Exception, e:
-                    return int(s)
+                    return int(float(s))
 
         datetimemin = converttime(self.urlquery.get('datetime__gte', '0'))
         datetimemax = converttime(self.urlquery.get('datetime__lte', '0'))
@@ -61,11 +65,23 @@ class MapSource(object):
             "latmax": max(lat1, lat2)
             }
 
-    def get_table(self):
-        return self.layer.layerdef.query
+    def get_table_sql(self):
+        query = self.layer.layerdef.query
+        if isinstance(query, django.db.models.query.QuerySet):
+            sql, params = query.query.sql_with_params()
+            sql = sql % tuple('%%(mapsource_%s)s' % idx for idx in xrange(0, len(params)))
+            params = dict(
+                ('mapsource_%s' % idx, value)
+                for idx, value in enumerate(params))
+            return ("(%s)" % sql, params)
+        elif isinstance(query, (tuple, list)):
+            return query
+        else:
+            return (query, {})
 
     def get_columns(self):
-        return fcdjangoutils.sqlutils.query_columns(self.cur, self.get_table())
+        sql, params = self.get_table_sql()
+        return fcdjangoutils.sqlutils.query_columns(self.cur, sql, params)
 
     def order_by(self):
         groupings = len([key for key in self.get_columns().iterkeys() if key.startswith("grouping")])
@@ -91,9 +107,9 @@ class MapSource(object):
                 if not row.get('name', None):
                     row['name'] = row['mmsi']
                 if not row.get('url', None):
-                    row['url'] = appomatic_mapdata.models.Ais.URL_PATTERN % row
+                    row['url'] = URL_PATTERN % row
 
-                row['itu_url'] = appomatic_mapdata.models.Ais.URL_PATTERN_ITU % row
+                row['itu_url'] = URL_PATTERN_ITU % row
 
             if not row.get('mmsi', None):
                 row['mmsi'] = ''
@@ -143,6 +159,9 @@ class TolerancePathMap(MapSource):
         if query['tolerance'] is None:
             tolerancetest = "tolerance is null"
 
+        table_sql, table_query = self.get_table_sql()
+        query.update(table_query)
+
         sql = """
           select
             ST_AsText(shape_binary) as shape,
@@ -160,7 +179,7 @@ class TolerancePathMap(MapSource):
                  """ + bboxsql['bbox'] + """) as shape_binary,
                ais_path.*
              from
-               """ + self.get_table() + """ as ais_path
+               """ + table_sql + """ as ais_path
              where
                """ + tolerancetest + """
                and not (%(timemax)s < timemin or %(timemin)s > timemax)
@@ -182,7 +201,9 @@ class TolerancePathMap(MapSource):
 
 
     def get_timeframe(self):
-        self.cur.execute("select extract(epoch from min(timemin)) timemin, extract(epoch from max(timemax)) timemax from " + self.get_table() + " as a")
+        table_sql, table_query = self.get_table_sql()
+
+        self.cur.execute("select extract(epoch from min(timemin)) timemin, extract(epoch from max(timemax)) timemax from " + table_sql + " as a", table_query)
         res = dictreader(self.cur).next()
         if res['timemin'] is None: return None
         return res
@@ -194,6 +215,9 @@ class EventMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
+        table_sql, table_query = self.get_table_sql()
+        query.update(table_query)
+
         sql = """
           select
             *,
@@ -201,7 +225,7 @@ class EventMap(MapSource):
             datetime as datetime_time,
             ST_AsText(location) as shape
           from
-            """ + self.get_table() + """ as a
+            """ + table_sql + """ as a
           where
             not (%(timemax)s < datetime or %(timemin)s > datetime)
             and ST_Contains(
@@ -221,7 +245,9 @@ class EventMap(MapSource):
             print "RESULTS: ", self.cur.rowcount
 
     def get_timeframe(self):
-        self.cur.execute("select extract(epoch from min(datetime)) timemin, extract(epoch from max(datetime)) timemax from " + self.get_table() + " as a")
+        table_sql, table_query = self.get_table_sql()
+
+        self.cur.execute("select extract(epoch from min(datetime)) timemin, extract(epoch from max(datetime)) timemax from " + table_sql + " as a", table_query)
         res = dictreader(self.cur).next()
         if res['timemin'] is None: return None
         return res
@@ -234,6 +260,9 @@ class StaticMap(MapSource):
         query = self.get_query()
         bboxsql = self.get_bboxsql()
 
+        table_sql, table_query = self.get_table_sql()
+        query.update(table_query)
+
         sql = """
           select
             *,
@@ -241,7 +270,7 @@ class StaticMap(MapSource):
             %(timemin)s :: timestamp as datetime_time,
             ST_AsText(location) as shape
           from
-            """ + self.get_table() + """ as a
+            """ + table_sql + """ as a
           where
             ST_Contains(
               """ + bboxsql['bbox'] + """, location)

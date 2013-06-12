@@ -1,0 +1,90 @@
+@color-border: #999999;
+
+.box {
+  display: block;
+  padding: 8pt;
+  margin: 8pt;
+  border: 3px double @color-border;
+  -moz-border-radius: 4px;
+  -webkit-border-radius: 4px;
+  -khtml-border-radius: 4px;
+}
+
+.box-active {
+  border: 3px solid @color-border;
+}
+
+table {  
+  th, td {
+    vertical-align: top;
+  }
+  thead {
+    th {
+      text-align: left;
+    }
+  }
+  tbody {
+    th {
+      text-align: right;
+    }
+  }
+}
+
+.menu {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 42px;
+}
+
+.content_outer {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  .map, .objinfo {
+    border: none;
+    position: absolute;
+    top: 0;
+    height: 100%;
+  }
+  .map {
+    position: absolute;
+    left: 0;
+    width: 30%;
+  }
+  .objinfo {
+    left: 30%;
+    width: 70%;
+    overflow: auto;
+  }
+  .map.fullscreen {
+    width: 100%;
+  }
+}
+
+.content {
+  padding-left: 10pt;
+  padding-right: 10pt;
+}
+
+
+.excerpts {
+  .excerpt {
+    .box;
+    cursor: pointer;
+    &:hover {
+      .box-active;
+    }
+  }
+}
+
+.comment_button {
+  top: -10px;
+  position: relative;
+  left: 316px;
+}
+

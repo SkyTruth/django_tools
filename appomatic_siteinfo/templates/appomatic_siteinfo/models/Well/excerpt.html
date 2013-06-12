@@ -1,0 +1,14 @@
+{% extends 'appomatic_siteinfo/models/LocationData/excerpt.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj.site.render_as.link|safe}} / {{obj.api}}
+{% endblock %}
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>API</th><td>{{obj.api}}</td></tr>
+  <tr><th>Site</th><td><a href="{{obj.site.get_absolute_url}}">{{obj.site.name}}</a></td></tr>
+{% endblock %}
+

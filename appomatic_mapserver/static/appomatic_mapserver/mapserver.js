@@ -1,5 +1,35 @@
 var map, data, layerdefs;
 
+$.widget("ui.betterslider", $.ui.slider, {
+  _mouseCapture: function(event) {
+    var self = this;
+    if ($(event.target).hasClass("ui-slider-range")) {
+      this.elementSize = {
+        width: this.element.outerWidth(),
+        height: this.element.outerHeight()
+      };
+      this.elementOffset = this.element.offset();
+      self._handleIndex = -1;
+      self._rangeStartMouseValue = self._normValueFromMouse({x:event.pageX, y:event.pageY});
+      self._rangeStartValues = self.values();
+      return true;
+    } else {
+      return $.ui.slider.prototype._mouseCapture.apply(this, arguments);
+    }
+  },
+  _slide: function(event, index, newVal) {
+    var self = this;
+    if (index == -1) {
+      self.values(self._rangeStartValues.map(function (v) {
+        return v + newVal - self._rangeStartMouseValue;
+      }));
+    } else {
+      $.ui.slider.prototype._slide.apply(self, arguments);
+    }
+  }
+});
+
+
 var MapServer = {};
 MapServer.Layer = {};
 MapServer.Format = {};
@@ -8,6 +38,17 @@ MapServer.Control = {};
 
 MapServer.TIME_FORMAT = "UTC:yyyy-mm-dd HH:MM:ss";
 MapServer.DATE_FORMAT = "UTC:yyyy-mm-dd";
+
+MapServer.getJsonFromUrl = function() {
+  var query = location.search.substr(1);
+  var data = query.split("&");
+  var result = {};
+  for(var i=0; i<data.length; i++) {
+    var item = data[i].split("=");
+    result[item[0]] = item[1];
+  }
+  return result;
+}
 
 MapServer.epochToDate = function (e) {
   d = new Date(0);
@@ -368,8 +409,9 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
         OpenLayers.Util.extend(options.protocol, {
           url: MapServer.apiurl,
           format: new OpenLayers.Format.GeoJSON(),
-          params: OpenLayers.Util.extend(options.protocol.params, {
-            action:'map'}),
+          params: OpenLayers.Util.extend(options.protocol.params,
+            OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {
+              action:'map'})),
         })),
       styleMap: new OpenLayers.StyleMap({
           "default": new OpenLayers.Style({}, {createSymbolizer: function(feature) {
@@ -395,22 +437,29 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
           attrs.name = attrs.mmsi;
         }
       }
-      var popup = new OpenLayers.Popup.FramedCloud("popup",
-        new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom),
-        new OpenLayers.Size(400,300),
-        attrs.description,
-        null,
-        true
-      );
-      popup.autoSize = false;
-      feature.popup = popup;
-      this.map.addPopup(popup);
+      if (!attrs.target) attrs.target = '_blank';
+      if (!attrs.description) {
+        window.open(attrs.url, attrs.target);
+      } else {
+        var popup = new OpenLayers.Popup.FramedCloud("popup",
+          new OpenLayers.LonLat(feature.geometry.bounds.right, feature.geometry.bounds.bottom),
+          new OpenLayers.Size(400,300),
+          attrs.description,
+          null,
+          true
+        );
+        popup.autoSize = false;
+        feature.popup = popup;
+        this.map.addPopup(popup);
+      }
     },
     'featureunselected': function(evt){
       var feature = evt.feature;
-      this.map.removePopup(feature.popup);
-      feature.popup.destroy();
-      feature.popup = null;
+      if (feature.popup) {
+        this.map.removePopup(feature.popup);
+        feature.popup.destroy();
+        feature.popup = null;
+      }
     },
     'loadend': function(evt) {
       this.map.events.triggerEvent('loadend', evt);
@@ -511,7 +560,8 @@ MapServer.updateUrlFromMap = function (map) {
     center: map.getCenter().transform(
       map.getProjection(),
       new OpenLayers.Projection("EPSG:4326")),
-    zoom: map.getZoom()
+    zoom: map.getZoom(),
+    classes: $("body").attr("class")
   }));
 }
 
@@ -519,12 +569,15 @@ MapServer.updateUrlFromMap = function (map) {
 MapServer.updateMapFromUrl = function (map) {
   MapServer.updateUrlFromMap.noUpdate = true;
   var data = JSON.parse(decodeURIComponent(top.window.location.hash.substr(1)));
+  if (data.classes) {
+    $("body").addClass(data.classes);
+  }
   map.setCenter(
     (new OpenLayers.LonLat(data.center.lon, data.center.lat)).transform(
       new OpenLayers.Projection("EPSG:4326"),
       map.getProjection()),
     data.zoom);
-  $("#time-slider").slider( "option", "values", [data.timemin, data.timemax]);
+  $("#time-slider").betterslider( "option", "values", [data.timemin, data.timemax]);
   map.setTimeRange(data.timemin, data.timemax);
   MapServer.updateUrlFromMap.noUpdate = false;
 }
@@ -652,7 +705,7 @@ MapServer.init = function () {
       $("#time-slider-label-max").html(
         MapServer.epochToDate(data.timemax).format(MapServer.TIME_FORMAT));
 
-      $("#time-slider").slider({
+      xx = $("#time-slider").betterslider({
         range: true,
         min: data.timemin,
         max: data.timemax,
@@ -687,6 +740,8 @@ MapServer.init = function () {
            for (key in d) {
              defaults[key] = d[key];
            }
+           if (defaults.timemin == 'start') defaults.timemin = data.timemin;
+           if (defaults.timemax == 'end') defaults.timemax = data.timemax;
            top.window.location.hash = "#" + encodeURIComponent(JSON.stringify(defaults));
            cb();
          },
@@ -696,6 +751,16 @@ MapServer.init = function () {
 
     function(cb) {
       MapServer.updateMapFromUrl(map);
+
+      window.onresize = function() {
+        setTimeout(
+          function() {
+            map.updateSize();
+          },
+          0);
+      }
+      map.updateSize();
+
       cb();
     }
 

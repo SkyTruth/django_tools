@@ -1,0 +1,41 @@
+{% extends 'appomatic_renderable/base.html' %}
+
+{% block meta %}
+  <link rel="stylesheet/less" type="text/css" href="{{STATIC_URL}}appomatic_siteinfo/styles.less" />
+  <link href="{{STATIC_URL}}appomatic_siteinfo/bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
+  {{block.super}}
+  <script src="{{STATIC_URL}}appomatic_siteinfo/bootstrap/js/bootstrap.min.js"></script>
+  <script src="{{STATIC_URL}}endless_pagination/js/endless-pagination.js"></script>
+  <script>
+    $(document).ready(function() {
+      $.endlessPaginate({});
+    });
+  </script>
+{% endblock %}
+
+{% block body %}
+  <div class="menu">
+    {% block menu %}
+      <div class="navbar">
+        <div class="navbar-inner">
+          <div class="container">
+            <a class="brand" href="#">{% block content_title %}SkyTruth SiteInfo{% endblock %}</a>
+            <ul class="nav">
+              <li><a href="{% url 'appomatic_siteinfo_index' %}">Home</a></li>
+            </ul>
+            <form action="{% url 'appomatic_siteinfo.views.search' %}" class="navbar-search pull-right">
+              <input name="query" type="text" class="search-query" placeholder="Search">
+            </form>
+          </div>
+        </div>
+      </div>
+    {% endblock %}
+  </div>
+  <div class="content_outer">
+    {% block content_outer %}
+      <div class="content">
+        {% block content %}{% endblock %}
+      </div>
+    {% endblock %}
+   </div>
+{% endblock %}

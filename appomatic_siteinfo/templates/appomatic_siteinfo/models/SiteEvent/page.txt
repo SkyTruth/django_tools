@@ -1,0 +1,5 @@
+{% extends 'appomatic_siteinfo/models/Event/page.txt' %}
+
+{% block properties %}{{block.super}}  Site: {{obj.site}}{% if obj.well %}
+  Well: {{obj.well}}
+{% endif %}{% endblock %}

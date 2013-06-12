@@ -1,0 +1,4 @@
+{% extends 'appomatic_siteinfo/models/SiteEvent/page.txt' %}
+
+{% block properties %}{{block.super}}  Operator: {{obj.operator}}
+{% endblock %}

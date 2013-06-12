@@ -1,0 +1,77 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj.name}}
+{% endblock %}
+
+{% block properties %}
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}
+
+{% block content_outer %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?company={{obj.id}}"></iframe>
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
+
+{% block content %}
+  {{block.super}}
+
+  {% if obj.supplies.all %}
+    <h2>Supplied these chemicals</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.supplied_chemicals__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.supplied_sites.all %}
+    <h2>Supplied chemicals to these sites</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.supplied_sites__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.operates_at_sites.all %}
+    <h2>Operates these sites</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.operates_sites__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.supplied_wells.all %}
+    <h2>Supplied chemicals to these wells</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.supplied_wells__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.operates_at_wells.all %}
+    <h2>Operates these wells</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.operates_wells__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.supplied_event.all %}
+    <h2>Supplied chemicals to these events</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.supplied_events__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.events.all %}
+    <h2>Responsible for these events</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.responsible_for_events__html|safe}}
+    </div>
+  {% endif %}
+
+{% endblock %}

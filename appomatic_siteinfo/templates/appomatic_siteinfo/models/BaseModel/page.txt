@@ -1,0 +1,4 @@
+{% load endless %}**** {% block content_title %}{% block content_title_content %}{{obj.type_name}}: {% endblock %}{% endblock %} ****
+{% block content %}
+  Type: {{obj.type_name}}
+{% block properties %}{% endblock %}{% endblock %}

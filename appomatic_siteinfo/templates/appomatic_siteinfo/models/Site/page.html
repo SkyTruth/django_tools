@@ -1,0 +1,45 @@
+{% extends 'appomatic_siteinfo/models/LocationData/page.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj.name}}
+{% endblock %}
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+  <tr><th>Operators</th><td>
+    {% for operator in obj.operators.all %}
+      {{operator.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}
+
+{% block content %}
+  {{block.super}}
+
+  <form method="post" class="uniForm">
+   {% csrf_token %}
+   <input type="hidden" name="method" value="comment">
+   {{comment_form.content}}
+   <button type="submit" name="submit" class="comment_button btn btn-primary">Comment</button>
+  </form>
+
+
+  <h2>Wells</h2>
+  <div class="endless_page_template">
+    {{obj.render_as.wells__html|safe}}
+  </div>
+
+
+  <h2>Events</h2>
+  <div class="endless_page_template">
+    {{obj.render_as.events__html|safe}}
+  </div>
+
+{% endblock %}

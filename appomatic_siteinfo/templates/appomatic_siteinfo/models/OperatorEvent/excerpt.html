@@ -1,0 +1,7 @@
+{% extends 'appomatic_siteinfo/models/SiteEvent/excerpt.html' %}
+
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Operator</th><td>{{obj.operator.render_as.link|safe}}</td></tr>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends 'appomatic_siteinfo/models/LocationData/excerpt.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj.name}}
+{% endblock %}
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+  <tr><th>Operators</th><td>
+    {% for operator in obj.operators.all %}
+      {{operator.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}

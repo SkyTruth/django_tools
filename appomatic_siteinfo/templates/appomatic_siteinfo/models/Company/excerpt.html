@@ -1,0 +1,15 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/excerpt.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj.name}}
+{% endblock %}
+
+{% block properties %}
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}

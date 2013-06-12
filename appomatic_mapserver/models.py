@@ -13,8 +13,91 @@ def set_path(d, path, value):
         node = node[item]
     node[path[-1]] = value
 
+class BaseApplication(object):
+    def __new__(cls, urlquery, *arg, **kw):
+        if cls is BaseApplication:
+            app = urlquery['application']
+            if app in BuiltinApplication.implementations:
+                return BuiltinApplication.implementations[app](urlquery, *arg, **kw)
+            else:
+                return Application.objects.get(slug=app)
+        else:
+            return object.__new__(cls, urlquery, *arg, **kw)
 
-class Application(django.db.models.Model):
+    @property
+    def layer_defs(self):
+        defs = {}
+        for layer in self.get_layers():
+            defs[layer.name] = layer.layer_def
+        return defs
+
+    def get_layer(self, urlquery):
+        raise NotImplementedError
+
+    def get_layers(self):
+        raise NotImplementedError
+
+class BaseLayer(object):
+    TYPES = {
+        'MapServer.Layer.Db': 'Database backed layer',
+    }
+    TYPES_LIST = TYPES.items()
+    TYPES_LIST.sort()
+
+    @property
+    def layer_def(self):
+        definition = self.definition or {}
+
+        for name in ('name', 'slug', 'type'):
+            definition[name] = getattr(self, name)
+
+        # This is sent back to the server from the front-end and is used to find this layer object again
+        set_path(definition, ['options', 'protocol', 'params', 'layer'], self.slug)
+
+        return definition
+
+    def __unicode__(self):
+        return self.name
+
+
+class BuiltinApplication(BaseApplication):
+    implementations = {}
+    name = 'Unnamed buitlin application'
+    configuration = {}
+
+    class __metaclass__(type):
+        def __init__(cls, name, bases, members):
+            type.__init__(cls, name, bases, members)
+            module = members.get('__module__', '__main__')
+            if name != "BuiltinApplication" or module != "appomatic_mapserver.models":
+                BuiltinApplication.implementations[members.get('__module__', '__main__') + "." + name] = cls
+
+    def __init__(self, urlquery):
+        self.urlquery = urlquery
+
+    @property
+    def slug(self):
+        t = type(self)
+        return "%s.%s" % (t.__module__, t.__name__)
+
+class BuiltinLayer(BaseLayer):
+    name = "Unnamed layer"
+    type = "MapServer.Layer.Db"
+    backend_type = "appomatic_mapserver.mapsources.TolerancePathMap"
+    template = "appomatic_mapserver.maptemplates.MapTemplateCog"
+    query = ""
+    definition = {}
+
+    @property
+    def slug(self):
+        t = type(self)
+        return "%s.%s" % (t.__module__, t.__name__)
+
+    def __init__(self, application):
+        self.application = application
+
+
+class Application(BaseApplication, django.db.models.Model):
     slug = django.db.models.SlugField(max_length=1024, primary_key=True)
     name = django.db.models.CharField(max_length=1024, unique=True)
     configuration = fcdjangoutils.fields.JsonField(max_length=2048, null=True, blank=True)
@@ -22,39 +105,33 @@ class Application(django.db.models.Model):
     def __unicode__(self):
         return self.name
 
-    @property
-    def layer_defs(self):
-        defs = {}
-        for layer in self.layers.all():
-            defs[layer.name] = layer.layer_def
-        return defs
+    def get_layer(self, urlquery):
+        return self.layers.get(slug=urlquery['layer'])
 
-class Layer(django.db.models.Model):
+    def get_layers(self):
+        return self.layers.all()
+
+class Layer(BaseLayer, django.db.models.Model):
     application = django.db.models.ForeignKey(Application, related_name="layers")
 
     slug = django.db.models.SlugField(max_length=1024, primary_key=True)
     name = django.db.models.CharField(max_length=1024, unique=True)
 
 
-    TYPES = {
-        'MapServer.Layer.Db': 'Database backed layer',
-    }
-    TYPES_LIST = TYPES.items()
-    TYPES_LIST.sort()
     type = django.db.models.CharField(
         max_length=1024,
-        choices=TYPES_LIST,
-        default='appomatic_mapserver.views.TolerancePathMap')
+        choices=BaseLayer.TYPES_LIST,
+        default='MapServer.Layer.Db')
 
     backend_type = django.db.models.CharField(
         max_length=1024,
         choices=[],
-        default='appomatic_mapserver.views.TolerancePathMap')
+        default='appomatic_mapserver.mapsources.TolerancePathMap')
 
     template = django.db.models.CharField(
         max_length=1024,
         choices=[],
-        default='appomatic_mapserver.views.MapTemplateCog')
+        default='appomatic_mapserver.maptemplates.MapTemplateCog')
 
     query = django.db.models.TextField(max_length=1024)
 
@@ -76,19 +153,3 @@ class Layer(django.db.models.Model):
 
         self._meta.get_field_by_name('backend_type')[0]._choices = django.utils.functional.lazy(get_backend_types, list)()
         self._meta.get_field_by_name('template')[0]._choices = django.utils.functional.lazy(get_templates, list)()
-
-
-    @property
-    def layer_def(self):
-        definition = self.definition or {}
-
-        for name in ('name', 'slug', 'type'):
-            definition[name] = getattr(self, name)
-
-        # This is sent back to the server from the front-end and is used to find this layer object again
-        set_path(definition, ['options', 'protocol', 'params', 'layer'], self.slug)
-
-        return definition
-
-    def __unicode__(self):
-        return self.name

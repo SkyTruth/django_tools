@@ -1,0 +1,64 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.html' %}
+{% load endless %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj}}
+{% endblock %}
+
+
+{% block content_outer %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?chemical={{obj.id}}"></iframe>
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
+{% block properties %}
+  <tr><th>Ingredients</th><td>{{obj.ingredients}}</td></tr>
+  <tr><th>CAS type</th><td>{{obj.cas_type}}</td></tr>
+  <tr><th>CAS number</th><td>{{obj.cas_number}}</td></tr>
+  <tr><th>Aliases</th><td>
+    {% for alias in obj.aliases.all %}
+      {{alias.name}},
+    {% endfor %}
+  </td></tr>
+  <tr><th>Suppliers</th><td>
+    {% for supplier in obj.suppliers.all %}
+      {{supplier.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
+  <tr><th>Purposes</th><td>
+    {% for purpose in obj.purposes.all %}
+      {{purpose.render_as.link|safe}},
+    {% endfor %}
+  </td></tr>
+{% endblock %}
+
+{% block content %}
+  {{block.super}}
+
+  {{obj.comments|default:""}}
+
+  {% if obj.used_at_sites.all %}
+    <h2>Used at these sites</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.sites__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.used_at_wells.all %}
+    <h2>Used at these wells</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.wells__html|safe}}
+    </div>
+  {% endif %}
+
+  {% if obj.used_in_events.all %}
+    <h2>Events</h2>
+    <div class="endless_page_template">
+      {{obj.render_as.events__html|safe}}
+    </div>
+   {% endif %}
+
+{% endblock %}

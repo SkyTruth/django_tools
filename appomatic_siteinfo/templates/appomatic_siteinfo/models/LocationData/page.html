@@ -1,0 +1,12 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.html' %}
+
+{% block content_title_content %}
+  {{block.super}}
+  {{obj.longitude}}E {{obj.latitude}}N
+{% endblock %}
+
+{% block properties %}
+  {{block.super}}
+  <tr><th>Latitude</th><td>{{obj.latitude}}</td></tr>
+  <tr><th>Longitude</th><td>{{obj.longitude}}</td></tr>
+{% endblock %}
