@@ -23,8 +23,8 @@
             <ul class="nav">
               <li><a href="{% url 'appomatic_siteinfo_index' %}">Home</a></li>
             </ul>
-            <form action="{% url 'appomatic_siteinfo.views.search' %}" class="navbar-search pull-right">
-              <input name="query" type="text" class="search-query" placeholder="Search">
+            <form action="{% url 'appomatic_siteinfo_search' %}" class="navbar-search pull-right">
+              <input name="q" type="text" class="search-query" placeholder="Search">
             </form>
           </div>
         </div>
