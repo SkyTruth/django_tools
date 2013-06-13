@@ -33,15 +33,11 @@ class Command(django.core.management.base.BaseCommand):
 
             print "%s @ %s" % (scrape.api, scrape.job_date)
 
-            latitude = scrape.latitude
-            longitude = scrape.longitude
-            location = django.contrib.gis.geos.Point(longitude, latitude)
-
             operator = appomatic_siteinfo.models.Company.get(scrape.operator)
 
             api = scrape.api
 
-            well = appomatic_siteinfo.models.Well.get(api, scrape.well_name, latitude, longitude, conventional = False)
+            well = appomatic_siteinfo.models.Well.get(api, scrape.well_name, scrape.latitude, scrape.longitude, conventional = False)
 
             info = dict((name, getattr(scrape, name))
                         for name in appomatic_legacymodels.models.Fracfocusscrape._meta.get_all_field_names())
@@ -51,9 +47,8 @@ class Command(django.core.management.base.BaseCommand):
             event = appomatic_siteinfo.models.FracEvent(
                 src = src,
                 import_id = scrape.seqid,
-                latitude = latitude,
-                longitude = longitude,
-                location = location,
+                latitude = scrape.latitude,
+                longitude = scrape.longitude,
                 datetime = datetime.datetime(report.fracture_date.year, report.fracture_date.month, report.fracture_date.day).replace(tzinfo=pytz.utc),
                 site = well.site,
                 well = well,

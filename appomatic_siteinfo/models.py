@@ -32,8 +32,8 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     objects = django.contrib.gis.db.models.GeoManager()
     
     src = django.db.models.ForeignKey(Source, blank=True, null=True)
-    import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True)
-    quality = django.db.models.FloatField(default = 1.0, db_index=True)
+    import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True, verbose_name="Importing id")
+    quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
 
     def get_absolute_url(self):
         return django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'id': self.id})
@@ -41,23 +41,25 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
 
 class LocationData(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
-    latitude = django.db.models.FloatField(null=True, blank=True, db_index=True)
-    longitude = django.db.models.FloatField(null=True, blank=True, db_index=True)
+    latitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Latitude")
+    longitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Longitude")
     location = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
     
     def set_location(self, latitude, longitude):
         self.latitude = latitude
         self.longitude = longitude
-        if latitude is not None and longitude is not None:
-            self.location = django.contrib.gis.geos.Point(longitude, latitude)
-        else:
-            self.location = None
 
     def update_location(self, latitude, longitude):
         if latitude is not None and longitude is not None and (self.latitude is None or self.longitude is None):
             self.set_location(latitude, longitude)
             self.save()
 
+    def save(self, *arg, **kw):
+        if self.longitude is not None and self.latitude is not None:
+            self.location = django.contrib.gis.geos.Point(self.longitude, self.latitude)
+        else:
+            self.location = None
+        super(LocationData, self).save(*arg, **kw)
 
 class Aliased(object):
     AliasClass = NotImplemented
@@ -280,7 +282,7 @@ Chemical.AliasClass = ChemicalAlias
 class Event(LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
-    datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc))
+    datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc), verbose_name="Date/time of event")
 
     def __unicode__(self):
         return "%s" % (self.datetime,)
@@ -295,6 +297,13 @@ class SiteEvent(Event):
     well = django.db.models.ForeignKey(Well, blank=True, null=True, related_name="events")
 
     def save(self, *arg, **kw):
+        if self.latitude is None or self.longitude is None:
+            if self.well:
+                self.longitude = self.well.longitude
+                self.latitude = self.well.latitude
+            else:
+                self.longitude = self.site.longitude
+                self.latitude = self.site.latitude
         Event.save(self, *arg, **kw)
         if not self.site.datetime or self.site.datetime < self.datetime:
             self.site.datetime = self.datetime
