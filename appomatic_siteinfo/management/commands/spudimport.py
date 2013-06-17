@@ -34,8 +34,14 @@ class Command(django.core.management.base.BaseCommand):
             
             operator = appomatic_siteinfo.models.Company.get(row.operator_s_name)
 
-            api = row.well_api_field[:-6]
-
+            # Format: SS-CCC-NNNNN-XX-XX
+            api = row.well_api_field.split("-")
+            if len(api[0]) != 2:
+                api[0:0] = ['37'] # Pennsylvania is 37...
+            while len(api) < 5:
+                api.append('00')
+            api = '-'.join(api)
+            
             well = appomatic_siteinfo.models.Well.get(api, row.farm_name, row.latitude, row.longitude, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
             site = well.site
 

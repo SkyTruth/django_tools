@@ -35,7 +35,14 @@ class Command(django.core.management.base.BaseCommand):
 
             operator = appomatic_siteinfo.models.Company.get(scrape.operator)
 
-            api = scrape.api
+            # Format: SS-CCC-NNNNN-XX-XX
+            api = scrape.api.split("-")
+            while len(api) < 5:
+                api.append('00')
+            if len(api) != 5 or len(api[0]) != 2 or len(api[1]) != 3 or len(api[2]) != 5 or len(api[3]) != 2 or len(api[4]) != 2:
+                print "    Ignoring broken api: %s" % (scrape.api,)
+                continue
+            api = '-'.join(api)
 
             well = appomatic_siteinfo.models.Well.get(api, scrape.well_name, scrape.latitude, scrape.longitude, conventional = False)
 

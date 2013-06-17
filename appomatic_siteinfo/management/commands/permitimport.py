@@ -31,7 +31,16 @@ class Command(django.core.management.base.BaseCommand):
             
             operator = appomatic_siteinfo.models.Company.get(row.operator)
             
-            api = row.complete_api_field[:-6]
+            # Format: SS-CCC-NNNNN-XX-XX
+            api = row.complete_api_field.split("-")
+            if len(api[0]) != 2:
+                api[0:0] = ['37'] # Pennsylvania is 37...
+            while len(api) < 5:
+                api.append('00')
+            if len(api) != 5 or len(api[0]) != 2 or len(api[1]) != 3 or len(api[2]) != 5 or len(api[3]) != 2 or len(api[4]) != 2:
+                print "    Ignoring broken api: %s" % (row.complete_api_field,)
+                continue
+            api = '-'.join(api)
             
             well = appomatic_siteinfo.models.Well.get(api, row.site_name, row.latitude_decimal, row.longitude_decimal, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
             
