@@ -29,24 +29,28 @@ class Command(django.core.management.base.BaseCommand):
         for idx, row in enumerate(appomatic_legacymodels.models.PaDrillingpermit.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
             print "%s @ %s" %(row.complete_api_field, row.date_disposed)
             
-            latitude = row.latitude_decimal
-            longitude = row.longitude_decimal
-            location = django.contrib.gis.geos.Point(longitude, latitude)
-            
             operator = appomatic_siteinfo.models.Company.get(row.operator)
             
-            api = row.complete_api_field[:-6]
+            # Format: SS-CCC-NNNNN-XX-XX
+            api = row.complete_api_field.split("-")
+            if len(api[0]) != 2:
+                api[0:0] = ['37'] # Pennsylvania is 37...
+            while len(api) < 5:
+                api.append('00')
+            if len(api) != 5 or len(api[0]) != 2 or len(api[1]) != 3 or len(api[2]) != 5 or len(api[3]) != 2 or len(api[4]) != 2:
+                print "    Ignoring broken api: %s" % (row.complete_api_field,)
+                continue
+            api = '-'.join(api)
             
-            well = appomatic_siteinfo.models.Well.get(api, row.site_name, latitude, longitude, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
+            well = appomatic_siteinfo.models.Well.get(api, row.site_name, row.latitude_decimal, row.longitude_decimal, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
             
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaDrillingpermit._meta.get_all_field_names())
 
             appomatic_siteinfo.models.PermitEvent(
                 src = src,
-                latitude = latitude,
-                longitude = longitude,
-                location = location,
+                latitude = row.latitude_decimal,
+                longitude = row.longitude_decimal,
                 datetime = datetime.datetime(row.date_disposed.year, row.date_disposed.month, row.date_disposed.day).replace(tzinfo=pytz.utc),
                 site = well.site,
                 well = well,
@@ -59,4 +63,5 @@ class Command(django.core.management.base.BaseCommand):
 
             if idx % 50 == 0:
                 django.db.transaction.commit()
+                django.db.reset_queries()
         django.db.transaction.commit()

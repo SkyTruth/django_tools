@@ -30,11 +30,23 @@ class Command(django.core.management.base.BaseCommand):
             if row.permit_api is None:
                 print "IGNORING %s @ %s (missing API)" %(row.st_id, row.inspectiondate)
                 continue
-            print "%s @ %s" %(row.permit_api, row.inspectiondate)
+
+            # Format: SS-CCC-NNNNN-XX-XX
+            api = row.permit_api.split("-")
+            if len(api[0]) != 2:
+                api[0:0] = ['37'] # Pennsylvania is 37...
+            while len(api) < 5:
+                api.append('00')
+            if len(api) != 5 or len(api[0]) != 2 or len(api[1]) != 3 or len(api[2]) != 5 or len(api[3]) != 2 or len(api[4]) != 2:
+                print "    Ignoring broken api: %s" % (row.permit_api,)
+                continue
+            api = '-'.join(api)
+            
+            print "%s @ %s" %(api, row.inspectiondate)
             
             operator = appomatic_siteinfo.models.Company.get(row.operator)
             
-            well = appomatic_siteinfo.models.Well.get(row.permit_api)
+            well = appomatic_siteinfo.models.Well.get(api)
             
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaViolation._meta.get_all_field_names())
@@ -56,4 +68,5 @@ class Command(django.core.management.base.BaseCommand):
 
             if idx % 50 == 0:
                 django.db.transaction.commit()
+                django.db.reset_queries()
         django.db.transaction.commit()

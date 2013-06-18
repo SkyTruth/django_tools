@@ -14,6 +14,8 @@ import datetime
 from django.conf import settings
 import pytz
 import re
+import uuid
+import urllib
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -30,34 +32,62 @@ class Source(appomatic_renderable.models.Source):
 
 class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable):
     objects = django.contrib.gis.db.models.GeoManager()
+
+    GUID_FIELDS = ['type']
+    GUID_BASEURL = 'http://siteinfo.skytruth.org/'
     
     src = django.db.models.ForeignKey(Source, blank=True, null=True)
-    import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True)
-    quality = django.db.models.FloatField(default = 1.0, db_index=True)
+    import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True, verbose_name="Importing id")
+    quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
+    guuid = django.db.models.CharField(max_length=64, null=False, blank=True, db_index=True)
+
+    @fcdjangoutils.modelhelpers.subclassproxy
+    def generate_guuid(self):
+        fields = list(self.leafclassobject.GUID_FIELDS)
+        fields.sort()
+        
+        def fieldvalue(value):
+            if isinstance(value, django.db.models.Model):
+                # value.save() # Only needed when fixing old data w/o guuid:s
+                return value.guuid
+            return urllib.quote_plus(unicode(value).encode("utf-8"))
+
+        return str(uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                self.GUID_BASEURL + '/'.join((urllib.quote_plus(unicode(getattr(self, field)).encode("utf-8"))
+                                              for field in fields))))
+
+    def save(self, *arg, **kw):
+        self.guuid = self.generate_guuid()
+        super(BaseModel, self).save(*arg, **kw)
 
     def get_absolute_url(self):
-        return django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'id': self.id})
+        return django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': self.guuid})
     
 
 class LocationData(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
-    latitude = django.db.models.FloatField(null=True, blank=True, db_index=True)
-    longitude = django.db.models.FloatField(null=True, blank=True, db_index=True)
+    latitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Latitude")
+    longitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Longitude")
     location = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["latitude", "longitude"]
     
     def set_location(self, latitude, longitude):
         self.latitude = latitude
         self.longitude = longitude
-        if latitude is not None and longitude is not None:
-            self.location = django.contrib.gis.geos.Point(longitude, latitude)
-        else:
-            self.location = None
 
     def update_location(self, latitude, longitude):
         if latitude is not None and longitude is not None and (self.latitude is None or self.longitude is None):
             self.set_location(latitude, longitude)
             self.save()
 
+    def save(self, *arg, **kw):
+        if self.longitude is not None and self.latitude is not None:
+            self.location = django.contrib.gis.geos.Point(self.longitude, self.latitude)
+        else:
+            self.location = None
+        super(LocationData, self).save(*arg, **kw)
 
 class Aliased(object):
     AliasClass = NotImplemented
@@ -86,6 +116,8 @@ class Aliased(object):
 class Company(BaseModel, Aliased):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
 
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
+
     def __unicode__(self):
         return self.name
 
@@ -97,6 +129,8 @@ class Company(BaseModel, Aliased):
 class CompanyAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(Company, related_name="aliases")
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
 
     def __unicode__(self):
         return "%s: %s" % (self.alias_for.name, self.name)
@@ -130,7 +164,11 @@ class Site(LocationData, Aliased):
 
     @classmethod
     def get(cls, name, latitude=None, longitude=None, conventional=True):
-        self = super(Site, cls).get(name, latitude, longitude, conventional)
+        if not name: return None
+        name = name.strip()
+        self = cls.get_or_create(name, latitude=latitude, longitude=longitude, conventional=conventional)
+        alias = cls.AliasClass(alias_for = self, name = name)
+        alias.save()
         if latitude is not None and longitude is not None:
             self.update_location(latitude, longitude)
         return self
@@ -160,6 +198,8 @@ class SiteAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(Site, related_name="aliases")
 
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
+
     def __unicode__(self):
         return "%s: %s" % (self.site, self.name)
 Site.AliasClass = SiteAlias
@@ -176,6 +216,8 @@ class Well(LocationData):
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_wells")
 
     well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
+
+    GUID_FIELDS = LocationData.GUID_FIELDS + ["api"]
 
     def update_location(self, latitude, longitude):
         LocationData.update_location(self, latitude, longitude)
@@ -223,12 +265,16 @@ class ChemicalPurpose(BaseModel, Aliased):
     objects = django.contrib.gis.db.models.GeoManager()
     name = django.db.models.CharField(max_length=256, db_index=True)
 
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
+
     def __unicode__(self):
         return self.name
 
 class ChemicalPurposeAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(ChemicalPurpose, related_name="aliases")
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
 
     def __unicode__(self):
         return "%s: %s" % (self.alias_for.name, self.name)
@@ -246,6 +292,8 @@ class Chemical(BaseModel, Aliased):
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplies")
     purposes = django.db.models.ManyToManyField(ChemicalPurpose, related_name="chemicals")
     comments = django.db.models.TextField(null=True, blank=True)
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["trade_name", "ingredients", "cas_type", "cas_number"]
 
     @classmethod
     def get(cls, trade_name, ingredients, cas_type, cas_number, comments):
@@ -270,6 +318,8 @@ class ChemicalAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(Chemical, related_name="aliases")
 
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
+
     def __unicode__(self):
         return "%s: %s" % (self.alias_for.name, self.name)
 Chemical.AliasClass = ChemicalAlias
@@ -280,7 +330,9 @@ Chemical.AliasClass = ChemicalAlias
 class Event(LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
-    datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc))
+    datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc), verbose_name="Date/time of event")
+
+    GUID_FIELDS = LocationData.GUID_FIELDS + ["datetime"]
 
     def __unicode__(self):
         return "%s" % (self.datetime,)
@@ -294,7 +346,16 @@ class SiteEvent(Event):
     site = django.db.models.ForeignKey(Site, related_name="events")
     well = django.db.models.ForeignKey(Well, blank=True, null=True, related_name="events")
 
+    GUID_FIELDS = Event.GUID_FIELDS + ["site", "well"]
+
     def save(self, *arg, **kw):
+        if self.latitude is None or self.longitude is None:
+            if self.well:
+                self.longitude = self.well.longitude
+                self.latitude = self.well.latitude
+            else:
+                self.longitude = self.site.longitude
+                self.latitude = self.site.latitude
         Event.save(self, *arg, **kw)
         if not self.site.datetime or self.site.datetime < self.datetime:
             self.site.datetime = self.datetime
@@ -485,7 +546,7 @@ class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
     
     def row_generate_text(self, row):
-        row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'id': row['id']})
+        row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']})
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
         row['description'] = u"""
           <iframe src="%(url)s?style=iframe.html" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">

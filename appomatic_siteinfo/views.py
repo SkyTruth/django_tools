@@ -1,14 +1,19 @@
 import appomatic_siteinfo.models
 import urllib
 import django.http
+import csv
 
-def basemodel(request, id):
+def basemodel(request, guuid=None, model="BaseModel"):
     style = None
     # Handle endless pagination
     if 'querystring_key' in request.REQUEST:
         style = request.REQUEST['querystring_key'] + ".html"
-    return django.http.HttpResponse(
-        appomatic_siteinfo.models.BaseModel.objects.get(id=id).render(request, style=style))
+    if guuid is None:
+        return django.http.HttpResponse(
+            getattr(appomatic_siteinfo.models, model).list_render(request, style=style))
+    else:
+        return django.http.HttpResponse(
+            appomatic_siteinfo.models.BaseModel.objects.get(guuid=guuid).render(request, style=style))
 
 def search(request):
     query = request.GET['query']
