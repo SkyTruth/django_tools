@@ -64,4 +64,5 @@ class Command(django.core.management.base.BaseCommand):
 
             if idx % 50 == 0:
                 django.db.transaction.commit()
+                django.db.reset_queries()
         django.db.transaction.commit()
