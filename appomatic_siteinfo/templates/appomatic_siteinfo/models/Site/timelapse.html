@@ -1,0 +1,50 @@
+{% extends 'appomatic_siteinfo/models/LocationData/page.html' %}
+{% load endless %}
+
+{% block navbar %}
+  <ul class="nav">
+    <li><a href="{{obj.get_absolute_url}}">Site info</a></li>
+  </ul>
+{% endblock %}
+
+{% block content_title_content %}
+  {{obj.name}}
+{% endblock %}
+
+{% block meta %}
+  {{block.super}}
+  <script src="{{STATIC_URL}}appomatic_siteinfo/postmessage/postmessage.js"></script>
+{% endblock %}
+
+{% block content_outer %}
+  <iframe
+   name="imagery"
+   id="imagery"
+   class="map fullscreen"
+   src="http://earthengine.google.org/timelapse/timelapseplayer_v2.html?timelapseclient=http://earthengine.google.org/timelapse/data"></iframe>
+
+  <script>
+    $(document).ready(function () {
+      setTimeout(function () {
+        pm({
+          target: window.frames["imagery"],
+          type:"timemachine-set-view", 
+          data:{
+            doPlay: true,
+            doWarp: false,
+            view: {
+              center: {
+                lat: {{obj.latitude}},
+                lng: {{obj.longitude}}
+              },
+              zoom: 20
+            }
+          },
+          success: function(data) {
+            console.log(data);
+          }
+        });
+      }, 1000);
+    });
+  </script>
+{% endblock %}
