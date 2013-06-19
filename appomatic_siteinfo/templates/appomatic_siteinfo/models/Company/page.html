@@ -15,7 +15,7 @@
 {% endblock %}
 
 {% block content_outer %}
-  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?company={{obj.id}}"></iframe>
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?company={{obj.guuid}}"></iframe>
   <div class="objinfo">
     {{block.super}}
   </div>

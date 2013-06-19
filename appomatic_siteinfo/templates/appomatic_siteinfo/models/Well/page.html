@@ -1,6 +1,13 @@
 {% extends 'appomatic_siteinfo/models/LocationData/page.html' %}
 {% load endless %}
 
+{% block content_outer %}
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?well={{obj.guuid}}"></iframe>
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
 {% block content_title_content %}
   {{block.super}}
   {{obj.site.render_as.link|safe}} / {{obj.api}}
