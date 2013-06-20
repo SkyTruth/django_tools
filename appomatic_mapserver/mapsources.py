@@ -263,7 +263,7 @@ class GridSnappingEventMap(EventMap):
 
 
         query['limit'] = int(self.urlquery.get('limit', 100))
-        query['gridsize'] = int(self.urlquery.get('gridsize', 5))
+        query['gridsize'] = int(self.urlquery.get('gridsize', 20))
         query['gridsizelon'] = (query['lonmax'] - query['lonmin']) / query['gridsize']
         query['gridsizelat'] = (query['latmax'] - query['latmin']) / query['gridsize']
 

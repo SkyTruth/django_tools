@@ -67,6 +67,15 @@
   left: 0;
 }
 
+.notimeslider #time-slider-label-min,
+.notimeslider #time-slider,
+.notimeslider #time-slider-label-max {
+  display: none;
+}
+.notimeslider #map {
+  top: 0;
+}
+
 .MapServerControlMenu {
   position: absolute;
   top: 2px;
