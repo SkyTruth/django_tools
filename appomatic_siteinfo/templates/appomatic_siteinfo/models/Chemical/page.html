@@ -8,7 +8,7 @@
 
 
 {% block content_outer %}
-  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?chemical={{obj.id}}"></iframe>
+  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?chemical={{obj.guuid}}"></iframe>
   <div class="objinfo">
     {{block.super}}
   </div>

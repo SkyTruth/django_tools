@@ -533,14 +533,18 @@ class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     @property
     def query(self):
         if 'company' in self.application.urlquery:
-            return Site.objects.filter(django.db.models.Q(operators__id=self.application.urlquery['company'])
-                                       | django.db.models.Q(suppliers__id=self.application.urlquery['company']))
-        if 'chemical' in self.application.urlquery:
-            return Site.objects.filter(chemicals__id=self.application.urlquery['chemical'])
+            return Site.objects.filter(django.db.models.Q(operators__guuid=self.application.urlquery['company'])
+                                       | django.db.models.Q(suppliers__guuid=self.application.urlquery['company']))
+        elif 'site' in self.application.urlquery:
+            return Well.objects.filter(site__guuid=self.application.urlquery['site'])
+        elif 'well' in self.application.urlquery:
+            return Well.objects.filter(guuid=self.application.urlquery['well'])
+        elif 'chemical' in self.application.urlquery:
+            return Site.objects.filter(chemicals__guuid=self.application.urlquery['chemical'])
         elif 'query' in self.application.urlquery:
             return Site.search(self.application.urlquery['query'])
         else:
-            return Site.objects.filter(id=None)
+            return Site.objects.filter(id=None) # Empty list
 
 class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
