@@ -486,14 +486,17 @@ class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
                 }
             }
 
+        if self.urlquery.get('minimap', False):
+            conf['classes'] += " notimeslider"
+
         center = SelectedSitesLayer(self).query.aggregate(
             latitude = django.db.models.Avg("latitude"),
             longitude = django.db.models.Avg("longitude"))
-        print "CENTER", center
         if center['latitude'] is not None:
             conf['center']['lat'] = center['latitude']
             conf['center']['lon'] = center['longitude']
             conf['zoom'] = 15
+
         return conf
 
     def get_layer(self, urlquery):
@@ -512,7 +515,6 @@ class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     template = "appomatic_siteinfo.models.AllSitesTemplate"
 
     definition = {
-        "classes": "noeventlist",
         "options": {
             "protocol": {
                 "params": {
@@ -535,7 +537,6 @@ class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     @property
     def definition(self):
         return {
-            "classes": "noeventlist",
             "options": {
                 "protocol": {
                     "params": self.application.urlquery

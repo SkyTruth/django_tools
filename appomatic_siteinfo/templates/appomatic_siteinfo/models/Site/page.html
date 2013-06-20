@@ -6,13 +6,6 @@
   {{obj.name}}
 {% endblock %}
 
-{% block content_outer %}
-  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?site={{obj.guuid}}"></iframe>
-  <div class="objinfo">
-    {{block.super}}
-  </div>
-{% endblock %}
-
 {% block properties %}
   {{block.super}}
   <tr><th>Aliases</th><td>
@@ -28,6 +21,8 @@
 {% endblock %}
 
 {% block content %}
+  <iframe class="minimap" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?minimap=true&site={{obj.guuid}}"></iframe>
+
   {{block.super}}
 
   <form method="post" class="uniForm">
