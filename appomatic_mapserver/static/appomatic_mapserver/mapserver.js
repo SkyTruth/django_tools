@@ -673,7 +673,7 @@ MapServer.init = function () {
     function(cb) {
       $.get(
         MapServer.apiurl,
-        {action: 'layers'},
+        OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {action: 'layers'}),
         function(d) { layerdefs = d; cb(); },
         "json");
     },
@@ -697,7 +697,7 @@ MapServer.init = function () {
     function(cb) {
       $.get(
         MapServer.apiurl,
-         {action: 'timerange'},
+         OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {action: 'timerange'}),
          function(d) { data = d; cb(); },
          "json"
       );
@@ -709,7 +709,7 @@ MapServer.init = function () {
       $("#time-slider-label-max").html(
         MapServer.epochToDate(data.timemax).format(MapServer.TIME_FORMAT));
 
-      xx = $("#time-slider").betterslider({
+      $("#time-slider").betterslider({
         range: true,
         min: data.timemin,
         max: data.timemax,
@@ -733,7 +733,7 @@ MapServer.init = function () {
       }
       $.get(
         MapServer.apiurl,
-         {action: 'config'},
+         OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {action: 'config'}),
          function(d) {
            defaults = {
              timemin: data.timemax-24*60*60,

@@ -466,23 +466,35 @@ class CommentForm(django.forms.ModelForm):
 
 class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
     name = 'SiteInfo'
-    configuration = {
-        "center": {
-            "lat": 40.903133814657984,
-            "lon": -79.1784667968776},
-        "timemax": "end",
-        "zoom": 8,
-        "classes": "noeventlist",
-        "timemin": "start",
-        "options": {
-            "protocol": {
-                "params": {
-                    "limit": 50
+
+    @property
+    def configuration(self):
+        conf = {
+            "center": {
+                "lat": 40.903133814657984,
+                "lon": -79.1784667968776},
+            "timemax": "end",
+            "zoom": 8,
+            "classes": "noeventlist",
+            "timemin": "start",
+            "options": {
+                "protocol": {
+                    "params": {
+                        "limit": 50
+                        }
                     }
                 }
             }
-        }
 
+        center = SelectedSitesLayer(self).query.aggregate(
+            latitude = django.db.models.Avg("latitude"),
+            longitude = django.db.models.Avg("longitude"))
+        print "CENTER", center
+        if center['latitude'] is not None:
+            conf['center']['lat'] = center['latitude']
+            conf['center']['lon'] = center['longitude']
+            conf['zoom'] = 15
+        return conf
 
     def get_layer(self, urlquery):
         if urlquery['layer'] == 'appomatic_siteinfo.models.AllSitesLayer':
@@ -585,5 +597,5 @@ class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
 class SelectedSitesTemplate(AllSitesTemplate):
     def row_generate_text(self, row):
         AllSitesTemplate.row_generate_text(self, row)
-        row['style']['fillColor'] = '#00ff00'
-        row['style']['strokeColor'] = '#005500'
+        row['style']['fillColor'] = '#ff0000'
+        row['style']['strokeColor'] = '#550000'
