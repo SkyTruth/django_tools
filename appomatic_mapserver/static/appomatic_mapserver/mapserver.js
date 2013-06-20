@@ -424,7 +424,6 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
   eventListeners:{
     'added': function (evt) {
        evt.map.events.register("zoomend", evt.layer, function (evt) {
-         console.log("NNNNNNNNNNNNNNNNNNNN");
          this.refresh({force:true});
        });
     },
