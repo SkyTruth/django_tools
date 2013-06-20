@@ -19,7 +19,10 @@
 
 
 {% block content %}
-  <iframe class="minimap" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?minimap=true&well={{obj.guuid}}"></iframe>
+  <div class="minimap">
+    <iframe src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?minimap=true&well={{obj.guuid}}"></iframe>
+    <div><a href="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?well={{obj.guuid}}">Explore...</a></div>
+  </div>
 
   {{block.super}}
 
