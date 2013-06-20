@@ -16,6 +16,7 @@ import pytz
 import re
 import uuid
 import urllib
+import math
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -495,7 +496,7 @@ class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
 class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     name="Sites"
 
-    backend_type = "appomatic_mapserver.mapsources.EventMap"
+    backend_type = "appomatic_mapserver.mapsources.GridSnappingEventMap"
     template = "appomatic_siteinfo.models.AllSitesTemplate"
 
     definition = {
@@ -550,20 +551,35 @@ class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
     
     def row_generate_text(self, row):
-        row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']})
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
-        row['description'] = u"""
-          <iframe src="%(url)s?style=iframe.html" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
-        """ % row
+        if 'guuid' in row:
+            row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']})
+            row['description'] = u"""
+                <iframe src="%(url)s?style=iframe.html" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
+            """ % row
+        elif 'count' in row:
+            row['description'] = u"""
+                Entries in this area: %(count)s
+            """ % row
+          
+        itemtype = row.get('itemtype', 'item')
+        fillColors = {
+            'item': "#0000ff",
+            'summary': "#00ff00"
+            }
+        strokeColors = {
+            'item': "#000055",
+            'summary': "#005500"
+            }
 
         row['style'] = {
           "graphicName": "circle",
           "fillOpacity": 1.0,
-          "fillColor": "#0000ff",
+          "fillColor": fillColors[itemtype],
           "strokeOpacity": 1.0,
-          "strokeColor": "#000055",
+          "strokeColor": strokeColors[itemtype],
           "strokeWidth": 1,
-          "pointRadius": 6,
+          "pointRadius": int(6 + math.log(row.get('count', 1), 2)),
           }
 
 class SelectedSitesTemplate(AllSitesTemplate):

@@ -3,7 +3,7 @@ import django.db
 import math
 from django.conf import settings
 import fcdjangoutils.sqlutils
-
+import contextlib
 
 URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
 URL_PATTERN_ITU = "http://www.itu.int/cgi-bin/htsh/mars/ship_search.sh?sh_mmsi=%(mmsi)s"
@@ -252,6 +252,80 @@ class EventMap(MapSource):
         if res['timemin'] is None: return None
         return res
 
+class GridSnappingEventMap(EventMap):
+    name = 'Grid snapping event list'
+    def get_map_data_raw(self):
+        query = self.get_query()
+        bboxsql = self.get_bboxsql()
+
+        table_sql, table_query = self.get_table_sql()
+        query.update(table_query)
+
+
+        query['limit'] = int(self.urlquery.get('limit', 100))
+        query['gridsize'] = int(self.urlquery.get('gridsize', 5))
+        query['gridsizelon'] = (query['lonmax'] - query['lonmin']) / query['gridsize']
+        query['gridsizelat'] = (query['latmax'] - query['latmin']) / query['gridsize']
+
+        sql = """
+          select
+            'summary' as itemtype,
+            avg(extract(epoch from datetime)) as datetime,
+            to_timestamp(avg(extract(epoch from datetime))) as datetime_time,
+            ST_AsText(location) as shape,
+            ST_X(location) as longitude,
+            ST_Y(location) as latitude,
+            count(*) as count
+          from
+            (select
+               ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s) as location,
+               datetime
+             from
+               """ + table_sql + """ as a
+             where
+               not (%(timemax)s < datetime or %(timemin)s > datetime)
+               and ST_Contains(
+                 """ + bboxsql['bbox'] + """, location)) as a
+          group by
+            location
+        """
+
+        with contextlib.closing(django.db.connection.cursor()) as cur2:
+            self.cur.execute(sql, query)
+            try:
+                results = 0
+                for row in dictreader(self.cur):
+                    if row['count'] > query['limit'] / query['gridsize']:
+                        yield row
+                    else:
+                        query2 = dict(query)
+                        query2['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
+                        query2['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
+                        query2['latmin'] = row['latitude'] - query['gridsizelat'] / 2
+                        query2['latmax'] = row['latitude'] + query['gridsizelat'] / 2
+
+                        sql2 = """
+                          select
+                            *,
+                            extract(epoch from datetime) as datetime,
+                            datetime as datetime_time,
+                            ST_AsText(location) as shape
+                          from
+                            """ + table_sql + """ as a
+                          where
+                            not (%(timemax)s < datetime or %(timemin)s > datetime)
+                            and ST_Contains(
+                              """ + bboxsql['bbox'] + """, location)
+                        """
+
+                        cur2.execute(sql2, query2)
+                        try:
+                            for row in dictreader(cur2):
+                                yield row
+                        finally:
+                            results += cur2.rowcount
+            finally:
+                print "GROUPS:", self.cur.rowcount, "SINGLE ITEMS:", results
 
 
 class StaticMap(MapSource):
