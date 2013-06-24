@@ -1,0 +1,5 @@
+{% extends 'appomatic_siteinfo/models/UserEvent/page.txt' %}
+
+{% block content %}{{block.super}}
+  {{obj.content|safe}}
+{% endblock %}

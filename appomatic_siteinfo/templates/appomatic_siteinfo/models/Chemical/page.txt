@@ -1,0 +1,14 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.txt' %}
+{% load endless %}
+
+{% block content_title_content %}{{block.super}} {{obj}}{% endblock %}
+
+{% block properties %}{{block.super}}  Ingredients:{{obj.ingredients}}
+  CAS type: {{obj.cas_type}}
+  CAS number: {{obj.cas_number}}
+  Aliases: {% for alias in obj.aliases.all %}{{alias.name}}, {% endfor %}
+  Suppliers: {% for supplier in obj.suppliers.all %}{{supplier}}, {% endfor %}
+  Purposes: {% for purpose in obj.purposes.all %}{{purpose}}, {% endfor %}
+  Used at these sites: {% for site in obj.used_at_sites.all %}{{site.name}}, {% endfor %}
+  Used at these wells: {% for well in obj.used_at_wells.all %}{{well.api}}, {% endfor %}
+{% endblock %}

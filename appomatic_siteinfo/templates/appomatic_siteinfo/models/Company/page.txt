@@ -1,0 +1,12 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.txt' %}
+{% load endless %}
+
+{% block content_title_content %}{{block.super}} {{obj.name}}{% endblock %}
+
+{% block properties %}{{block.super}}  Aliases: {% for alias in obj.aliases.all %}{{alias.name}}, {% endfor %}
+  Supplied these chemicals: {% for chemical in obj.supplies.all %}{{chemical}}, {% endfor %}
+  Supplied these sites: {% for site in obj.supplied_sites.all %}{{site.name}}, {% endfor %}
+  Operates these sites: {% for site in obj.operates_at_sites.all %}{{site.name}}, {% endfor %}
+  Supplied these wells: {% for well in obj.supplied_wells.all %}{{well.api}}, {% endfor %}
+  Operates these wells: {% for well in obj.operates_at_wells.all %}{{well.api}}, {% endfor %}
+{% endblock %}

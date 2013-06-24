@@ -1,0 +1,9 @@
+{% extends 'appomatic_siteinfo/models/LocationData/page.txt' %}
+{% load endless %}
+
+{% block content_title_content %}{{block.super}} {{obj.site.render_as.link|safe}} / {{obj.api}}{% endblock %}
+
+{% block properties %}{{block.super}}  API: {{obj.api}}
+  Site: {{obj.site.name}}
+  Operators: {% for operator in obj.operators.all %}{{operator}}, {% endfor %}
+{% endblock %}

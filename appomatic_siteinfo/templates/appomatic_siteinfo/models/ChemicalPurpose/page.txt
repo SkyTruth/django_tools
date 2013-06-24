@@ -1,0 +1,8 @@
+{% extends 'appomatic_siteinfo/models/BaseModel/page.txt' %}
+{% load endless %}
+
+{% block properties %}{{block.super}}  Aliases: {% for alias in obj.aliases.all %}{{alias.name}}, {% endfor %}
+  Chemicals:{% for chemical in obj.chemicals.all %}{{chemical}}, {% endfor %}
+{% endblock %}
+
+{% block content_title_content %}{{block.super}} {{obj.name}}{% endblock %}
