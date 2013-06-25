@@ -1,14 +1,20 @@
 import appomatic_siteinfo.models
 import urllib
 import django.http
+import csv
+import datetime
 
-def basemodel(request, id):
+def basemodel(request, guuid=None, model="BaseModel"):
     style = None
     # Handle endless pagination
     if 'querystring_key' in request.REQUEST:
         style = request.REQUEST['querystring_key'] + ".html"
-    return django.http.HttpResponse(
-        appomatic_siteinfo.models.BaseModel.objects.get(id=id).render(request, style=style))
+    if guuid is None:
+        return django.http.HttpResponse(
+            getattr(appomatic_siteinfo.models, model).list_render(request, style=style))
+    else:
+        return django.http.HttpResponse(
+            appomatic_siteinfo.models.BaseModel.objects.get(guuid=guuid).render(request, style=style))
 
 def search(request):
     query = request.GET['query']
@@ -31,3 +37,14 @@ def search(request):
         results.append({'title': 'No results found'})
 
     return django.shortcuts.render(request, 'appomatic_siteinfo/search.html', {"results": results, "query": query})
+
+def clustersitelist(request):
+    results = {'results': appomatic_siteinfo.models.Site.objects.filter(
+            latitude__gte = request.GET['latmin'],
+            longitude__gte = request.GET['lonmin'],
+            datetime__gte = datetime.datetime.utcfromtimestamp(float(request.GET['timemin'])),
+            latitude__lte = request.GET['latmax'],
+            longitude__lte = request.GET['lonmax'],
+            datetime__lte = datetime.datetime.utcfromtimestamp(float(request.GET['timemax'])))}
+    results.update(request.GET.items())
+    return django.shortcuts.render(request, 'appomatic_siteinfo/clustersitelist.html', results)

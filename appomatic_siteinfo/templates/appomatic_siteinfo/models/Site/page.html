@@ -21,6 +21,11 @@
 {% endblock %}
 
 {% block content %}
+  <div class="minimap">
+    <iframe src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?minimap=true&site={{obj.guuid}}"></iframe>
+    <div><a href="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?site={{obj.guuid}}">Explore...</a></div>
+  </div>
+
   {{block.super}}
 
   <form method="post" class="uniForm">

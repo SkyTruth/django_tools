@@ -1,5 +1,16 @@
 {% extends 'appomatic_siteinfo/models/Event/page.html' %}
 
+{% block content_outer %}
+  {% if obj.well %}
+    <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?well={{obj.well.guuid}}"></iframe>
+  {% else %}
+    <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?site={{obj.site.guuid}}"></iframe>
+  {% endif %}
+  <div class="objinfo">
+    {{block.super}}
+  </div>
+{% endblock %}
+
 {% block properties %}
   {{block.super}}
   <tr><th>Site</th><td>{{obj.site.render_as.link|safe}}</a></td></tr>
