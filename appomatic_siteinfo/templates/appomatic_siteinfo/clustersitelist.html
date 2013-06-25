@@ -1,0 +1,35 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+{% load endless %}
+{% load static %}
+
+{% block body_class %}sites{% endblock %}
+
+{% block meta %}
+  {{block.super}}
+  <script>
+    $(document).ready(function () {
+      $(".zoom").click(function () {
+        parent.map.zoomToExtent(
+          new parent.OpenLayers.Bounds(
+            {{lonmin}}, {{latmin}}, {{lonmax}}, {{latmax}}
+          ).transform(
+            new parent.OpenLayers.Projection("EPSG:4326"),
+            parent.map.getProjection()),
+          true);
+        while (parent.map.popups.length) {
+          parent.map.removePopup(parent.map.popups[0]);
+        }
+      });
+    });
+  </script>
+{% endblock %}
+
+{% block body %}
+   <h2>Sites within this area: {{results.count}}</h2>
+   <p><a href="javascript:void(0);" class="zoom">Zoom in to see more sites</a></p>
+   {% paginate 5 results as paginated_results %}
+     {% for site in paginated_results %}
+       <div>{{site.render_as.link|safe}}</div>
+     {% endfor %}
+   <div class="pagination">{% show_pages %}</div>
+{% endblock %}

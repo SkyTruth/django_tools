@@ -566,14 +566,15 @@ class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     def row_generate_text(self, row):
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
         if 'guuid' in row:
-            row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']})
-            row['description'] = u"""
-                <iframe src="%(url)s?style=iframe.html" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
-            """ % row
+            row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']}) + "?style=iframe.html"
         elif 'count' in row:
-            row['description'] = u"""
-                Entries in this area: %(count)s
-            """ % row
+            row['timemin'] = self.urlquery['datetime__gte']
+            row['timemax'] = self.urlquery['datetime__lte']
+            row['url'] = (django.core.urlresolvers.reverse('appomatic_siteinfo.views.clustersitelist') + 
+                          "?latmin=%(latmin)s&lonmin=%(lonmin)s&latmax=%(latmax)s&lonmax=%(lonmax)s&timemin=%(timemin)s&timemax=%(timemax)s" % row)
+        row['description'] = u"""
+            <iframe src="%(url)s" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
+        """ % row
           
         itemtype = row.get('itemtype', 'item')
         fillColors = {

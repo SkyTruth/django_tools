@@ -270,24 +270,30 @@ class GridSnappingEventMap(EventMap):
         sql = """
           select
             'summary' as itemtype,
-            avg(extract(epoch from datetime)) as datetime,
-            to_timestamp(avg(extract(epoch from datetime))) as datetime_time,
+            datetime,
+            to_timestamp(datetime) as datetime_time,
             ST_AsText(location) as shape,
             ST_X(location) as longitude,
             ST_Y(location) as latitude,
-            count(*) as count
+            count
           from
             (select
-               ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s) as location,
-               datetime
+               avg(extract(epoch from datetime)) as datetime,
+               ST_Centroid(ST_Union(location)) as location,
+               count(*) as count
              from
-               """ + table_sql + """ as a
-             where
-               not (%(timemax)s < datetime or %(timemin)s > datetime)
-               and ST_Contains(
-                 """ + bboxsql['bbox'] + """, location)) as a
-          group by
-            location
+               (select
+                  ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s) as snapped_location,
+                  location,
+                  datetime
+                from
+                  """ + table_sql + """ as a
+                where
+                  not (%(timemax)s < datetime or %(timemin)s > datetime)
+                  and ST_Contains(
+                    """ + bboxsql['bbox'] + """, location)) as a
+             group by
+               snapped_location) as b
         """
 
         with contextlib.closing(django.db.connection.cursor()) as cur2:
@@ -296,6 +302,10 @@ class GridSnappingEventMap(EventMap):
                 results = 0
                 for row in dictreader(self.cur):
                     if row['count'] > query['limit'] / query['gridsize']:
+                        row['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
+                        row['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
+                        row['latmin'] = row['latitude'] - query['gridsizelat'] / 2
+                        row['latmax'] = row['latitude'] + query['gridsizelat'] / 2
                         yield row
                     else:
                         query2 = dict(query)
