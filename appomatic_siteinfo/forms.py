@@ -29,7 +29,7 @@ class SearchForm(haystack.forms.SearchForm):
                     self.fields["modelfield__%s__gte" % fieldname] = django.forms.DateTimeField(required=False, label="%s (min)" % verbose_name)
                     self.fields["modelfield__%s__lte" % fieldname] = django.forms.DateTimeField(required=False, label="%s (max)" % verbose_name)
                 elif isinstance(field, haystack.fields.CharField):
-                    self.fields["modelfield__%s" % fieldname] = django.forms.CharField(required=False, label=verbose_name)
+                    self.fields["modelfield__%s__contains" % fieldname] = django.forms.CharField(required=False, label=verbose_name)
 
     def search(self):
         sqs = super(SearchForm, self).search()
@@ -44,5 +44,5 @@ class SearchForm(haystack.forms.SearchForm):
 
         if not len(sqs) and filter:
             sqs = haystack.query.SearchQuerySet()
-
-        return sqs.filter(**filter)
+        sqs = sqs.filter(**filter)
+        return sqs
