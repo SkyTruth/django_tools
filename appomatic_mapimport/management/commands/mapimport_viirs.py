@@ -23,7 +23,8 @@ class Command(appomatic_mapimport.mapimport.Import):
     SRC = 'VIIRS'
     help = 'Import data from VIIRS'
 
-    starturl = "http://www.ngdc.noaa.gov/dmsp/data/viirs_fire/viirs_html/download_viirs_fire.html"
+    # Included in an iframe at http://ngdc.noaa.gov/eog/viirs/download_viirs_fire.html
+    starturl = "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_cor.html"
     baseurl = os.path.dirname(starturl)
 
 
