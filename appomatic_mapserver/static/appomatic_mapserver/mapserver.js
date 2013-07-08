@@ -382,7 +382,6 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
   },
 
   initialize: function(name, options) {
-
     this.minfilter = new OpenLayers.Filter.Comparison({
       type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO,
       property: "datetime",
@@ -423,6 +422,11 @@ MapServer.Layer.Db = OpenLayers.Class(OpenLayers.Layer.Vector, {
     OpenLayers.Layer.Vector.prototype.initialize.apply(this, [name, options]);
   },
   eventListeners:{
+    'added': function (evt) {
+       evt.map.events.register("zoomend", evt.layer, function (evt) {
+         this.refresh({force:true});
+       });
+    },
     'featureselected': function(evt) {
       var feature = evt.feature;
       var attrs = feature.attributes;
@@ -669,7 +673,7 @@ MapServer.init = function () {
     function(cb) {
       $.get(
         MapServer.apiurl,
-        {action: 'layers'},
+        OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {action: 'layers'}),
         function(d) { layerdefs = d; cb(); },
         "json");
     },
@@ -693,7 +697,7 @@ MapServer.init = function () {
     function(cb) {
       $.get(
         MapServer.apiurl,
-         {action: 'timerange'},
+         OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {action: 'timerange'}),
          function(d) { data = d; cb(); },
          "json"
       );
@@ -705,7 +709,7 @@ MapServer.init = function () {
       $("#time-slider-label-max").html(
         MapServer.epochToDate(data.timemax).format(MapServer.TIME_FORMAT));
 
-      xx = $("#time-slider").betterslider({
+      $("#time-slider").betterslider({
         range: true,
         min: data.timemin,
         max: data.timemax,
@@ -729,7 +733,7 @@ MapServer.init = function () {
       }
       $.get(
         MapServer.apiurl,
-         {action: 'config'},
+         OpenLayers.Util.extend(MapServer.getJsonFromUrl(), {action: 'config'}),
          function(d) {
            defaults = {
              timemin: data.timemax-24*60*60,

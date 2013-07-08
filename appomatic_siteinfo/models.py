@@ -16,6 +16,7 @@ import pytz
 import re
 import uuid
 import urllib
+import math
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -465,23 +466,38 @@ class CommentForm(django.forms.ModelForm):
 
 class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
     name = 'SiteInfo'
-    configuration = {
-        "center": {
-            "lat": 40.903133814657984,
-            "lon": -79.1784667968776},
-        "timemax": "end",
-        "zoom": 8,
-        "classes": "noeventlist",
-        "timemin": "start",
-        "options": {
-            "protocol": {
-                "params": {
-                    "limit": 50
+
+    @property
+    def configuration(self):
+        conf = {
+            "center": {
+                "lat": 40.903133814657984,
+                "lon": -79.1784667968776},
+            "timemax": "end",
+            "zoom": 8,
+            "classes": "noeventlist",
+            "timemin": "start",
+            "options": {
+                "protocol": {
+                    "params": {
+                        "limit": 50
+                        }
                     }
                 }
             }
-        }
 
+        if self.urlquery.get('minimap', False):
+            conf['classes'] += " notimeslider"
+
+        center = SelectedSitesLayer(self).query.aggregate(
+            latitude = django.db.models.Avg("latitude"),
+            longitude = django.db.models.Avg("longitude"))
+        if center['latitude'] is not None:
+            conf['center']['lat'] = center['latitude']
+            conf['center']['lon'] = center['longitude']
+            conf['zoom'] = 15
+
+        return conf
 
     def get_layer(self, urlquery):
         if urlquery['layer'] == 'appomatic_siteinfo.models.AllSitesLayer':
@@ -495,11 +511,10 @@ class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
 class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     name="Sites"
 
-    backend_type = "appomatic_mapserver.mapsources.EventMap"
+    backend_type = "appomatic_mapserver.mapsources.GridSnappingEventMap"
     template = "appomatic_siteinfo.models.AllSitesTemplate"
 
     definition = {
-        "classes": "noeventlist",
         "options": {
             "protocol": {
                 "params": {
@@ -522,7 +537,6 @@ class SelectedSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     @property
     def definition(self):
         return {
-            "classes": "noeventlist",
             "options": {
                 "protocol": {
                     "params": self.application.urlquery
@@ -550,24 +564,40 @@ class AllSitesTemplate(appomatic_mapserver.maptemplates.MapTemplateSimple):
     name = "SiteInfo site"
     
     def row_generate_text(self, row):
-        row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']})
         appomatic_mapserver.maptemplates.MapTemplateSimple.row_generate_text(self, row)
+        if 'guuid' in row:
+            row['url'] = django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': row['guuid']}) + "?style=iframe.html"
+        elif 'count' in row:
+            row['timemin'] = self.urlquery['datetime__gte']
+            row['timemax'] = self.urlquery['datetime__lte']
+            row['url'] = (django.core.urlresolvers.reverse('appomatic_siteinfo.views.clustersitelist') + 
+                          "?latmin=%(latmin)s&lonmin=%(lonmin)s&latmax=%(latmax)s&lonmax=%(lonmax)s&timemin=%(timemin)s&timemax=%(timemax)s" % row)
         row['description'] = u"""
-          <iframe src="%(url)s?style=iframe.html" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
+            <iframe src="%(url)s" style="width: 100%%; height: 100%%; border: none; padding: 0; margin: -5px;">
         """ % row
+          
+        itemtype = row.get('itemtype', 'item')
+        fillColors = {
+            'item': "#0000ff",
+            'summary': "#00ff00"
+            }
+        strokeColors = {
+            'item': "#000055",
+            'summary': "#005500"
+            }
 
         row['style'] = {
           "graphicName": "circle",
           "fillOpacity": 1.0,
-          "fillColor": "#0000ff",
+          "fillColor": fillColors[itemtype],
           "strokeOpacity": 1.0,
-          "strokeColor": "#000055",
+          "strokeColor": strokeColors[itemtype],
           "strokeWidth": 1,
-          "pointRadius": 6,
+          "pointRadius": int(6 + math.log(row.get('count', 1), 2)),
           }
 
 class SelectedSitesTemplate(AllSitesTemplate):
     def row_generate_text(self, row):
         AllSitesTemplate.row_generate_text(self, row)
-        row['style']['fillColor'] = '#00ff00'
-        row['style']['strokeColor'] = '#005500'
+        row['style']['fillColor'] = '#ff0000'
+        row['style']['strokeColor'] = '#550000'

@@ -28,10 +28,15 @@ class Command(django.core.management.base.BaseCommand):
         src = appomatic_siteinfo.models.Source.get("FracFocus", "")
 
         for idx, scrape in enumerate(appomatic_legacymodels.models.Fracfocusscrape.objects.filter(seqid__gt = src.import_id).order_by("seqid")):
-
-            report = appomatic_legacymodels.models.Fracfocusreport.objects.filter(pdf_seqid = scrape.seqid)[0] # Don't use get, there are duplicates!
-
+            
+            reports = appomatic_legacymodels.models.Fracfocusreport.objects.filter(pdf_seqid = scrape.seqid)
+            if not reports:
+                print "%s @ %s: IGNORED" % (scrape.api, scrape.job_date)
+                continue
             print "%s @ %s" % (scrape.api, scrape.job_date)
+
+            report = reports[0]
+
 
             operator = appomatic_siteinfo.models.Company.get(scrape.operator)
 

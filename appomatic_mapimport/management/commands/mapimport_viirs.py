@@ -23,7 +23,8 @@ class Command(appomatic_mapimport.mapimport.Import):
     SRC = 'VIIRS'
     help = 'Import data from VIIRS'
 
-    starturl = "http://www.ngdc.noaa.gov/dmsp/data/viirs_fire/viirs_html/download_viirs_fire.html"
+    # Included in an iframe at http://ngdc.noaa.gov/eog/viirs/download_viirs_fire.html
+    starturl = "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_cor.html"
     baseurl = os.path.dirname(starturl)
 
 
@@ -44,7 +45,7 @@ class Command(appomatic_mapimport.mapimport.Import):
 
     def listfiles(self):
         for entry in self.connection.xpath(".//ul[@class='treeview']/li/ul/li"):
-            yield self.baseurl + '/' + entry.xpath("a[text()='KMZ']/@href")[0]
+            yield entry.xpath("a[text()='KMZ']/@href")[0]
 
     def download(self, filepath):
         # Download KMZ-file
@@ -67,6 +68,7 @@ class Command(appomatic_mapimport.mapimport.Import):
 
             for feature in kmldoc.features():
                 if not isinstance(feature, fastkml.kml.Placemark): continue
+                if not feature.description: continue
 
                 icon_href = None
                 for style in feature.styles():
