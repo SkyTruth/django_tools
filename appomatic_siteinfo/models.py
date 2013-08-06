@@ -42,6 +42,18 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
     guuid = django.db.models.CharField(max_length=64, null=False, blank=True, db_index=True)
 
+    @classmethod
+    def get_or_create(cls, src, import_id, **kw):
+        items = cls.objects.filter(src=src, import_id=import_id)
+        if items: return items[0]
+        item = cls(src=src, import_id=import_id, **kw)
+        item.save()
+        return item
+
+    @classmethod
+    def get(cls, *arg, **kw):
+        return cls.get_or_create(*arg, **kw)
+
     @fcdjangoutils.modelhelpers.subclassproxy
     def generate_guuid(self):
         fields = list(self.leafclassobject.GUID_FIELDS)
@@ -93,7 +105,6 @@ class LocationData(BaseModel):
 class Aliased(object):
     AliasClass = NotImplemented
 
-
     @classmethod
     def get_or_create(cls, name, **kw):
         self = cls(name = name, **kw)
@@ -114,7 +125,7 @@ class Aliased(object):
         return self
 
 
-class Company(BaseModel, Aliased):
+class Company(Aliased, BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
 
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
@@ -137,7 +148,7 @@ class CompanyAlias(BaseModel):
         return "%s: %s" % (self.alias_for.name, self.name)
 Company.AliasClass = CompanyAlias
 
-class Site(LocationData, Aliased):
+class Site(Aliased, LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
@@ -262,7 +273,7 @@ class Well(LocationData):
         return cls.objects.filter(api__icontains=query)
 
 
-class ChemicalPurpose(BaseModel, Aliased):
+class ChemicalPurpose(Aliased, BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     name = django.db.models.CharField(max_length=256, db_index=True)
 
@@ -282,7 +293,7 @@ class ChemicalPurposeAlias(BaseModel):
 ChemicalPurpose.AliasClass = ChemicalPurposeAlias
 
 
-class Chemical(BaseModel, Aliased):
+class Chemical(Aliased, BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     
     name = django.db.models.CharField(max_length=256, db_index=True)
@@ -454,13 +465,39 @@ class FracEvent(ChemicalUsageEvent):
     true_vertical_depth = django.db.models.FloatField(null=True, blank=True)
     total_water_volume = django.db.models.FloatField(null=True, blank=True)
     published = django.db.models.DateTimeField(null=True, blank=True)
-    
+
+
+class Status(Aliased, BaseModel):
+    objects = django.contrib.gis.db.models.GeoManager()
+    name = django.db.models.CharField(max_length=256, db_index=True)
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
+
+    def __unicode__(self):
+        return self.name
+
+class StatusAlias(BaseModel):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
+    alias_for = django.db.models.ForeignKey(Status, related_name="aliases")
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
+
+    def __unicode__(self):
+        return "%s: %s" % (self.alias_for.name, self.name)
+Status.AliasClass = StatusAlias
+
+
+class StatusEvent(SiteEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+    status = django.db.models.ForeignKey(Status, related_name="events")
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+
 
 class CommentForm(django.forms.ModelForm):
     class Meta:
         model = CommentEvent
         fields = ['content']
-
 
 # Map stuff
 
