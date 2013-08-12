@@ -161,8 +161,8 @@ class Site(Aliased, LocationData):
     info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
     @classmethod
-    def get_or_create(cls, name, latitude, longitude, conventional):
-        if longitude is not None and latitude is not None and not conventional:
+    def get_or_create(cls, name, latitude, longitude):
+        if longitude is not None and latitude is not None:
             location = django.contrib.gis.geos.Point(longitude, latitude)
             sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=100)))
         else:
@@ -170,20 +170,62 @@ class Site(Aliased, LocationData):
         if sites:
             site = sites[0]
         else:
-            site = Site(name = name, latitude=latitude, longitude=longitude, info={'conventional': conventional})
+            site = Site(name = name, latitude=latitude, longitude=longitude)
             site.save()
         return site
 
     @classmethod
-    def get(cls, name, latitude=None, longitude=None, conventional=True):
+    def get(cls, name, latitude=None, longitude=None):
         if not name: return None
         name = name.strip()
-        self = cls.get_or_create(name, latitude=latitude, longitude=longitude, conventional=conventional)
-        alias = cls.AliasClass(alias_for = self, name = name)
-        alias.save()
+        self = cls.get_or_create(name, latitude=latitude, longitude=longitude)
+
+        lookup_name = re.sub(r'[^a-zA-Z0-9][^a-zA-Z0-9]*', '%', name.strip().lower())
+        aliases = self.aliases.all().extra(where=["name ilike %s"], params=[lookup_name])
+        if not aliases:
+            alias = cls.AliasClass(alias_for = self, name = name)
+            alias.save()
         if latitude is not None and longitude is not None:
             self.update_location(latitude, longitude)
         return self
+
+    def merge(self, other = None):
+        if other is None:
+            latitude = self.latitude
+            longitude = self.longitude
+            self.latitude = None
+            self.longitude = None
+            self.location = None
+            self.save()
+            other = Site.get(self.name, latitude, longitude)
+
+        if self.datetime is not None and (other.datetime is None or self.datetime > other.datetime):
+            other.datetime = self.datetime
+        info = other.info or {}
+        info.update(self.info or {})
+        other.info = info
+    
+        for alias in self.aliases.all():
+            if other.aliases.filter(name = alias.name).count():
+                alias.delete()
+
+        for name in dir(type(self)):
+            if name.startswith("__"): continue
+            field = getattr(type(self), name, None)
+            fieldtype = type(field)
+            if fieldtype is django.db.models.fields.related.ForeignRelatedObjectsDescriptor:
+                relatedname = field.related.field.name
+                for item in getattr(self, name).all():
+                    setattr(item, relatedname, other)
+                    item.save()
+            elif fieldtype is django.db.models.fields.related.ReverseManyRelatedObjectsDescriptor:
+                for item in getattr(self, name).all():
+                    getattr(other, name).add(item)
+                getattr(self, name).clear()
+        
+        other.save()
+        self.delete()
+        return other
 
     def __unicode__(self):
         return self.name
@@ -213,7 +255,7 @@ class SiteAlias(BaseModel):
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
 
     def __unicode__(self):
-        return "%s: %s" % (self.site, self.name)
+        return "%s: %s" % (self.alias_for.name, self.name)
 Site.AliasClass = SiteAlias
 
 class Well(LocationData):
@@ -228,6 +270,8 @@ class Well(LocationData):
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_wells")
 
     well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
+
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
     GUID_FIELDS = LocationData.GUID_FIELDS + ["api"]
 
@@ -407,7 +451,13 @@ class PermitEvent(OperatorInfoEvent):
 class SpudEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
+class InspectionEvent(OperatorInfoEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
 class ViolationEvent(OperatorInfoEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+class PollutionEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
 class UserEvent(SiteEvent):

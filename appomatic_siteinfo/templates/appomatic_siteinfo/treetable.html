@@ -1,0 +1,30 @@
+{% load macros %}
+{% load datatypes %}
+
+{% block content_title_content %}
+  {{block.super}}: {{obj.status}}
+{% endblock %}
+
+{% macro render_dict nodes %}
+  {% for key, value in nodes.items %}
+    <tr><th>{{key}}</th><td>{% usemacro render value %}</td></tr>
+  {% endfor %}
+{% endmacro %}
+
+{% macro render_list nodes %}
+  {% for value in nodes %}
+    <tr><td>{% usemacro render value %}</td></tr>
+  {% endfor %}
+{% endmacro %}
+
+{% macro render node %}
+  {% if value|datatype == "dict" %}
+     <table>{% usemacro render_dict value %}</table>
+  {% else %}
+    {% if value|datatype == "list" %}
+       <table>{% usemacro render_list value %}</table>
+    {% else %}
+      {{value}}
+    {% endif %}
+  {% endif %}
+{% endmacro %}

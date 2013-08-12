@@ -26,8 +26,8 @@ class Command(django.core.management.base.BaseCommand):
         src = appomatic_siteinfo.models.Source.get("Frackfinder", "")
 
         for idx, task in enumerate(appomatic_pybossa_tools.models.Task.objects.filter(app__name="frackfinder_tadpole", id__gt = src.import_id).order_by("id")):
-            # Don't use get since we have multiple sites with the same GUUID for now (!!!)
-            site = appomatic_siteinfo.models.Site.objects.filter(guuid=task.info['info']['siteID'])[0]
+            site = appomatic_siteinfo.models.Site.objects.get(guuid=task.info['info']['siteID'])
+            if 'summary' not in task.info: continue
             if 'type' not in task.info['summary']: continue
 
             status = appomatic_siteinfo.models.Status.get(task.info['summary']['type'][0][0])

@@ -1,5 +1,7 @@
 {% extends 'appomatic_siteinfo/models/LocationData/page.html' %}
 {% load endless %}
+{% load macros %}
+{% loadmacros 'appomatic_siteinfo/treetable.html' %}
 
 {% block content_title_content %}
   {{block.super}}
@@ -15,6 +17,7 @@
       {{operator.render_as.link|safe}},
     {% endfor %}
   </td></tr>
+  {% usemacro render_dict obj.info %}
 {% endblock %}
 
 

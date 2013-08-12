@@ -1,8 +1,8 @@
 {% extends 'appomatic_siteinfo/models/OperatorEvent/page.html' %}
+{% load macros %}
+{% loadmacros 'appomatic_siteinfo/treetable.html' %}
 
 {% block properties %}
   {{block.super}}
-  {% for key, value in obj.info.items %}
-    <tr><th>{{key}}</th><td>{{value}}</td></tr>
-  {% endfor %}
+  {% usemacro render_dict obj.info %}
 {% endblock %}
