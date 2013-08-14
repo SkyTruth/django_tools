@@ -285,10 +285,11 @@ class Well(LocationData):
         if wells:
             well = wells[0]
         else:
-            site = Site.get(site_name or api, latitude, longitude, conventional)
+            site = Site.get(site_name or api, latitude, longitude)
             well = Well(
                 api=api,
-                site=site)
+                site=site,
+                info = {'conventional':conventional})
             well.save()
         if latitude is not None and longitude is not None:
             well.update_location(latitude, longitude)
