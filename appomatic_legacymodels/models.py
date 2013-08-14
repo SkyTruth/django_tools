@@ -108,7 +108,7 @@ class Bottaskstatus(models.Model):
         db_table = 'BotTaskStatus'
 
 class CoPermits(models.Model):
-    seqid = models.CharField(max_length=23)
+    seqid = models.CharField(max_length=23, primary_key=True)
     ft_id = models.IntegerField()
     county_name = models.CharField(max_length=20, blank=True)
     received_date = models.DateField(blank=True, null=True)
