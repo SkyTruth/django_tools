@@ -88,7 +88,7 @@ def check_record(cur, row):
 def check_records(request):
     with contextlib.closing(django.db.connection.cursor()) as cur:
         try:
-            rows = fcdjangoutils.jsonview.from_json(request.GET['records'])
+            rows = fcdjangoutils.jsonview.from_json(request.POST['records'])
             for row in rows:
                 check_record(cur, row)
             return rows
