@@ -83,6 +83,7 @@ def check_record(cur, row):
             row['operator_guuid'] = aliases[0].alias_for.guuid
 
 
+@django.views.decorators.csrf.csrf_exempt
 @cors()
 @fcdjangoutils.jsonview.json_view
 def check_records(request):
