@@ -37,9 +37,9 @@ function downloadRow(row, cb) {
         success: function(data, textStatus, jqXHR) {
             $(row).find(".update").html('Uploading...');
       // No idea why this mangling is necessary, but it is :S      
-            var arr = [];
-            for (x=0; x < data.length; x++) arr.push(data.charCodeAt(x) & 0xff);
-            data = String.fromCharCode.apply({}, arr)
+            var res = "";
+            for (x=0; x < data.length; x++) res += String.fromCharCode(data.charCodeAt(x) & 0xff);
+            data = res;
             globalData = data;
             globalTextStatus = textStatus;
             globalJqXHR = jqXHR;
