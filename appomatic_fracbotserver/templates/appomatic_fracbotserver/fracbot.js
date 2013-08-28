@@ -9,8 +9,8 @@
 
 // http://garysieling.com/blog/parsing-pdfs-at-scale-with-node-js-pdf-js-and-lunr-js
 
-var fracbotUrl = "{{site_url}}/fracbot"
-var siteinfoUrl = "{{site_url}}/siteinfo"
+var fracbotUrl = "{{site_url}}/fracbot";
+var siteinfoUrl = "{{site_url}}/siteinfo";
 var downloadAllTimeout = 2000; // seconds between each download...
 
 function zipToDict(keys, values) {
@@ -36,7 +36,7 @@ function downloadRow(row, cb) {
         },
         success: function(data, textStatus, jqXHR) {
             $(row).find(".update").html('Uploading...');
-      // No idea why this mangling is necessary, but it is :S      
+            // No idea why this mangling is necessary, but it is :S      
             var res = "";
             for (x=0; x < data.length; x++) res += String.fromCharCode(data.charCodeAt(x) & 0xff);
             data = res;
@@ -50,12 +50,20 @@ function downloadRow(row, cb) {
                 data: {pdf: btoa(data), 'row': JSON.stringify(parseRow(row))},
                 success: function (data, textStatus, jqXHR) {
                     globalParsedData = data;
-                    $(row).find(".update").html('');
+                    updateRow(row, data)
                     if (cb) cb(data);
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    $(row).find(".update").html('Failed :(');
+                    if (cb) cb();
                 },
                 dataType: "json"
             });
-        }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            $(row).find(".update").html('Failed :(');
+            if (cb) cb();
+        },
     });
 }
 
@@ -87,6 +95,26 @@ function parseRows() {
     return res;
 }
 
+function updateRow(row, rowdata) {
+    var columnHeadings = getColumnHeadings();
+    row = zipToDict(columnHeadings, $(row).find("td"));
+    if (!rowdata.pdf_content) {
+        var btn = $("<a href='javascript:void(0);'>Update</a>");
+        btn.click(function (ev) {
+            downloadRow($(ev.target).parent().parent());
+        });
+        $(row['Update all']).addClass('isnew');
+        $(row['Update all']).html(btn);
+    } else {
+        $(row['Update all']).removeClass('isnew');
+        $(row['Update all']).html('');
+    }
+    if (rowdata.well_guuid && $(row['API No.']).find("a").length == 0) $(row['API No.']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.well_guuid + "'>");
+    if (rowdata.site_guuid && $(row['WellName']).find("a").length == 0) $(row['WellName']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.site_guuid + "'>");
+    if (rowdata.event_guuid && $(row['Job Start Dt']).find("a").length == 0) $(row['Job Start Dt']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.event_guuid + "'>");
+    if (rowdata.operator_guuid && $(row['Operator']).find("a").length == 0) $(row['Operator']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.operator_guuid + "'>");
+}
+
 function updatePage () {
     $("#MainContent_GridView1 tr.PagerStyle td").attr("colspan", 12);
     var btn = $("<a href='javascript:void(0);'>Update all</a>");
@@ -95,25 +123,10 @@ function updatePage () {
     header.prepend(btn);
     $("#MainContent_GridView1 tr:not(.PagerStyle):has(th)").prepend(header);
     $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").prepend("<td class='update'></td>")
-
-    var columnHeadings = getColumnHeadings();
    
     $.post(fracbotUrl + "/check-records", {records: JSON.stringify(parseRows())}, function (data, textStatus, jqXHR) {
         $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").map(function (idx, row) {
-            var rowdata = data[idx];
-            row = zipToDict(columnHeadings, $(row).find("td"));
-            if (!rowdata.pdf_content) {
-                var btn = $("<a href='javascript:void(0);'>Update</a>");
-                btn.click(function (ev) {
-                    downloadRow($(ev.target).parent().parent());
-                });
-                $(row['Update all']).addClass('isnew');
-                $(row['Update all']).html(btn);
-            }
-            if (rowdata.well_guuid) $(row['API No.']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.well_guuid + "'>");
-            if (rowdata.site_guuid) $(row['WellName']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.site_guuid + "'>");
-            if (rowdata.event_guuid) $(row['Job Start Dt']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.event_guuid + "'>");
-            if (rowdata.operator_guuid) $(row['Operator']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.operator_guuid + "'>");
+            updateRow(row, data[idx]);
         });
     }, "json");
     
