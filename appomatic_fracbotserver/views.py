@@ -16,12 +16,14 @@ import re
 
 def parseDate(date):
     """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
+    if not date: return None
     date = date.strip()
     if not date: return None
     month, day, year = [int(x.lstrip("0")) for x in date.split("/")]
     return datetime.date(year, month, day)
 
 def parseFloat(str):
+    if not str: return None
     str = str.strip()
     if not str: return None
     return float(str.replace(',', ''))
@@ -112,6 +114,12 @@ def parse_pdf(request):
         try:
             logger = fracfocustools.Logger()
             pdf = fracfocustools.FracFocusPDFParser(base64.decodestring(request.POST['pdf']), logger).parse_pdf()
+
+            if not pdf:
+                raise Exception("Unable to parse PDF:" + str(logger.messages))
+
+            data.update({'fracture_date': None, 'state': None, 'county': None, 'operator': None, 'well_name': None, 'production_type': None, 'latitude': None, 'longitude': None, 'datum': None, 'true_vertical_depth': None, 'total_water_volume': None})
+
             data.update(pdf.report_data)
             data['chemicals'] = pdf.chemicals
 
@@ -125,10 +133,11 @@ def parse_pdf(request):
 
             cur.execute("""insert into "FracFocusReport" (pdf_seqid, api, fracture_date, state, county, operator, well_name, production_type, latitude, longitude, datum, true_vertical_depth, total_water_volume) values (%(pdf_seqid)s, %(api)s, %(fracture_date)s, %(state)s, %(county)s, %(operator)s, %(well_name)s, %(production_type)s, %(latitude)s, %(longitude)s, %(datum)s, %(true_vertical_depth)s, %(total_water_volume)s)""", data)
 
-            for chemical in data['chemicals']:
-                tmp = {}
+            for row, chemical in enumerate(data['chemicals']):
+                tmp = {'fracture_date': None, 'row': None, 'trade_name': None, 'supplier': None, 'purpose': None, 'ingredients': None, 'cas_number': None, 'additive_concentration': None, 'hf_fluid_concentration': None, 'comments': None, 'cas_type': None}
                 tmp.update(data)
                 tmp.update(chemical)
+                tmp['row'] = row # Yes, the pdf parser seems to stuff this up on some pdfs... reusing row numbers...
                 tmp['additive_concentration'] = parseFloat(tmp['additive_concentration'])
                 tmp['hf_fluid_concentration'] = parseFloat(tmp['hf_fluid_concentration'])
                 cur.execute("""insert into "FracFocusReportChemical" (pdf_seqid, api, fracture_date, row, trade_name, supplier, purpose, ingredients, cas_number, additive_concentration, hf_fluid_concentration, comments, cas_type) values (%(pdf_seqid)s, %(api)s, %(fracture_date)s, %(row)s, %(trade_name)s, %(supplier)s, %(purpose)s, %(ingredients)s, %(cas_number)s, %(additive_concentration)s, %(hf_fluid_concentration)s, %(comments)s, NULL)""", tmp)
