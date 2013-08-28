@@ -1,0 +1,16 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+{% load endless %}
+
+{% block body_class %}helpout{% endblock %}
+
+{% block content %}
+  {{block.super}}
+
+  <p>You can help out adding records to our database and get better data yourself at the same time! Install our browser extension, and the <a href="http://www.fracfocusdata.org">FracFocus</a> website is ameded with links to our full site records for each permit, as well as scross-links to other sites operated by the same operator, using the same chemicals etc, plus the ability to download this data in CSV-format for viewing in Excell or similar programs!</p>
+
+  <p>To help out adding records to our database, first install <a href="http://www.greasespot.net">Greasmonkey</a> (if you have FireFox) or <a href="http://tampermonkey.net">Tampermonkey</a> (if you have Chrome), then</p>
+
+  <p><a href="{% url 'appomatic_fracbotserver_fracbot' %}" class="userjs btn btn-success">install the FracBot userscript</a></p>
+
+  <p>Finally, visit the <a href="http://www.fracfocusdata.org">FracFocus</a> website and search for some sites. Remember to click "Update" on any records that are flagged as missing in our database!</p>
+{% endblock %}
