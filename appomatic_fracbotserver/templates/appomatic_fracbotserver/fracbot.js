@@ -11,7 +11,8 @@
 
 var fracbotUrl = "{{site_url}}/fracbot";
 var siteinfoUrl = "{{site_url}}/siteinfo";
-var downloadAllTimeout = 2000; // seconds between each download...
+var downloadAllTimeout = 3000; // seconds between each download...
+var downloadAllPagesTimeout = 10000; // seconds to wait before doing a new search 
 
 function zipToDict(keys, values) {
     var res = {};
@@ -27,6 +28,7 @@ function downloadRow(row, cb) {
     theForm.__EVENTARGUMENT.value = rowspec[2];
 
     $(row).find(".update").html('Downloading..');
+    if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({msg: "Downloading..."});
     $.ajax({
         url: theForm.action,
         type: "POST",
@@ -36,6 +38,7 @@ function downloadRow(row, cb) {
         },
         success: function(data, textStatus, jqXHR) {
             $(row).find(".update").html('Uploading...');
+            if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({msg: "Uploading..."});
             // No idea why this mangling is necessary, but it is :S      
             var res = "";
             for (x=0; x < data.length; x++) res += String.fromCharCode(data.charCodeAt(x) & 0xff);
@@ -50,11 +53,13 @@ function downloadRow(row, cb) {
                 data: {pdf: btoa(data), 'row': JSON.stringify(parseRow(row))},
                 success: function (data, textStatus, jqXHR) {
                     globalParsedData = data;
-                    updateRow(row, data)
+                    updateRow(row, data);
+                    if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({items: 1, msg: "Downloaded."});
                     if (cb) cb(data);
                 },
                 error: function(jqXHR, textStatus, errorThrown) {
                     $(row).find(".update").html('Failed :(');
+                    if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({failed: 1, msg: "Failed :("});
                     if (cb) cb();
                 },
                 dataType: "json"
@@ -67,16 +72,38 @@ function downloadRow(row, cb) {
     });
 }
 
-function downloadRows() {
+function downloadRows(cb) {
     var rows = $("#MainContent_GridView1 tr:not(.PagerStyle):has(td.isnew)");
     var idx = -1;
     var next = function() {
         idx++;
         if (idx < rows.length) {
             downloadRow(rows[idx], function () { setTimeout(next, downloadAllTimeout); });
+        } else {
+            cb();
         }
     }
     next();
+}
+
+function downloadAllPages(cb) {
+    var downloadOneMorePage = function () {
+        downloadRows(function () {
+            var next = $("#MainContent_GridView1_ButtonNext");
+            if (next.length > 0) {
+                next.click();
+            } else {
+                $(document).off("pageUpdated", downloadOneMorePage);
+                if (cb) {
+                    setTimeout(cb, downloadAllPagesTimeout);
+                } else {
+                    console.log("Done downloading all pages");
+                }
+            }
+        });
+    }
+    $(document).on("pageUpdated", downloadOneMorePage);
+    downloadOneMorePage();
 }
 
 function getColumnHeadings() {
@@ -89,7 +116,7 @@ function parseRow(row) {
 
 function parseRows() {
     var res = [];
-    $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").map(function (idx, row) {
+    $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th)):not(:has(td[colspan=13]))").map(function (idx, row) {
         res.push(parseRow(row));
     });
     return res;
@@ -125,17 +152,115 @@ function updatePage () {
     $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").prepend("<td class='update'></td>")
    
     $.post(fracbotUrl + "/check-records", {records: JSON.stringify(parseRows())}, function (data, textStatus, jqXHR) {
-        $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").map(function (idx, row) {
+        $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th)):not(:has(td[colspan=13]))").map(function (idx, row) {
             updateRow(row, data[idx]);
         });
+        $(document).trigger("pageUpdated");
     }, "json");
-    
-  //downloadRow($("tr td:contains('42-493-32571-00-00')").parent());
-  // $("#MainContent_cboStateList")[0].value = 42; // Texas 
+}
+
+function mangleResultsPage() {
+    var btn = $("<a href='javascript:void(0);' class='BackToFilterButton'>Automatically update everything</a>");
+    btn.click(downloadAllPages);
+    $(".BackToFilterBox").append(btn);
+    var rpm = Sys.WebForms.PageRequestManager.getInstance();
+    rpm.add_endRequest(updatePage);
+    if (top.document.autoupdate != undefined) {
+        var autoUpdate = function () {
+            $(document).off("pageUpdated", autoUpdate);
+            downloadAllPages(function () {
+                top.document.autoupdate.updateStatus({msg: "Searching...", state: '', county: '', counties: 1});
+                document.location = "http://www.fracfocusdata.org/DisclosureSearch/StandardSearch.aspx";
+            });
+        };
+        $(document).on("pageUpdated", autoUpdate);
+    }
+    updatePage();
+}
+
+function mangleSearchPage() {
+    var tab = $("<div class='Tab'><a href='javascript:void(0);'>Automatically update SiteInfo</a></div>");
+    $(".FindWellContainer").prepend(tab);
+    $(".FindWellContainer").css({left: "500px"});
+    tab.click(function () {
+        $(".ContainerHeaderTitleFracFocus").html("Automcat update of SiteInfo in progress...")
+        $(".ContainerBodyFracFocus *").remove();
+        var status = $("<div class='autoupdatestatus'>Successfully updated <span class='items'></span> items. Update failed for <span class='failed'></span> items. Scraped <span class='counties'></span> counties so far.<br />State: <span class='state'></span>, County: <span class='county'></span><br /><span class='msg'></span></div><br /><div><a href='javascript:void(0);' class='show'>Show/hide automation screen...</a></div>");
+        status.find(".pause").click(function () {
+
+        });
+        var updateStatusDisplay = function () {
+            status.find(".items").html(document.autoupdate.items);
+            status.find(".failed").html(document.autoupdate.failed);
+            status.find(".counties").html(document.autoupdate.counties);
+            status.find(".msg").html(document.autoupdate.msg);
+            status.find(".state").html(document.autoupdate.state);
+            status.find(".county").html(document.autoupdate.county);
+        }
+        document.autoupdate = {state: "search", msg: "Searching...", items: 0, failed: 0, counties: 0, state: '', county: '', updateStatus: function (data) {
+            console.log(data);
+            if (data.items) document.autoupdate.items += data.items;
+            if (data.failed) document.autoupdate.failed += data.failed;
+            if (data.counties) document.autoupdate.counties += data.counties;
+            if (data.msg) document.autoupdate.msg = data.msg;
+            if (data.state) document.autoupdate.state = data.state;
+            if (data.county) document.autoupdate.county = data.county;
+            updateStatusDisplay();
+        }};
+        updateStatusDisplay();
+        $(".ContainerBodyFracFocus").append(status);
+        var iframe = $("<iframe src='http://www.fracfocusdata.org/DisclosureSearch/StandardSearch.aspx'></iframe>");
+        iframe.css({width: "100%", height: "400px", display: "none"});
+        $(".ContainerBodyFracFocus").append(iframe);
+        status.find(".show").click(function () {
+            iframe.toggle();
+        });
+    });
+}
+
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+function autoupdateSearchPage() {
+    var step = "state";
+
+    var rpm = Sys.WebForms.PageRequestManager.getInstance();
+    rpm.add_endRequest(function () { update(); });
+
+    var update = function () {
+        if (step == "state") {
+            step = "county";
+            var values = $("#MainContent_cboStateList option").map(function (idx, item) { return $(item).val(); }).filter(function (idx, item) { return item != "Choose a State"; });
+            var value = values[getRandomInt(0, values.length - 1)];
+            // value = "37"; // Pennsylvania
+            top.document.autoupdate.updateStatus({state: $("#MainContent_cboStateList option[value=" + value + "]").text()});
+            $("#MainContent_cboStateList").val(value);
+            $("#MainContent_cboStateList").trigger("change");
+        } else if (step == "county") {
+            step = "submit";
+            var values = $("#MainContent_cboCountyList option").map(function (idx, item) { return $(item).val(); }).filter(function (idx, item) { return item != "Choose a County"; });
+            var value = values[getRandomInt(0, values.length - 1)];
+            // value = "121" // Venango "117"; // Tioga
+            top.document.autoupdate.updateStatus({county: $("#MainContent_cboCountyList option[value=" + value + "]").text()});
+            $("#MainContent_cboCountyList").val(value);
+            $("#MainContent_cboCountyList").trigger("change");
+        } else if (step == "submit") {
+            top.document.autoupdate.updateStatus({msg: "Getting list..."});
+            $("#MainContent_btnSearch").click();
+        }
+    }
+    update();
 }
 
 $(document).ready(function () {
-    var rpm = Sys.WebForms.PageRequestManager.getInstance();
-    rpm.add_endRequest(updatePage);
-    updatePage();
+    if ($(".BackToFilterBox").length > 0) {
+        mangleResultsPage();
+    } else if ($(".BrowseFilterBox").length > 0) {
+        if (top.document.autoupdate != undefined) {
+            autoupdateSearchPage();
+        } else {
+            mangleSearchPage();
+        }
+    }
 });
