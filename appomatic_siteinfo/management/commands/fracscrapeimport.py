@@ -63,6 +63,10 @@ def scrapetoevent(scrape, report, src):
             cas_number = reportchemical.cas_number,
             comments = reportchemical.comments)
 
+        if not chemical:
+            print "IGN chemical (no name?)"
+            continue 
+
         appomatic_siteinfo.models.ChemicalUsageEventChemical(
             event = event,
             chemical = chemical,

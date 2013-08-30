@@ -10,11 +10,9 @@ def basemodel(request, guuid=None, model="BaseModel"):
     if 'querystring_key' in request.REQUEST:
         style = request.REQUEST['querystring_key'] + ".html"
     if guuid is None:
-        return django.http.HttpResponse(
-            getattr(appomatic_siteinfo.models, model).list_render(request, style=style))
+        return getattr(appomatic_siteinfo.models, model).list_render(request, style=style, as_response = True)
     else:
-        return django.http.HttpResponse(
-            appomatic_siteinfo.models.BaseModel.objects.get(guuid=guuid).render(request, style=style))
+        return appomatic_siteinfo.models.BaseModel.objects.get(guuid=guuid).render(request, style=style, as_response = True)
 
 def search(request):
     query = request.GET['query']

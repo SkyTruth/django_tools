@@ -17,6 +17,8 @@ import re
 import uuid
 import urllib
 import math
+import csv
+import StringIO
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -37,7 +39,7 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     GUID_FIELDS = ['type']
     GUID_BASEURL = 'http://siteinfo.skytruth.org/'
     
-    src = django.db.models.ForeignKey(Source, blank=True, null=True)
+    src = django.db.models.ForeignKey(Source, blank=True, null=True, related_name="objects_from_this_source")
     import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True, verbose_name="Importing id")
     quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
     guuid = django.db.models.CharField(max_length=64, null=False, blank=True, db_index=True)
@@ -77,6 +79,44 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     def get_absolute_url(self):
         return django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': self.guuid})
     
+    @fcdjangoutils.modelhelpers.subclassproxy
+    def render__csv(self, request, context):
+        s = StringIO.StringIO()
+        c = csv.writer(s)
+
+        for field in self._meta.fields:
+            if field.name.endswith("_ptr"): continue
+            value = getattr(self, field.name)
+            if value is None or type(value).__name__ == 'RelatedManager': continue
+            value = getattr(self, field.name)
+            def writevalue(path, value):
+                if isinstance(value, dict):
+                    for key, subvalue in value.iteritems():
+                        writevalue(path + [key], subvalue)
+                else:
+                    c.writerow(['.'.join(path), value])
+
+            writevalue([field.name], getattr(self, field.name))
+
+        for name in self._meta.get_all_field_names():
+            if field.name.endswith("_ptr"): continue
+            value = getattr(self, name)
+            if value is None or type(value).__name__ != 'RelatedManager' or value.count() == 0: continue
+            c.writerow([])
+            c.writerow(['Field:', name])
+            rows = value.all()
+
+            cols = [field.name for field in rows[0]._meta.fields
+                    if not field.name.endswith("_ptr") and type(getattr(rows[0], field.name)) != 'RelatedManager']
+            cols.sort()
+            c.writerow(cols)
+
+            for row in rows:
+                c.writerow([getattr(row, col) for col in cols])
+
+        res = django.http.HttpResponse(s.getvalue(), content_type="text/csv")
+        res['Content-Disposition'] = 'attachment; filename="%s.csv"' % (self.guuid,)
+        return res
 
 class LocationData(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()

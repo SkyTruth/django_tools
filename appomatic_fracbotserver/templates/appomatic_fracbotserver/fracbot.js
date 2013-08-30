@@ -138,7 +138,10 @@ function updateRow(row, rowdata) {
     }
     if (rowdata.well_guuid && $(row['API No.']).find("a").length == 0) $(row['API No.']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.well_guuid + "'>");
     if (rowdata.site_guuid && $(row['WellName']).find("a").length == 0) $(row['WellName']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.site_guuid + "'>");
-    if (rowdata.event_guuid && $(row['Job Start Dt']).find("a").length == 0) $(row['Job Start Dt']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.event_guuid + "'>");
+    if (rowdata.event_guuid && $(row['Job Start Dt']).find("a").length == 0) {
+        $(row['Job Start Dt']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.event_guuid + "'>");
+        $(row['']).append("<a target='_blank' href='" + siteinfoUrl + "/" + rowdata.event_guuid + "?style=csv'><img src='http://findicons.com/icon/download/84601/csv_text/48/png' style='border: none; width: auto; height: 30px;'></a>");
+    }
     if (rowdata.operator_guuid && $(row['Operator']).find("a").length == 0) $(row['Operator']).wrapInner("<a href='" + siteinfoUrl + "/" + rowdata.operator_guuid + "'>");
 }
 
