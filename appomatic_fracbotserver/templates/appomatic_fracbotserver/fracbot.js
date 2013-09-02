@@ -4,6 +4,10 @@
 // @version    0.1
 // @description  Scrapes FracFocus pdf:s for you :)
 // @match      http://www.fracfocusdata.org/*
+// @match      http://fracfocusdata.org/*
+// @include    http://www.fracfocusdata.org/*
+// @include    http://fracfocusdata.org/*
+// @grant      none
 // @copyright  2012+, egil@skytruth.org
 // ==/UserScript==
 
