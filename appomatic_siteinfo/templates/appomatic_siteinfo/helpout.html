@@ -6,11 +6,206 @@
 {% block content %}
   {{block.super}}
 
-  <p>You can help out adding records to our database and get better data yourself at the same time! Install our browser extension, and the <a href="http://www.fracfocusdata.org">FracFocus</a> website is ameded with links to our full site records for each permit, as well as scross-links to other sites operated by the same operator, using the same chemicals etc, plus the ability to download this data in CSV-format for viewing in Excell or similar programs!</p>
+  <div class="row-fluid">
+    <div class="span12">
+      <div id="myCarousel" class="carousel slide" style="width: 600px; height: 472px; float: right;">
+        <ol class="carousel-indicators">
+          <li data-target="#myCarousel" data-slide-to="0" class="active"></li>
+          <li data-target="#myCarousel" data-slide-to="1"></li>
+        </ol>
+        <!-- Carousel items -->
+        <div class="carousel-inner">
+          <div class="active item">
+            <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/fracfocus.2.png" alt="Download CSV:s, lookup sites nearby and chemicals used">
+            <div class="carousel-caption">
+              <h4>Download CSV:s and more</h4>
+              <p>The FracFocusData.org search results are amended with our data - CSV download and links to the event, well, site and operator pages here on SiteInfo.</p>
+            </div>
+          </div>
+          <div class="item">
+            <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/fracfocus.1.png" alt="Help out updating our records, automatically">
+            <div class="carousel-caption">
+              <h4>Easily help out updating our records...</h4>
+              <p>We rely on you to help update our data! You can either update individual, or let your browser click through the FracFocusData.org website and update records automatically!</p>
+            </div>
+          </div>
+        </div>
+        <!-- Carousel nav -->
+        <a class="carousel-control left" href="#myCarousel" data-slide="prev">&lsaquo;</a>
+        <a class="carousel-control right" href="#myCarousel" data-slide="next">&rsaquo;</a>
+      </div>
 
-  <p>To help out adding records to our database, first install <a href="http://www.greasespot.net">Greasmonkey</a> (if you have FireFox) or <a href="http://tampermonkey.net">Tampermonkey</a> (if you have Chrome), then</p>
+      <p>You can help out adding records to our database and get better data yourself at the same time! Install our browser extension, and the <a href="http://www.fracfocusdata.org">FracFocus</a> website is ameded with links to our full site records for each permit, as well as scross-links to other sites operated by the same operator, using the same chemicals etc, plus the ability to download this data in CSV-format for viewing in Excell or similar programs!</p>
 
-  <p><a href="{% url 'appomatic_fracbotserver_fracbot' %}" class="userjs btn btn-success">install the FracBot userscript</a></p>
+      <p>To help out adding records to our database, first install <a href="http://www.greasespot.net">Greasmonkey</a> (if you have FireFox) or <a href="http://tampermonkey.net">Tampermonkey</a> (if you have Chrome), then</p>
 
-  <p>Finally, visit the <a href="http://www.fracfocusdata.org">FracFocus</a> website and search for some sites. Remember to click "Update" on any records that are flagged as missing in our database!</p>
+      <p><a href="{% url 'appomatic_fracbotserver_fracbot' %}" class="userjs btn btn-success">install the FracBot userscript</a></p>
+
+      <p>Finally, visit the <a href="http://www.fracfocusdata.org">FracFocus</a> website and search for some sites. Remember to click "Update" on any records that are flagged as missing in our database!</p>
+
+      <p>If you need more help, check out the guides below!</p>
+    </div>
+  </div>
+
+
+  <div class="row-fluid">
+    <div class="span12">
+      <ul class="nav nav-tabs">
+        <li class="active"><a href="#firefox">Firefox</a></li>
+        <li><a href="#chrome">Chrome</a></li>
+      </ul>
+
+      <div class="tab-content" style="overflow: visible;">
+
+        <div class="tab-pane active" id="firefox">
+          <div class="row-fluid">
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.1.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="The Greasmonkey website"
+               data-original-title="Click on 'Download' to download the Greasmonkey plugin"
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.1.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.2.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="The Mozilla add-ons site"
+               data-original-title="You get redirected to the Mozilla add-ons website, where you need to click on the 'Add to firefox' button."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.2.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.3.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="Add-on installation approval"
+               data-original-title="As a security measure from Firefox, you need to approve the installation. Wait for 'Install Now' to apear and cick it when it does."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.3.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+          </div>
+          <div class="row-fluid">
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.4.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="Greasmonkey installation complete"
+               data-original-title="Greasmonkey is now installed. You need to restart (close and re-open) your browser for it to become active."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.4.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+            <div class="span4">
+              <p><strong>This is where you click the green install button above :)</strong></p>
+            </div>
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.6.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="The FracBot userscript"
+               data-original-title="As a security measure by GreaseMonkey, you need to approve the installation. Click 'Install' to install FracBot."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/firefox.6.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+          </div>
+        </div>
+
+
+        <div class="tab-pane" id="chrome">
+          <div class="row-fluid">
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.1.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="The Tampermonkey website"
+               data-original-title="Click on 'Tampermonkey stable' to download the Tampermonkey plugin."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.1.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.2.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="The Google Chrome web store"
+               data-original-title="You get redirected to the Google Chrome web store, where you need to click on the '+ Free' button."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.2.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.3.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="Add-on installation approval"
+               data-original-title="As a security measure from Chrome, you need to approve the installation. Click 'Add' to install Tampermonkey."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.3.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+          </div>
+          <div class="row-fluid">
+            <div class="span4">
+              <p><strong>This is where you click the green install button above :)</strong></p>
+            </div>
+            <div class="span4">
+              <a
+               href="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.6.png"
+               data-toggle="popover"
+               data-tigger="hover"
+               data-placement="top"
+               data-content="The FracBot userscript"
+               data-original-title="As a security measure by Tampermonkey, you need to approve the installation. Click 'Install' to install FracBot."
+               class="popovered"
+              >
+                <img src="{{STATIC_URL}}appomatic_siteinfo/FracBotScreenshots/chrome.5.png" class="img-polaroid img-responsive">
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    $('.nav-tabs a').click(function (e) {
+      e.preventDefault()
+      $(this).tab('show')
+    });
+    $('.carousel').carousel({
+      interval: 4000
+    })
+    $('.popovered').popover({trigger:'hover'});
+  </script>
 {% endblock %}
