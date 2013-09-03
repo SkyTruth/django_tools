@@ -19,6 +19,7 @@
 {% endblock %}
 
 {% block content %}
+  <a href="{{ obj.get_absolute_url }}?style=csv" class="btn btn-success" style="float: right;"><i class="icon-download-alt"></i> Download</a>
   <table>
     <tr><th>Type</th><td>{{obj.type_name}}</td></tr>
     {% block properties %}{% endblock %}

@@ -1,0 +1,10 @@
+{% extends 'appomatic_siteinfo/base.html' %}
+{% load endless %}
+
+{% block body_class %}about{% endblock %}
+
+{% block content %}
+  {{block.super}}
+
+  <p>SiteInfo is <a href="http://www.skytruth.org">SkyTruth</a>s tool for keeping track of historical as well as up to date data on oil and gas drilling sites.</p>
+{% endblock %}

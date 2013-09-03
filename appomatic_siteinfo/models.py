@@ -17,6 +17,8 @@ import re
 import uuid
 import urllib
 import math
+import csv
+import StringIO
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -37,10 +39,22 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     GUID_FIELDS = ['type']
     GUID_BASEURL = 'http://siteinfo.skytruth.org/'
     
-    src = django.db.models.ForeignKey(Source, blank=True, null=True)
+    src = django.db.models.ForeignKey(Source, blank=True, null=True, related_name="objects_from_this_source")
     import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True, verbose_name="Importing id")
     quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
     guuid = django.db.models.CharField(max_length=64, null=False, blank=True, db_index=True)
+
+    @classmethod
+    def get_or_create(cls, src, import_id, **kw):
+        items = cls.objects.filter(src=src, import_id=import_id)
+        if items: return items[0]
+        item = cls(src=src, import_id=import_id, **kw)
+        item.save()
+        return item
+
+    @classmethod
+    def get(cls, *arg, **kw):
+        return cls.get_or_create(*arg, **kw)
 
     @fcdjangoutils.modelhelpers.subclassproxy
     def generate_guuid(self):
@@ -65,6 +79,44 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     def get_absolute_url(self):
         return django.core.urlresolvers.reverse('appomatic_siteinfo.views.basemodel', kwargs={'guuid': self.guuid})
     
+    @fcdjangoutils.modelhelpers.subclassproxy
+    def render__csv(self, request, context):
+        s = StringIO.StringIO()
+        c = csv.writer(s)
+
+        for field in self._meta.fields:
+            if field.name.endswith("_ptr"): continue
+            value = getattr(self, field.name)
+            if value is None or type(value).__name__ == 'RelatedManager': continue
+            value = getattr(self, field.name)
+            def writevalue(path, value):
+                if isinstance(value, dict):
+                    for key, subvalue in value.iteritems():
+                        writevalue(path + [key], subvalue)
+                else:
+                    c.writerow(['.'.join(path), value])
+
+            writevalue([field.name], getattr(self, field.name))
+
+        for name in self._meta.get_all_field_names():
+            if field.name.endswith("_ptr"): continue
+            value = getattr(self, name)
+            if value is None or type(value).__name__ != 'RelatedManager' or value.count() == 0: continue
+            c.writerow([])
+            c.writerow(['Field:', name])
+            rows = value.all()
+
+            cols = [field.name for field in rows[0]._meta.fields
+                    if not field.name.endswith("_ptr") and type(getattr(rows[0], field.name)) != 'RelatedManager']
+            cols.sort()
+            c.writerow(cols)
+
+            for row in rows:
+                c.writerow([getattr(row, col) for col in cols])
+
+        res = django.http.HttpResponse(s.getvalue(), content_type="text/csv")
+        res['Content-Disposition'] = 'attachment; filename="%s.csv"' % (self.guuid,)
+        return res
 
 class LocationData(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -93,7 +145,6 @@ class LocationData(BaseModel):
 class Aliased(object):
     AliasClass = NotImplemented
 
-
     @classmethod
     def get_or_create(cls, name, **kw):
         self = cls(name = name, **kw)
@@ -114,7 +165,7 @@ class Aliased(object):
         return self
 
 
-class Company(BaseModel, Aliased):
+class Company(Aliased, BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
 
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
@@ -137,7 +188,7 @@ class CompanyAlias(BaseModel):
         return "%s: %s" % (self.alias_for.name, self.name)
 Company.AliasClass = CompanyAlias
 
-class Site(LocationData, Aliased):
+class Site(Aliased, LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
@@ -150,8 +201,8 @@ class Site(LocationData, Aliased):
     info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
     @classmethod
-    def get_or_create(cls, name, latitude, longitude, conventional):
-        if longitude is not None and latitude is not None and not conventional:
+    def get_or_create(cls, name, latitude, longitude):
+        if longitude is not None and latitude is not None:
             location = django.contrib.gis.geos.Point(longitude, latitude)
             sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=100)))
         else:
@@ -159,20 +210,62 @@ class Site(LocationData, Aliased):
         if sites:
             site = sites[0]
         else:
-            site = Site(name = name, latitude=latitude, longitude=longitude, info={'conventional': conventional})
+            site = Site(name = name, latitude=latitude, longitude=longitude)
             site.save()
         return site
 
     @classmethod
-    def get(cls, name, latitude=None, longitude=None, conventional=True):
+    def get(cls, name, latitude=None, longitude=None):
         if not name: return None
         name = name.strip()
-        self = cls.get_or_create(name, latitude=latitude, longitude=longitude, conventional=conventional)
-        alias = cls.AliasClass(alias_for = self, name = name)
-        alias.save()
+        self = cls.get_or_create(name, latitude=latitude, longitude=longitude)
+
+        lookup_name = re.sub(r'[^a-zA-Z0-9][^a-zA-Z0-9]*', '%', name.strip().lower())
+        aliases = self.aliases.all().extra(where=["name ilike %s"], params=[lookup_name])
+        if not aliases:
+            alias = cls.AliasClass(alias_for = self, name = name)
+            alias.save()
         if latitude is not None and longitude is not None:
             self.update_location(latitude, longitude)
         return self
+
+    def merge(self, other = None):
+        if other is None:
+            latitude = self.latitude
+            longitude = self.longitude
+            self.latitude = None
+            self.longitude = None
+            self.location = None
+            self.save()
+            other = Site.get(self.name, latitude, longitude)
+
+        if self.datetime is not None and (other.datetime is None or self.datetime > other.datetime):
+            other.datetime = self.datetime
+        info = other.info or {}
+        info.update(self.info or {})
+        other.info = info
+    
+        for alias in self.aliases.all():
+            if other.aliases.filter(name = alias.name).count():
+                alias.delete()
+
+        for name in dir(type(self)):
+            if name.startswith("__"): continue
+            field = getattr(type(self), name, None)
+            fieldtype = type(field)
+            if fieldtype is django.db.models.fields.related.ForeignRelatedObjectsDescriptor:
+                relatedname = field.related.field.name
+                for item in getattr(self, name).all():
+                    setattr(item, relatedname, other)
+                    item.save()
+            elif fieldtype is django.db.models.fields.related.ReverseManyRelatedObjectsDescriptor:
+                for item in getattr(self, name).all():
+                    getattr(other, name).add(item)
+                getattr(self, name).clear()
+        
+        other.save()
+        self.delete()
+        return other
 
     def __unicode__(self):
         return self.name
@@ -202,7 +295,7 @@ class SiteAlias(BaseModel):
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
 
     def __unicode__(self):
-        return "%s: %s" % (self.site, self.name)
+        return "%s: %s" % (self.alias_for.name, self.name)
 Site.AliasClass = SiteAlias
 
 class Well(LocationData):
@@ -218,6 +311,8 @@ class Well(LocationData):
 
     well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
 
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+
     GUID_FIELDS = LocationData.GUID_FIELDS + ["api"]
 
     def update_location(self, latitude, longitude):
@@ -230,10 +325,11 @@ class Well(LocationData):
         if wells:
             well = wells[0]
         else:
-            site = Site.get(site_name or api, latitude, longitude, conventional)
+            site = Site.get(site_name or api, latitude, longitude)
             well = Well(
                 api=api,
-                site=site)
+                site=site,
+                info = {'conventional':conventional})
             well.save()
         if latitude is not None and longitude is not None:
             well.update_location(latitude, longitude)
@@ -262,7 +358,7 @@ class Well(LocationData):
         return cls.objects.filter(api__icontains=query)
 
 
-class ChemicalPurpose(BaseModel, Aliased):
+class ChemicalPurpose(Aliased, BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     name = django.db.models.CharField(max_length=256, db_index=True)
 
@@ -282,7 +378,7 @@ class ChemicalPurposeAlias(BaseModel):
 ChemicalPurpose.AliasClass = ChemicalPurposeAlias
 
 
-class Chemical(BaseModel, Aliased):
+class Chemical(Aliased, BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     
     name = django.db.models.CharField(max_length=256, db_index=True)
@@ -396,7 +492,13 @@ class PermitEvent(OperatorInfoEvent):
 class SpudEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
+class InspectionEvent(OperatorInfoEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
 class ViolationEvent(OperatorInfoEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+class PollutionEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
 class UserEvent(SiteEvent):
@@ -454,13 +556,39 @@ class FracEvent(ChemicalUsageEvent):
     true_vertical_depth = django.db.models.FloatField(null=True, blank=True)
     total_water_volume = django.db.models.FloatField(null=True, blank=True)
     published = django.db.models.DateTimeField(null=True, blank=True)
-    
+
+
+class Status(Aliased, BaseModel):
+    objects = django.contrib.gis.db.models.GeoManager()
+    name = django.db.models.CharField(max_length=256, db_index=True)
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
+
+    def __unicode__(self):
+        return self.name
+
+class StatusAlias(BaseModel):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
+    alias_for = django.db.models.ForeignKey(Status, related_name="aliases")
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["alias_for", "name"]
+
+    def __unicode__(self):
+        return "%s: %s" % (self.alias_for.name, self.name)
+Status.AliasClass = StatusAlias
+
+
+class StatusEvent(SiteEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+
+    status = django.db.models.ForeignKey(Status, related_name="events")
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+
 
 class CommentForm(django.forms.ModelForm):
     class Meta:
         model = CommentEvent
         fields = ['content']
-
 
 # Map stuff
 

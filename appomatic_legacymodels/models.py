@@ -11,6 +11,8 @@ from __future__ import unicode_literals
 
 from django.contrib.gis.db import models
 
+import datetime
+
 class X23051Incidents(models.Model):
     reportnum = models.IntegerField(blank=True, null=True)
     calltype = models.CharField(max_length=16, blank=True)
@@ -108,7 +110,7 @@ class Bottaskstatus(models.Model):
         db_table = 'BotTaskStatus'
 
 class CoPermits(models.Model):
-    seqid = models.CharField(max_length=23)
+    seqid = models.CharField(max_length=23, primary_key=True)
     ft_id = models.IntegerField()
     county_name = models.CharField(max_length=20, blank=True)
     received_date = models.DateField(blank=True, null=True)
@@ -390,7 +392,7 @@ class Fracfocusparsechemical(models.Model):
         db_table = 'FracFocusParseChemical'
 
 class Fracfocusreport(models.Model):
-    seqid = models.IntegerField(primary_key=True)
+    seqid = models.AutoField(primary_key=True)
     ft_id = models.IntegerField(blank=True, null=True)
     pdf_seqid = models.IntegerField()
     api = models.CharField(max_length=20)
@@ -405,7 +407,7 @@ class Fracfocusreport(models.Model):
     datum = models.CharField(max_length=8, blank=True)
     true_vertical_depth = models.FloatField(blank=True, null=True)
     total_water_volume = models.FloatField(blank=True, null=True)
-    published = models.DateTimeField()
+    published = models.DateTimeField(default = datetime.datetime.now)
     total_water_weight = models.FloatField(blank=True, null=True)
     total_pct_in_fluid = models.FloatField(blank=True, null=True)
     water_pct_in_fluid = models.FloatField(blank=True, null=True)
