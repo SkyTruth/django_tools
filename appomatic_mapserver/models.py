@@ -162,5 +162,6 @@ class GridSnappingMapCache(django.contrib.gis.db.models.Model):
 class GridSnappingMapCacheData(django.contrib.gis.db.models.Model):
     cache = django.db.models.ForeignKey(GridSnappingMapCache, related_name="data")
     location = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    bbox = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
     count = django.db.models.IntegerField(default = 0)
 
