@@ -153,3 +153,15 @@ class Layer(BaseLayer, django.db.models.Model):
 
         self._meta.get_field_by_name('backend_type')[0]._choices = django.utils.functional.lazy(get_backend_types, list)()
         self._meta.get_field_by_name('template')[0]._choices = django.utils.functional.lazy(get_templates, list)()
+
+
+class GridSnappingMapCache(django.contrib.gis.db.models.Model):
+    query = django.db.models.TextField(db_index=True)
+    snaplevel = django.db.models.IntegerField(db_index=True)
+
+class GridSnappingMapCacheData(django.contrib.gis.db.models.Model):
+    cache = django.db.models.ForeignKey(GridSnappingMapCache, related_name="data")
+    location = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    bbox = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    count = django.db.models.IntegerField(default = 0)
+

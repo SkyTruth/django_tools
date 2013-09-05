@@ -4,6 +4,7 @@ import math
 from django.conf import settings
 import fcdjangoutils.sqlutils
 import contextlib
+import appomatic_mapserver.models
 
 URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
 URL_PATTERN_ITU = "http://www.itu.int/cgi-bin/htsh/mars/ship_search.sh?sh_mmsi=%(mmsi)s"
@@ -339,72 +340,89 @@ class GridSnappingMap(MapSource):
         query.update(table_query)
 
         query['limit'] = int(self.urlquery.get('limit', 100))
-        query['gridsize'] = int(self.urlquery.get('gridsize', 20))
-        query['gridsizelon'] = (query['lonmax'] - query['lonmin']) / query['gridsize']
-        query['gridsizelat'] = (query['latmax'] - query['latmin']) / query['gridsize']
+        query['gridsize'] = int(self.urlquery.get('gridsize', 10))
+
+        query['snapsize'] = (query['latmax'] - query['latmin']) / query['gridsize']
+        query['snaplevel'] = math.ceil(math.log(query['snapsize'], 2))
+        query['snapsize'] = math.pow(2, query['snaplevel'])
+
+        caches = appomatic_mapserver.models.GridSnappingMapCache.objects.filter(query=table_query, snaplevel = query['snaplevel'])
+        if caches:
+            query['cache'] = caches[0].id
+        else:
+            cache = appomatic_mapserver.models.GridSnappingMapCache(query=table_query, snaplevel = query['snaplevel'])
+            cache.save()
+            query['cache'] = cache.id
+            update_sql = """
+              insert into appomatic_mapserver_gridsnappingmapcachedata (cache_id, location, bbox, count)
+              select
+                %(cache)s,
+                ST_Centroid(ST_Union(location)),
+                st_setsrid(ST_MakeBox2D(
+                  ST_Point(ST_X(ST_SnapToGrid(location, %(snapsize)s, %(snapsize)s)) - (%(snapsize)s / 2),
+                           ST_Y(ST_SnapToGrid(location, %(snapsize)s, %(snapsize)s)) - (%(snapsize)s) / 2),
+                  ST_Point(ST_X(ST_SnapToGrid(location, %(snapsize)s, %(snapsize)s)) + (%(snapsize)s / 2),
+                           ST_Y(ST_SnapToGrid(location, %(snapsize)s, %(snapsize)s)) + (%(snapsize)s / 2))), (4326)),
+                count(*)
+              from
+                """ + table_sql + """ as a
+              group by
+                ST_SnapToGrid(location, %(snapsize)s, %(snapsize)s)
+            """
+            update_query = {"snapsize": query['snapsize']}
+            update_query.update(query)
+            
+            print "Updating cache for %s" % (query['snaplevel'],)
+            self.cur.execute(update_sql, update_query)
+            self.cur.execute("commit")
 
         sql = """
           select
             'summary' as itemtype,
             500 as datetime,
             to_timestamp(500) as datetime_time,
-            ST_AsText(ST_Centroid(ST_Union(location))) as shape,
-            ST_X(ST_Centroid(ST_Union(location))) as longitude,
-            ST_Y(ST_Centroid(ST_Union(location))) as latitude,
-            count(*) as count
+            ST_AsText(location) as shape,
+            ST_X(location) as longitude,
+            ST_Y(location) as latitude,
+            location,
+            bbox,
+            count
           from
-            """ + table_sql + """ as a
+            appomatic_mapserver_gridsnappingmapcachedata
           where
-            ST_Contains(
+            cache_id = %(cache)s
+            and ST_Contains(
               """ + bboxsql['bbox'] + """, location)
-          group by
-            ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s)
         """
 
-        print "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        print sql % query
-        print "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
-        # print query
+        self.cur.execute(sql + " and count > %(limit)s / %(gridsize)s", query)
+        print "GROUPS", self.cur.rowcount
+        for row in dictreader(self.cur):
+            if row['count'] > query['limit'] / query['gridsize']:
+                row['lonmin'] = row['longitude'] - query['snapsize'] / 2
+                row['lonmax'] = row['longitude'] + query['snapsize'] / 2
+                row['latmin'] = row['latitude'] - query['snapsize'] / 2
+                row['latmax'] = row['latitude'] + query['snapsize'] / 2
+                yield row
 
-        with contextlib.closing(django.db.connection.cursor()) as cur2:
-            self.cur.execute(sql, query)
-            try:
-                results = 0
-                for row in dictreader(self.cur):
-                    if row['count'] > query['limit'] / query['gridsize']:
-                        row['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
-                        row['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
-                        row['latmin'] = row['latitude'] - query['gridsizelat'] / 2
-                        row['latmax'] = row['latitude'] + query['gridsizelat'] / 2
-                        yield row
-                    else:
-                        query2 = dict(query)
-                        query2['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
-                        query2['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
-                        query2['latmin'] = row['latitude'] - query['gridsizelat'] / 2
-                        query2['latmax'] = row['latitude'] + query['gridsizelat'] / 2
+        sql2 = """
+          select
+            b.*,
+            500 as datetime,
+            to_timestamp(500) datetime_time,
+            ST_AsText(b.location) as shape
+          from
+            (""" + sql + """ and count <= %(limit)s / %(gridsize)s) as a
+            join """ + table_sql + """ as b on
+              ST_Contains(a.bbox, b.location)
+        """
 
-                        sql2 = """
-                          select
-                            *,
-                            500 as datetime,
-                            to_timestamp(500) datetime_time,
-                            ST_AsText(location) as shape
-                          from
-                            """ + table_sql + """ as a
-                          where
-                            ST_Contains(
-                              """ + bboxsql['bbox'] + """, location)
-                        """
-
-                        cur2.execute(sql2, query2)
-                        try:
-                            for row in dictreader(cur2):
-                                yield row
-                        finally:
-                            results += cur2.rowcount
-            finally:
-                print "GROUPS:", self.cur.rowcount, "SINGLE ITEMS:", results
+        print "XXXXXXXXXXXXXXXX"
+        print sql2 % query
+        self.cur.execute(sql2, query)
+        print "SINGLE ITEMS", self.cur.rowcount
+        for row in dictreader(self.cur):
+            yield row
 
     def get_timeframe(self):
         return {'timemin': 0, 'timemax': 1000}
