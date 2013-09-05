@@ -19,6 +19,7 @@ import urllib
 import math
 import csv
 import StringIO
+import shapely
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -124,6 +125,23 @@ class LocationData(BaseModel):
     longitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Longitude")
     location = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
 
+    # Location snapped to grids of various sizes (grid sizes in degrees)
+    snapped_location_00078125 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_0015625 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_003125 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_00625 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_0125 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_025 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_05 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_1 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_2 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_4 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_8 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_16 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_32 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_64 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+    snapped_location_128 = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
+
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["latitude", "longitude"]
     
     def set_location(self, latitude, longitude):
@@ -138,8 +156,19 @@ class LocationData(BaseModel):
     def save(self, *arg, **kw):
         if self.longitude is not None and self.latitude is not None:
             self.location = django.contrib.gis.geos.Point(self.longitude, self.latitude)
+
+            for snapsize in (math.pow(2, x) for x in xrange(-7, 8)):
+                attrname = ("snapped_location_%s" % (snapsize,)).replace(".", "")
+                setattr(
+                    self,
+                    attrname,
+                    django.contrib.gis.geos.Point(
+                        self.longitude - (self.longitude % snapsize),
+                        self.latitude - (self.latitude % snapsize)))
+
         else:
             self.location = None
+
         super(LocationData, self).save(*arg, **kw)
 
 class Aliased(object):
@@ -639,7 +668,7 @@ class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
 class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     name="Sites"
 
-    backend_type = "appomatic_mapserver.mapsources.GridSnappingEventMap"
+    backend_type = "appomatic_mapserver.mapsources.GridSnappingMap"
     template = "appomatic_siteinfo.models.AllSitesTemplate"
 
     definition = {

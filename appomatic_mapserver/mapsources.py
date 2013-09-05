@@ -4,6 +4,7 @@ import math
 from django.conf import settings
 import fcdjangoutils.sqlutils
 import contextlib
+import appomatic_mapserver.models
 
 URL_PATTERN = "http://www.marinetraffic.com/ais/shipdetails.aspx?MMSI=%(mmsi)s"
 URL_PATTERN_ITU = "http://www.itu.int/cgi-bin/htsh/mars/ship_search.sh?sh_mmsi=%(mmsi)s"
@@ -340,49 +341,71 @@ class GridSnappingMap(MapSource):
 
         query['limit'] = int(self.urlquery.get('limit', 100))
         query['gridsize'] = int(self.urlquery.get('gridsize', 20))
-        query['gridsizelon'] = (query['lonmax'] - query['lonmin']) / query['gridsize']
-        query['gridsizelat'] = (query['latmax'] - query['latmin']) / query['gridsize']
+
+        snapsize = (query['latmax'] - query['latmin']) / query['gridsize']
+        snaplevel = math.ceil(math.log(snapsize, 2))
+        snapsize = math.pow(2, snaplevel)
+
+        caches = appomatic_mapserver.models.GridSnappingMapCache.objects.filter(query=table_query, snaplevel = snaplevel)
+        if caches:
+            query['cache'] = caches[0].id
+        else:
+            cache = appomatic_mapserver.models.GridSnappingMapCache(query=table_query, snaplevel = snaplevel)
+            cache.save()
+            query['cache'] = cache.id
+            update_sql = """
+              insert into appomatic_mapserver_gridsnappingmapcachedata (cache_id, location, count)
+              select
+                %(cache)s,
+                ST_Centroid(ST_Union(location)),
+                count(*)
+              from
+                """ + table_sql + """ as a
+              group by
+                ST_SnapToGrid(location, %(snapsize)s, %(snapsize)s)
+            """
+            update_query = {"snapsize": snapsize}
+            update_query.update(query)
+            
+            print "Updating cache for %s" % (snaplevel,)
+            self.cur.execute(update_sql, update_query)
+            self.cur.execute("commit")
 
         sql = """
           select
             'summary' as itemtype,
             500 as datetime,
             to_timestamp(500) as datetime_time,
-            ST_AsText(ST_Centroid(ST_Union(location))) as shape,
-            ST_X(ST_Centroid(ST_Union(location))) as longitude,
-            ST_Y(ST_Centroid(ST_Union(location))) as latitude,
-            count(*) as count
+            ST_AsText(location) as shape,
+            ST_X(location) as longitude,
+            ST_Y(location) as latitude,
+            count
           from
-            """ + table_sql + """ as a
+            appomatic_mapserver_gridsnappingmapcachedata
           where
-            ST_Contains(
+            cache_id = %(cache)s
+            and ST_Contains(
               """ + bboxsql['bbox'] + """, location)
-          group by
-            ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s)
         """
-
-        print "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        print sql % query
-        print "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
-        # print query
 
         with contextlib.closing(django.db.connection.cursor()) as cur2:
             self.cur.execute(sql, query)
+            print "GROUPS", self.cur.rowcount
             try:
                 results = 0
                 for row in dictreader(self.cur):
                     if row['count'] > query['limit'] / query['gridsize']:
-                        row['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
-                        row['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
-                        row['latmin'] = row['latitude'] - query['gridsizelat'] / 2
-                        row['latmax'] = row['latitude'] + query['gridsizelat'] / 2
+                        row['lonmin'] = row['longitude'] - snapsize / 2
+                        row['lonmax'] = row['longitude'] + snapsize / 2
+                        row['latmin'] = row['latitude'] - snapsize / 2
+                        row['latmax'] = row['latitude'] + snapsize / 2
                         yield row
                     else:
                         query2 = dict(query)
-                        query2['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
-                        query2['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
-                        query2['latmin'] = row['latitude'] - query['gridsizelat'] / 2
-                        query2['latmax'] = row['latitude'] + query['gridsizelat'] / 2
+                        query2['lonmin'] = row['longitude'] - snapsize / 2
+                        query2['lonmax'] = row['longitude'] + snapsize / 2
+                        query2['latmin'] = row['latitude'] - snapsize / 2
+                        query2['latmax'] = row['latitude'] + snapsize / 2
 
                         sql2 = """
                           select
@@ -404,7 +427,7 @@ class GridSnappingMap(MapSource):
                         finally:
                             results += cur2.rowcount
             finally:
-                print "GROUPS:", self.cur.rowcount, "SINGLE ITEMS:", results
+                print "SINGLE ITEMS:", results
 
     def get_timeframe(self):
         return {'timemin': 0, 'timemax': 1000}
