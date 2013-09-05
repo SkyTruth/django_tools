@@ -270,30 +270,20 @@ class GridSnappingEventMap(EventMap):
         sql = """
           select
             'summary' as itemtype,
-            datetime,
-            to_timestamp(datetime) as datetime_time,
-            ST_AsText(location) as shape,
-            ST_X(location) as longitude,
-            ST_Y(location) as latitude,
-            count
+            avg(extract(epoch from datetime)) as datetime,
+            to_timestamp(avg(extract(epoch from datetime))) as datetime_time,
+            ST_AsText(ST_Centroid(ST_Union(location))) as shape,
+            ST_X(ST_Centroid(ST_Union(location))) as longitude,
+            ST_Y(ST_Centroid(ST_Union(location))) as latitude,
+            count(*) as count
           from
-            (select
-               avg(extract(epoch from datetime)) as datetime,
-               ST_Centroid(ST_Union(location)) as location,
-               count(*) as count
-             from
-               (select
-                  ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s) as snapped_location,
-                  location,
-                  datetime
-                from
-                  """ + table_sql + """ as a
-                where
-                  not (%(timemax)s < datetime or %(timemin)s > datetime)
-                  and ST_Contains(
-                    """ + bboxsql['bbox'] + """, location)) as a
-             group by
-               snapped_location) as b
+            """ + table_sql + """ as a
+          where
+            not (%(timemax)s < datetime or %(timemin)s > datetime)
+            and ST_Contains(
+              """ + bboxsql['bbox'] + """, location)
+          group by
+            ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s)
         """
 
         with contextlib.closing(django.db.connection.cursor()) as cur2:
@@ -337,6 +327,87 @@ class GridSnappingEventMap(EventMap):
             finally:
                 print "GROUPS:", self.cur.rowcount, "SINGLE ITEMS:", results
 
+class GridSnappingMap(MapSource):
+    name = 'Grid snapping list with caching'
+    def get_map_data_raw(self):
+        query = self.get_query()
+        if 'timemax' in query: del query['timemax']
+        if 'timemin' in query: del query['timemin']
+        bboxsql = self.get_bboxsql()
+
+        table_sql, table_query = self.get_table_sql()
+        query.update(table_query)
+
+        query['limit'] = int(self.urlquery.get('limit', 100))
+        query['gridsize'] = int(self.urlquery.get('gridsize', 20))
+        query['gridsizelon'] = (query['lonmax'] - query['lonmin']) / query['gridsize']
+        query['gridsizelat'] = (query['latmax'] - query['latmin']) / query['gridsize']
+
+        sql = """
+          select
+            'summary' as itemtype,
+            500 as datetime,
+            to_timestamp(500) as datetime_time,
+            ST_AsText(ST_Centroid(ST_Union(location))) as shape,
+            ST_X(ST_Centroid(ST_Union(location))) as longitude,
+            ST_Y(ST_Centroid(ST_Union(location))) as latitude,
+            count(*) as count
+          from
+            """ + table_sql + """ as a
+          where
+            ST_Contains(
+              """ + bboxsql['bbox'] + """, location)
+          group by
+            ST_SnapToGrid(location, %(gridsizelon)s, %(gridsizelat)s)
+        """
+
+        print "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        print sql % query
+        print "YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+        # print query
+
+        with contextlib.closing(django.db.connection.cursor()) as cur2:
+            self.cur.execute(sql, query)
+            try:
+                results = 0
+                for row in dictreader(self.cur):
+                    if row['count'] > query['limit'] / query['gridsize']:
+                        row['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
+                        row['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
+                        row['latmin'] = row['latitude'] - query['gridsizelat'] / 2
+                        row['latmax'] = row['latitude'] + query['gridsizelat'] / 2
+                        yield row
+                    else:
+                        query2 = dict(query)
+                        query2['lonmin'] = row['longitude'] - query['gridsizelon'] / 2
+                        query2['lonmax'] = row['longitude'] + query['gridsizelon'] / 2
+                        query2['latmin'] = row['latitude'] - query['gridsizelat'] / 2
+                        query2['latmax'] = row['latitude'] + query['gridsizelat'] / 2
+
+                        sql2 = """
+                          select
+                            *,
+                            500 as datetime,
+                            to_timestamp(500) datetime_time,
+                            ST_AsText(location) as shape
+                          from
+                            """ + table_sql + """ as a
+                          where
+                            ST_Contains(
+                              """ + bboxsql['bbox'] + """, location)
+                        """
+
+                        cur2.execute(sql2, query2)
+                        try:
+                            for row in dictreader(cur2):
+                                yield row
+                        finally:
+                            results += cur2.rowcount
+            finally:
+                print "GROUPS:", self.cur.rowcount, "SINGLE ITEMS:", results
+
+    def get_timeframe(self):
+        return {'timemin': 0, 'timemax': 1000}
 
 class StaticMap(MapSource):
     name = 'Static set of objects'
