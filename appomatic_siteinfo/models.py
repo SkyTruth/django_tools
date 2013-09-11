@@ -19,6 +19,7 @@ import urllib
 import math
 import csv
 import StringIO
+import shapely
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -140,6 +141,7 @@ class LocationData(BaseModel):
             self.location = django.contrib.gis.geos.Point(self.longitude, self.latitude)
         else:
             self.location = None
+
         super(LocationData, self).save(*arg, **kw)
 
 class Aliased(object):
@@ -639,7 +641,7 @@ class SiteInfoMap(appomatic_mapserver.models.BuiltinApplication):
 class AllSitesLayer(appomatic_mapserver.models.BuiltinLayer):
     name="Sites"
 
-    backend_type = "appomatic_mapserver.mapsources.GridSnappingEventMap"
+    backend_type = "appomatic_mapserver.mapsources.GridSnappingMap"
     template = "appomatic_siteinfo.models.AllSitesTemplate"
 
     definition = {

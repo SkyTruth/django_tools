@@ -16,59 +16,13 @@ import StringIO
 import fastkml.config
 import monkeypatches.fastkmlmonkey
 import fcdjangoutils.sqlutils
-
+from appomatic_mapcluster.template import *
 
 KMLNS = '{http://www.opengis.net/kml/2.2}'
 
 def dictreader(cur):
     for row in cur:
         yield dict(zip([col[0] for col in cur.description], row))
-
-def template_reports_mangle_row(columns, row):
-    pass
-
-def template_reports_name():
-    return "Reports"
-
-def template_reports_description():
-    return 'All reports'
-
-def template_cluster_mangle_row(columns, row):
-    pass
-
-def template_cluster_name(columns):
-    return ""
-
-def template_cluster_description(columns):
-    columnnames = columns.keys()
-    columnnames.sort()
-    description = []
-    for name in columnnames:
-        t = columns[name]
-        if name == 'id': continue
-        if t == 'NUMBER':
-            description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
-            description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
-            description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
-            description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
-        elif t == 'DATETIME':
-            description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
-            description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
-            description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
-            description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
-    return '<h2>%(count)s</h2><table>' + ''.join(description) + '</table>'
-
-def template_report_name(columns):
-    return ""
-
-def template_report_description(columns):
-    columnnames = columns.keys()
-    columnnames.sort()
-    description = []
-    for name in columnnames:
-        if name == 'id': continue
-        description.append('<tr><th>%s</th><td>%%(%s)s' % (name, name))
-    return '<h2>%(id)s</h2><table>' + ''.join(description) + '</table>'
 
 def sql_cluster_columns(columns):
     sqlcols = []
@@ -222,7 +176,7 @@ def extract_clusters(cur, query, size, radius, timeperiod):
 
     seq = 0
     for row in dictreader(cur):
-	template_clusters_mangle_row(columns, row)
+	template_cluster_mangle_row(columns, row)
         yield {
             "seq": seq,
             "color": get_color(
