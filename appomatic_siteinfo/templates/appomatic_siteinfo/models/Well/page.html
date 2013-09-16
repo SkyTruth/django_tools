@@ -22,10 +22,36 @@
 
 
 {% block content %}
-  <div class="minimap">
-    <iframe src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?minimap=true&well={{obj.guuid}}"></iframe>
-    <div><a href="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?well={{obj.guuid}}">Explore...</a></div>
-  </div>
+  <div class="minimap"><div id="map-canvas"></div></div>
+  <script type="text/javascript"
+    src="https://maps.googleapis.com/maps/api/js?key={{settings.GOOGLE_MAPS_KEY}}&sensor=false&libraries=visualization">
+  </script>
+  <script type="text/javascript">
+    function initialize() {
+      var map = new google.maps.Map(document.getElementById("map-canvas"), {
+        center: new google.maps.LatLng({{obj.latitude}}, {{obj.longitude}}),
+        zoom: 4,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+      });
+      var layer = new google.maps.visualization.MapsEngineLayer({
+        layerId: '{{settings.SITEINFO_GOOGLE_MAPSENGINE_LAYER}}',
+        map: map,
+        suppressInfoWindows: true
+      });
+
+      var marker = new google.maps.Marker({
+        position: new google.maps.LatLng({{obj.latitude}}, {{obj.longitude}}),
+        icon: {path: google.maps.SymbolPath.CIRCLE, fillColor: "#dd8888", fillOpacity: 1, strokeColor: "#000000", strokeWeight: 1, scale: 4},
+        map: map,
+        title:"{{obj}}"
+      });
+
+      google.maps.event.addListener(layer, "click", function (e) {
+        window.location = '{{site_url}}/siteinfo/' + e.infoWindowHtml;
+      });
+    }
+    google.maps.event.addDomListener(window, 'load', initialize);
+  </script>
 
   {{block.super}}
 
