@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
 def template_reports_mangle_row(columns, row):
-    if not row['Temperature']: row['Temperature'] = 0.0
-    if not row['RadiativeHeat']: row['RadiativeHeat'] = 0.0
+    pass
 
 def template_reports_colorcolumn(columns):
-    return u"Temperature"
+    return u"color"
 
 def template_reports_colors(columns):
     # Colors are Alpha, Blue, Gree, Red (same order as KML)
@@ -15,21 +14,16 @@ def template_reports_colors(columns):
         "nonecolor": (255, 0, 255, 255)}
 
 def template_reports_name():
-    return u"Detections"
+    return u"Reports"
 
 def template_reports_description():
-    return u'All detections'
+    return u'All reports'
 
-def template_clusters_mangle_row(columns, row):
-    if not row['Temperature_avg']: row['Temperature_avg'] = 0.0
-    if not row['Temperature_min']: row['Temperature_min'] = 0.0
-    if not row['Temperature_max']: row['Temperature_max'] = 0.0
-    if not row['RadiativeHeat_avg']: row['RadiativeHeat_avg'] = 0.0
-    if not row['RadiativeHeat_min']: row['RadiativeHeat_min'] = 0.0
-    if not row['RadiativeHeat_max']: row['RadiativeHeat_max'] = 0.0
+def template_cluster_mangle_row(columns, row):
+    pass
 
 def template_cluster_colorcolumn(columns):
-    return u"Temperature_avg"
+    return u"color_avg"
 
 def template_cluster_colors(columns):
     # Colors are Alpha, Blue, Gree, Red (same order as KML)
@@ -39,52 +33,35 @@ def template_cluster_colors(columns):
         "nonecolor": (255, 0, 255, 255)}
 
 def template_cluster_name(columns):
-    return u"%(count)d detections, %(Temperature_avg).0f°C"
+    return u""
 
 def template_cluster_description(columns):
-    return u"""
-      <style>
-        th, td {
-          vertical-align: top;
-          text-align: left;
-          white-space: nowrap;
-        }
-      </style>
-      <table>
-        <tr><th>Location</th><td>%(latitude)sN %(longitude)sE</td></tr>
-        <tr><th>Timeperiod</th><td>%(datetime_min)s - %(datetime_max)s</td></tr>
-        <tr><th>Temperature (avg)</th><td>%(Temperature_avg).0f°C</td></tr>
-        <tr><th>Temperature (min)</th><td>%(Temperature_min).0f°C</td></tr>
-        <tr><th>Temperature (max)</th><td>%(Temperature_max).0f°C</td></tr>
-        <tr><th>Magnitude (avg)</th><td>%(RadiativeHeat_avg).2fMW</td></tr>
-        <tr><th>Magnitude (min)</th><td>%(RadiativeHeat_min).2fMW</td></tr>
-        <tr><th>Magnitude (max)</th><td>%(RadiativeHeat_max).2fMW</td></tr>
-      </table>
-      <br>
-      Analysis by <a href="http://skytruth.org/">SkyTruth</a><br>
-      Data from <a href="http://www.ngdc.noaa.gov/dmsp/data/viirs_fire/viirs_html/download_viirs_fire.html">NOAA</a><br>
-    """
+    columnnames = columns.keys()
+    columnnames.sort()
+    description = []
+    for name in columnnames:
+        t = columns[name]
+        if name == 'id': continue
+        if t == 'NUMBER':
+            description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
+            description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
+            description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
+            description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
+        elif t == 'DATETIME':
+            description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
+            description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
+            description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
+            description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
+    return '<h2>%(count)s</h2><table>' + ''.join(description) + '</table>'
 
 def template_report_name(columns):
-    return u"%(datetime)s: %(Temperature).0f°C."
+    return u""
 
 def template_report_description(columns):
-    return u"""
-      <style>
-        th, td {
-          vertical-align: top;
-          text-align: left;
-          white-space: nowrap;
-        }
-      </style>
-      <table>
-        <tr><th>Location</th><td>%(latitude)sN %(longitude)sE</td></tr>
-        <tr><th>Source</th><td>%(SourceID)s:%(id)s</td></tr>
-        <tr><th>Time</th><td>%(datetime)s</td></tr>
-        <tr><th>Temperature</th><td>%(Temperature).0f°C</td></tr>
-        <tr><th>Magnitude</th><td>%(RadiativeHeat).2fMW</td></tr>
-      </table>
-      <br>
-      Analysis by <a href="http://skytruth.org/">SkyTruth</a><br>
-      Data from <a href="http://www.ngdc.noaa.gov/dmsp/data/viirs_fire/viirs_html/download_viirs_fire.html">NOAA</a><br>
-    """
+    columnnames = columns.keys()
+    columnnames.sort()
+    description = []
+    for name in columnnames:
+        if name == 'id': continue
+        description.append('<tr><th>%s</th><td>%%(%s)s' % (name, name))
+    return '<h2>%(id)s</h2><table>' + ''.join(description) + '</table>'
