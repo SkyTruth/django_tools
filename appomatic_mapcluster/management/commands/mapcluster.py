@@ -24,6 +24,11 @@ class Command(django.core.management.base.BaseCommand):
     args = '<query> <filename>'
 
     option_list = django.core.management.base.BaseCommand.option_list + (
+        optparse.make_option('--list',
+            action='store_true',
+            dest='list',
+            default=False,
+            help='List pre-defined queries'),
         optparse.make_option('--name',
             action='store',
             dest='name',
@@ -58,8 +63,22 @@ class Command(django.core.management.base.BaseCommand):
             help='Time period to cluster over, start and end dates separated by a colon, e.g. 2013-01-01:2013-02-01. This option can be given multiple times to give multiple date ranges.'),
         )
 
-    def handle2(self, query, filename, *args, **options):
-        name = options.pop('name')
+    def handle2(self, query = None, filename = None, *args, **options):
+        if options["list"]:
+            for qobj in appomatic_mapcluster.models.Query.objects.all():
+                print qobj.slug
+            return
+        try:
+            qobj = appomatic_mapcluster.models.Query.objects.get(slug=query)
+        except:
+            pass
+        else:
+            query = qobj.query
+            options["query_id"] = qobj.id
+            options["template"] = options["template"] or qobj.template
+            options["size"] = options["size"] or qobj.size
+            options["radius"] = options["radius"] or qobj.radius
+        name = options.pop('name', None)
         if not name: name = os.path.splitext(os.path.split(filename)[1])[0]
         with open(filename, "w") as f:
             f.write(appomatic_mapcluster.genclusters.extract(name, query, *args, **options))

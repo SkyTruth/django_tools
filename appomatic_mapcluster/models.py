@@ -1,8 +1,9 @@
 import django.contrib.gis.db.models
 import django.db.models
 import appomatic_mapdata.models
+import fcdjangoutils.fields
 
-class Cluster(appomatic_mapdata.models.GeographyEvent):
+class TempCluster(appomatic_mapdata.models.GeographyEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
     buffer = appomatic_mapdata.models.GeometryField(null=True, blank=True, geography=True, db_index=True)
@@ -10,7 +11,6 @@ class Cluster(appomatic_mapdata.models.GeographyEvent):
     reportnum = django.db.models.IntegerField()
     score = django.db.models.FloatField(null=True, blank=True)
     max_score = django.db.models.FloatField(null=True, blank=True)
-
 
 class Query(django.contrib.gis.db.models.Model):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -34,3 +34,29 @@ class Query(django.contrib.gis.db.models.Model):
 
     def __unicode__(self):
         return self.name
+
+class Report(django.contrib.gis.db.models.Model):
+    objects = django.contrib.gis.db.models.GeoManager()
+    query = django.db.models.ForeignKey(Query)
+
+    timeperiod_min = django.db.models.DateTimeField()
+    timeperiod_max = django.db.models.DateTimeField()
+
+
+class Cluster(appomatic_mapdata.models.GeographyEvent):
+    objects = django.contrib.gis.db.models.GeoManager()
+    report = django.db.models.ForeignKey(Report)
+
+    longitude_max = django.db.models.FloatField()
+    longitude_avg = django.db.models.FloatField()
+    longitude_stddev = django.db.models.FloatField()
+    datetime_min = django.db.models.DateTimeField()
+    datetime_max = django.db.models.DateTimeField()
+    datetime_avg = django.db.models.DateTimeField()
+    datetime_stddev = django.db.models.FloatField()
+    latitude_min = django.db.models.FloatField()
+    latitude_max = django.db.models.FloatField()
+    latitude_avg = django.db.models.FloatField()
+    latitude_stddev = django.db.models.FloatField()
+
+    info = fcdjangoutils.fields.JsonField()
