@@ -34,7 +34,7 @@ class Source(appomatic_renderable.models.Source):
             source.save()
             return source
 
-class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable):
+class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable, fcdjangoutils.modelhelpers.SubclasModelMixin):
     objects = django.contrib.gis.db.models.GeoManager()
 
     GUID_FIELDS = ['type']
@@ -44,6 +44,13 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True, verbose_name="Importing id")
     quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
     guuid = django.db.models.CharField(max_length=64, null=False, blank=True, db_index=True)
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    typename = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+
+    def save(self):
+        t = type(self.leafclassobject)
+        self.typename = "%s.%s" % (t.__model__, t.__name__)
+        super(BaseModel, self).save()
 
     @classmethod
     def get_or_create(cls, src, import_id, **kw):
@@ -119,6 +126,29 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
         res['Content-Disposition'] = 'attachment; filename="%s.csv"' % (self.guuid,)
         return res
 
+    def merge(self, other):
+        info = other.info or {}
+        info.update(self.info or {})
+        other.info = info
+    
+        for name in dir(type(self)):
+            if name.startswith("__"): continue
+            field = getattr(type(self), name, None)
+            fieldtype = type(field)
+            if fieldtype is django.db.models.fields.related.ForeignRelatedObjectsDescriptor:
+                relatedname = field.related.field.name
+                for item in getattr(self, name).all():
+                    setattr(item, relatedname, other)
+                    item.save()
+            elif fieldtype is django.db.models.fields.related.ReverseManyRelatedObjectsDescriptor:
+                for item in getattr(self, name).all():
+                    getattr(other, name).add(item)
+                getattr(self, name).clear()
+        
+        other.save()
+        self.delete()
+        return other
+
 class LocationData(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     latitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Latitude")
@@ -166,6 +196,11 @@ class Aliased(object):
         alias.save()
         return self
 
+    def merge(self, other):
+        for alias in self.aliases.all():
+            if other.aliases.filter(name = alias.name).count():
+                alias.delete()
+        super(Aliased, self).merge(other)
 
 class Company(Aliased, BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
@@ -200,7 +235,7 @@ class Site(Aliased, LocationData):
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_sites")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_sites")
 
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    # info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
     @classmethod
     def get_or_create(cls, name, latitude, longitude):
@@ -243,31 +278,8 @@ class Site(Aliased, LocationData):
 
         if self.datetime is not None and (other.datetime is None or self.datetime > other.datetime):
             other.datetime = self.datetime
-        info = other.info or {}
-        info.update(self.info or {})
-        other.info = info
-    
-        for alias in self.aliases.all():
-            if other.aliases.filter(name = alias.name).count():
-                alias.delete()
 
-        for name in dir(type(self)):
-            if name.startswith("__"): continue
-            field = getattr(type(self), name, None)
-            fieldtype = type(field)
-            if fieldtype is django.db.models.fields.related.ForeignRelatedObjectsDescriptor:
-                relatedname = field.related.field.name
-                for item in getattr(self, name).all():
-                    setattr(item, relatedname, other)
-                    item.save()
-            elif fieldtype is django.db.models.fields.related.ReverseManyRelatedObjectsDescriptor:
-                for item in getattr(self, name).all():
-                    getattr(other, name).add(item)
-                getattr(self, name).clear()
-        
-        other.save()
-        self.delete()
-        return other
+        super(Site, self).merge(other)
 
     def __unicode__(self):
         return self.name
@@ -289,6 +301,11 @@ class Site(Aliased, LocationData):
     @classmethod
     def search(cls, query):
         return cls.objects.filter(name__icontains=query)
+
+    def get_viirs_data(self):
+        import appomatic_mapdata.models
+        import django.contrib.gis.measure
+        return appomatic_mapdata.models.Viirs.objects.filter(location__distance_lte=(self.location, django.contrib.gis.measure.D(m=750)))
 
 class SiteAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
@@ -486,7 +503,7 @@ class OperatorInfoEvent(OperatorEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
     infourl = django.db.models.TextField(null=True, blank=True)
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    # info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
 class PermitEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -532,7 +549,7 @@ class ChemicalUsageEventChemical(BaseModel):
     ingredient_weight = django.db.models.FloatField(null=True, blank=True)
     hf_fluid_concentration = django.db.models.FloatField(null=True, blank=True)
     
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    # info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
     def save(self, *arg, **kw):
         BaseModel.save(self, *arg, **kw)
