@@ -211,6 +211,7 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
                     latitude_max,
                     latitude_avg,
                     latitude_stddev,
+                    count,
                     info
                   ) values (
                     'CLUSTER',
@@ -232,6 +233,7 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
                     %(latitude_max)s,
                     %(latitude_avg)s,
                     %(latitude_stddev)s,
+                    %(count)s,
                     %(info)s
                   )
                 """, row)

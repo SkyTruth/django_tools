@@ -59,4 +59,6 @@ class Cluster(appomatic_mapdata.models.GeographyEvent):
     latitude_avg = django.db.models.FloatField()
     latitude_stddev = django.db.models.FloatField()
 
+    count = django.db.models.IntegerField()
+
     info = fcdjangoutils.fields.JsonField()
