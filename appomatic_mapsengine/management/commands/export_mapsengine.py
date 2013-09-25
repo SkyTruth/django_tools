@@ -12,6 +12,7 @@ import urllib2
 import httplib2
 import geojson
 import shapely.wkt
+import fcdjangoutils.jsonview
 import oauth2client.client
 import django.db.transaction
 import django.core.management.base
@@ -44,7 +45,6 @@ def load_geom(geom):
         raise
 
 class Command(django.core.management.base.BaseCommand):
-    @django.db.transaction.commit_manually
     def handle(self, *args, **kwargs):
         try:
             return self.handle2(*args, **kwargs)
@@ -88,14 +88,28 @@ class Command(django.core.management.base.BaseCommand):
                 
                 lastid = export.lastid
 
-                print "Clearing overshooting data"
-                while True:
-                    response, content = self.request(
-                        "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50&where=%s" % (export.tableid, urllib2.quote("id>%s" % lastid)))
-                    if not content['features']: break
+                if export.clear:
+                    print "Deleteeting old data"
+                    while True:
+                        response, content = self.request(
+                            "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50" % (export.tableid,))
+                        if not content['features']: break
 
-                    lastid = max([int(x['properties']['id']) for x in content['features']])
-                    print "Cleared to %s" % lastid
+                        response, content = self.request(
+                            "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchDelete" % (export.tableid,),
+                            method="POST",
+                            body={"gx_ids":
+                                      [feature['properties']['gx_id'] for feature in content['features']]})
+                    lastid = -1
+                else:
+                    print "Clearing overshooting data"
+                    while True:
+                        response, content = self.request(
+                            "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50&where=%s" % (export.tableid, urllib2.quote("id>%s" % lastid)))
+                        if not content['features']: break
+
+                        lastid = max([int(x['properties']['id']) for x in content['features']])
+                        print "Cleared to %s" % lastid
 
                 while True:
                     cur.execute("select * from (" + export.query + ") as a where id > %(lastid)s order by id asc limit 50", {'lastid': lastid})
@@ -106,8 +120,14 @@ class Command(django.core.management.base.BaseCommand):
                         if geom is None: continue
                         lastid = row['id']
                         row['gx_id'] = str(row['id'])
-                        for key in row.iterkeys():
+                        if 'info' in row:
+                            row.update(fcdjangoutils.jsonview.from_json(row.pop('info')))
+                        for key in row.keys():
                             if isinstance(row[key], int): row[key] = str(row[key])
+                            if isinstance(row[key], datetime.datetime): row[key] = str(int(time.mktime(row[key].timetuple()) * 1000000))
+                            if isinstance(row[key], datetime.timedelta): row[key] = str(int(row[key].days * 24 * 60 * 60 * 1000000 + row[key].seconds * 1000000 + row[key].microseconds))
+                            if key in ('longitude', 'latitude', 'location', 'glocation', 'shape'):
+                                del row[key]
                         features.append({
                                 "type": "Feature",
                                 "geometry": load_geom(geom),
@@ -117,10 +137,11 @@ class Command(django.core.management.base.BaseCommand):
                     print "Pushing batch %s" % lastid
                     response, content = self.request(
                         "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchInsert" % export.tableid, method="POST", body = {"features": features})
-                    print response
 
                     cur.execute("update appomatic_mapsengine_export set lastid=%(lastid)s where id=%(id)s", {'lastid': lastid, "id": export.id})
 
                     cur.execute("commit")
 
                     time.sleep(5)
+
+                cur.execute("commit")

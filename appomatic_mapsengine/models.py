@@ -13,6 +13,8 @@ class Export(django.contrib.gis.db.models.Model):
     lastid = django.db.models.IntegerField(null=True, blank=True)
     tableid = django.db.models.CharField(max_length=1024, null=False, blank=False)
 
+    clear = django.db.models.BooleanField(default=False, blank=True)
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
