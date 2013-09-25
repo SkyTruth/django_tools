@@ -65,16 +65,20 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
 
     #### Select the timeframe to work with
     filter = "true"
+    countedfilter = "true"
     args = dict(kw)
     if timeperiod is not None:
         filter = """
-          datetime >= %(period_min)s and datetime <= %(period_max)s 
+          datetime >= %(period_min)s - '60 days'::interval and datetime <= %(period_max)s 
+        """
+        countedfilter = """
+          datetime >= %(period_min)s
         """
         args["period_min"] = timeperiod[0]
         args["period_max"] = timeperiod[1]
     cur.execute("""
       insert into appomatic_mapcluster_tempcluster (
-        reportnum, src, datetime, latitude, longitude, location, glocation, quality)
+        reportnum, src, datetime, latitude, longitude, location, glocation, quality, iscounted)
       select
         id,
         src,
@@ -83,7 +87,8 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
         longitude,
         location,
         location,
-        1
+        1,
+        """ + countedfilter + """
       from
         """ + query + """ as a
       where
@@ -102,6 +107,13 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
       update
         appomatic_mapcluster_tempcluster a
       set
+        countedscore = (select
+                          count(*) as c
+                        from
+                          appomatic_mapcluster_tempcluster b
+                        where
+                          b.iscounted
+                          and ST_DWithin(a.glocation, b.glocation, %(radius)s)),
         score = ((select
                     count(*) as c
                   from
@@ -125,7 +137,7 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
     """, {"radius": radius})
 
     sqlcols = ["a.id",
-               "floor(a.max_score) as count",
+               "a.countedscore as count",
                "ST_Y(ST_Centroid(ST_Collect(b.location))) as latitude",
                "ST_X(ST_Centroid(ST_Collect(b.location))) as longitude",
                "ST_Centroid(ST_Collect(b.location)) as location",
@@ -135,8 +147,8 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
 
     cur.execute("""
       select
-         min(floor(a.max_score)) as min,
-         max(floor(a.max_score)) as max
+         min(floor(a.countedscore)) as min,
+         max(floor(a.countedscore)) as max
        from  
          appomatic_mapcluster_tempcluster a
        where
@@ -156,10 +168,11 @@ def extract_clusters(cur, query, size, radius, timeperiod, **kw):
            b.reportnum = c.id
        where
          a.score = a.max_score
-         and a.score >= %(size)s
+         and a.countedscore >= %(size)s
        group by
          a.id,
-         a.max_score
+         a.max_score,
+         a.countedscore
        order by
          a.max_score desc
     """

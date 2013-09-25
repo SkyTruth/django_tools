@@ -8,6 +8,9 @@ class TempCluster(appomatic_mapdata.models.GeographyEvent):
 
     buffer = appomatic_mapdata.models.GeometryField(null=True, blank=True, geography=True, db_index=True)
 
+    iscounted = django.db.models.BooleanField(default=True, blank=True)
+    countedscore = django.db.models.FloatField(null=True, blank=True)
+
     reportnum = django.db.models.IntegerField()
     score = django.db.models.FloatField(null=True, blank=True)
     max_score = django.db.models.FloatField(null=True, blank=True)
@@ -26,6 +29,7 @@ class Query(django.contrib.gis.db.models.Model):
     #format = django.db.models.CharField(max_length=128, null=False, blank=False)
     template = django.db.models.CharField(max_length=2048, null=False, blank=True)
 
+    extradays = django.db.models.IntegerField(default=60, blank=False)
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -41,6 +45,9 @@ class Report(django.contrib.gis.db.models.Model):
 
     timeperiod_min = django.db.models.DateTimeField()
     timeperiod_max = django.db.models.DateTimeField()
+
+    def __unicode__(self):
+        return "%s[%s:%s]" % (self.query, self.timeperiod_min.strftime("%Y-%m-%d %H:%M:%S"), self.timeperiod_max.strftime("%Y-%m-%d %H:%M:%S"))
 
 
 class Cluster(appomatic_mapdata.models.GeographyEvent):
@@ -62,3 +69,6 @@ class Cluster(appomatic_mapdata.models.GeographyEvent):
     count = django.db.models.IntegerField()
 
     info = fcdjangoutils.fields.JsonField()
+
+    def __unicode__(self):
+        return "%s @ %sN %sE: %s" % (self.report, self.latitude_avg, self.longitude_avg, self.count)
