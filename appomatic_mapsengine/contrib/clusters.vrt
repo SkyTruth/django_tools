@@ -1,0 +1,47 @@
+<OGRVRTDataSource> 
+  <OGRVRTLayer name="clusters"> 
+    <SrcDataSource relativeToVrt="1">clusters.csv</SrcDataSource>
+    <GeometryType>wkbPoint</GeometryType> 
+    <LayerSRS>WGS84</LayerSRS> 
+    <GeometryField encoding="PointFromColumns" reportSrcColumn="false" x="longitude" y="latitude"/>
+    <Field name="id" src="id" type="Integer"/>
+    <Field name="src" src="src" type="String"/>
+    <Field name="srcfile" src="srcfile" type="String"/>
+    <Field name="datetime" src="datetime" type="DateTime"/>
+    <Field name="quality" src="quality" type="Real"/>
+    <Field name="report_id" src="report_id" type="Integer"/>
+    <Field name="longitude_min" src="longitude_min" type="Real"/>
+    <Field name="longitude_max" src="longitude_max" type="Real"/>
+    <Field name="longitude_avg" src="longitude_avg" type="Real"/>
+    <Field name="longitude_stddev" src="longitude_stddev" type="Real"/>
+    <Field name="datetime_min" src="datetime_min" type="DateTime"/>
+    <Field name="datetime_max" src="datetime_max" type="DateTime"/>
+    <Field name="datetime_avg" src="datetime_avg" type="DateTime"/>
+    <Field name="datetime_stddev" src="datetime_stddev" type="Integer"/>
+    <Field name="latitude_min" src="latitude_min" type="Real"/>
+    <Field name="latitude_max" src="latitude_max" type="Real"/>
+    <Field name="latitude_avg" src="latitude_avg" type="Real"/>
+    <Field name="latitude_stddev" src="latitude_stddev" type="Real"/>
+    <Field Name="RadiantOutput_min" src="RadiantOutput_min" type="Real"/>
+    <Field Name="RadiantOutput_max" src="RadiantOutput_max" type="Real"/>
+    <Field Name="RadiantOutput_avg" src="RadiantOutput_avg" type="Real"/>
+    <Field Name="RadiantOutput_stddev" src="RadiantOutput_stddev" type="Real"/>
+    <Field Name="Temperature_min" src="Temperature_min" type="Real"/>
+    <Field Name="Temperature_max" src="Temperature_max" type="Real"/>
+    <Field Name="Temperature_avg" src="Temperature_avg" type="Real"/>
+    <Field Name="Temperature_stddev" src="Temperature_stddev" type="Real"/>
+    <Field Name="RadiativeHeat_min" src="RadiativeHeat_min" type="Real"/>
+    <Field Name="RadiativeHeat_max" src="RadiativeHeat_max" type="Real"/>
+    <Field Name="RadiativeHeat_avg" src="RadiativeHeat_avg" type="Real"/>
+    <Field Name="RadiativeHeat_stddev" src="RadiativeHeat_stddev" type="Real"/>
+    <Field name="footprint_min" src="footprint_min" type="Real"/>
+    <Field name="footprint_max" src="footprint_max" type="Real"/>
+    <Field name="footprint_avg" src="footprint_avg" type="Real"/>
+    <Field name="footprint_stddev" src="footprint_stddev" type="Real"/>
+    <Field Name="SatZenithAngle_min" src="SatZenithAngle_min" type="Real"/>
+    <Field Name="SatZenithAngle_max" src="SatZenithAngle_max" type="Real"/>
+    <Field Name="SatZenithAngle_avg" src="SatZenithAngle_avg" type="Real"/>
+    <Field Name="SatZenithAngle_stddev" src="SatZenithAngle_stddev" type="Real"/>
+    <Field name="count" src="count" type="Real"/>
+  </OGRVRTLayer> 
+</OGRVRTDataSource>
