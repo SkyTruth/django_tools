@@ -48,13 +48,13 @@ class Command(django.core.management.base.BaseCommand):
             action='store',
             type='int',
             dest='size',
-            default=4,
+            default=None,
             help='Minimum cluster size (number of events) for a cluster to be included in the output.'),
         optparse.make_option('--radius',
             action='store',
             type='int',
             dest='radius',
-            default=7500,
+            default=None,
             help='Cluster radius in meters within which events are included in the cluster.'),
         optparse.make_option('--period',
             action='append',
@@ -71,13 +71,14 @@ class Command(django.core.management.base.BaseCommand):
         try:
             qobj = appomatic_mapcluster.models.Query.objects.get(slug=query)
         except:
-            pass
+            if options["size"] is None: options["size"] = 4
+            if options["radius"] is None: options["radius"] = 7500
         else:
             query = qobj.query
             options["query_id"] = qobj.id
             options["template"] = options["template"] or qobj.template
-            options["size"] = options["size"] or qobj.size
-            options["radius"] = options["radius"] or qobj.radius
+            if options["size"] is None: options["size"] = qobj.size
+            if options["radius"] is None: options["radius"] = qobj.radius
         name = options.pop('name', None)
         if not name: name = os.path.splitext(os.path.split(filename)[1])[0]
         with open(filename, "w") as f:

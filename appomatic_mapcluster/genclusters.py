@@ -18,6 +18,7 @@ import fastkml.config
 import monkeypatches.fastkmlmonkey
 import fcdjangoutils.sqlutils
 import fcdjangoutils.jsonview
+import time
 from appomatic_mapcluster.template import *
 
 KMLNS = '{http://www.opengis.net/kml/2.2}'
@@ -34,12 +35,12 @@ def sql_cluster_columns(columns):
             sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
             sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
             sqlcols.append('avg(c."%s") as "%s_avg"' % (name, name))
-            sqlcols.append('stddev(c."%s") as "%s_stddev"' % (name, name))
+            sqlcols.append('coalesce(stddev(c."%s"), 0) as "%s_stddev"' % (name, name))
         elif t == 'DATETIME':
             sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
             sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
             sqlcols.append('to_timestamp(avg(extract(\'epoch\' from c."%s"))) as "%s_avg"' % (name, name))
-            sqlcols.append('stddev(extract(\'epoch\' from c."%s")) * interval \'1second\' as "%s_stddev"' % (name, name))
+            sqlcols.append('coalesce(stddev(extract(\'epoch\' from c."%s")), 0) * interval \'1second\' as "%s_stddev"' % (name, name))
     return sqlcols
 
 def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255), maxcolor = (255, 00, 00, 255), nonecolor = (255, 00, 255, 255)):
@@ -535,12 +536,31 @@ def extract_csv_reports(name, cur, query, size, radius, periods, doc):
     columns = None
     extract_reports_csv(cur, query, periods, doc)
 
+def decodeDate(datestr, other=None):
+    if not datestr: return None
+    def d(datestr = None):
+        if datestr is None:
+            return datetime.datetime.now()
+        return datetime.datetime.strptime(datestr, '%Y-%m-%d')
+    def first(dt):
+        return datetime.datetime(dt.year, dt.month, 1)
+    def last(dt):
+        return first(first(dt) + datetime.timedelta(35)) - datetime.timedelta(1)
+    def addmonths(dt, months):
+        month = dt.month + months
+        year = dt.year + (month / 12)
+        month = month % 12
+        return datetime.datetime(year, month, 1)
+    try:
+        return d(datestr)
+    except:
+        return eval(datestr, {"__builtins__": {}, "datetime": datetime, "time": time, "other": other, "d": d, "first": first, "last": last, "addmonths": addmonths})
+
 def decodePeriod(period):
     start, end = period.split(":")
-    if start:
-        start = datetime.datetime.strptime(start, '%Y-%m-%d')
-    if end:
-        end = datetime.datetime.strptime(end, '%Y-%m-%d')
+    end = decodeDate(end)
+    start = decodeDate(start, end)
+
     if not start:
         if not end:
             end = datetime.datetime.now()
