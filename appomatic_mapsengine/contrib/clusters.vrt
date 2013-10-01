@@ -43,5 +43,6 @@
     <Field Name="SatZenithAngle_avg" src="SatZenithAngle_avg" type="Real"/>
     <Field Name="SatZenithAngle_stddev" src="SatZenithAngle_stddev" type="Real"/>
     <Field name="count" src="count" type="Real"/>
+    <Field name="timeperiod" src="timeperiod" type="String"/>
   </OGRVRTLayer> 
 </OGRVRTDataSource>
