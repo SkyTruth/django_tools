@@ -1,8 +1,10 @@
 import fcdjangoutils.jsonview
+import fcdjangoutils.cors
 import django.db
 from django.conf import settings
 import appomatic_legacymodels.models
 import appomatic_siteinfo.models
+import appomatic_fracbotserver.models
 import datetime
 import django.core.exceptions
 import pytz
@@ -14,6 +16,41 @@ import contextlib
 import django.db
 import re
 import appomatic_siteinfo.management.commands.fracscrapeimport
+
+def set_cookie(response, key, value, max_age = 365 * 24 * 60 * 60):
+    expires = datetime.datetime.strftime(
+        datetime.datetime.utcnow() + datetime.timedelta(seconds=max_age),
+        "%a, %d-%b-%Y %H:%M:%S GMT")
+    response.set_cookie(
+        key, value, max_age=max_age, expires=expires,
+        domain=settings.SESSION_COOKIE_DOMAIN,
+        secure=settings.SESSION_COOKIE_SECURE or None)
+
+def track_client(fn):
+    def track_client(request, *arg, **kw):
+        if 'fracbotclientid' in request.COOKIES:
+            request.fracbotclient = appomatic_fracbotserver.models.Client.objects.get(id = request.COOKIES['fracbotclientid'])
+        else:
+            request.fracbotclient = appomatic_fracbotserver.models.Client(
+                info = dict((key, value)
+                            for key, value in request.META.iteritems()
+                            if isinstance(value, (str, unicode))))
+            request.fracbotclient.save()
+        response = fn(request, *arg, **kw)
+        if 'fracbotclientid' not in request.COOKIES:
+            set_cookie(response, 'fracbotclientid', request.fracbotclient.id)
+        return response
+    return track_client
+
+def log_activity(request, activity_type, **info):
+    existing = appomatic_fracbotserver.models.ActivityType.objects.filter(name=activity_type)
+    if existing:
+        activity_type = existing[0]
+    else:
+        activity_type = appomatic_fracbotserver.models.ActivityType(name=activity_type)
+        activity_type.save()
+    appomatic_fracbotserver.models.Activity(client=request.fracbotclient, type=activity_type, info=info).save()
+
 
 def parseDate(date):
     """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
@@ -34,33 +71,17 @@ def get(query):
         return query[0]
     return None
 
-def cors(origins = '*', methods = ['POST', 'GET', 'OPTIONS'], headers = ['Origin', 'X-Requested-With', 'Content-Type', 'Accept'], credentials = False):
-    def cors(fn):
-        def cors(request, *arg, **kw):
-            if 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' in request.META:
-                response = django.http.HttpResponse()
-            else:
-                response = fn(request, *arg, **kw)
-            response['Access-Control-Allow-Origin'] = origins
-            if credentials: response['Access-Control-Allow-Credentials'] = 'true'
-            response['Access-Control-Allow-Methods'] = ', '.join(methods)
-            response['Access-Control-Allow-Headers'] = ', '.join(headers)
-            return response
-        return cors
-    return cors
-
 
 def check_record(cur, row):
     api = row["API No."]
-    jobdate = parseDate(row["Job Start Dt"])
+    jobdate = row["job_date"] = parseDate(row["Job Start Dt"])
     jobtime = datetime.datetime(jobdate.year, jobdate.month, jobdate.day).replace(tzinfo=pytz.utc)
 
-    cur.execute("""select seqid from "FracFocusScrape" where api = %(API No.)s and job_date = %(Job Start Dt)s""", row)
+    cur.execute("""select seqid from "FracFocusScrape" where api = %(api)s and job_date = %(jobdate)s""", {'api': api, 'jobdate':jobdate})
     for dbrow in cur:
         row['pdf_seqid'] = dbrow[0]
-    existing = appomatic_legacymodels.models.Fracfocusscrape.objects.filter(api = api, job_date = jobdate)
     if 'pdf_seqid' not in row:
-        cur.execute("""insert into "FracFocusScrape" (api, job_date, state, county, operator, well_name, well_type, latitude, longitude, datum) values(%(API No.)s, %(Job Start Dt)s, %(State)s, %(County)s, %(Operator)s, %(WellName)s, NULL,%(Latitude)s, %(Longitude)s, %(Datum)s)""", row)
+        cur.execute("""insert into "FracFocusScrape" (api, job_date, state, county, operator, well_name, well_type, latitude, longitude, datum) values(%(API No.)s, %(job_date)s, %(State)s, %(County)s, %(Operator)s, %(WellName)s, NULL,%(Latitude)s, %(Longitude)s, %(Datum)s)""", row)
         cur.execute("select lastval()")
         row['pdf_seqid'] = cur.fetchone()[0]
 
@@ -87,7 +108,8 @@ def check_record(cur, row):
 
 
 @django.views.decorators.csrf.csrf_exempt
-@cors()
+@fcdjangoutils.cors.cors
+@track_client
 @fcdjangoutils.jsonview.json_view
 def check_records(request):
     with contextlib.closing(django.db.connection.cursor()) as cur:
@@ -95,6 +117,14 @@ def check_records(request):
             rows = fcdjangoutils.jsonview.from_json(request.POST['records'])
             for row in rows:
                 check_record(cur, row)
+
+            log_activity(
+                request, "check",
+                new_rows = [{'API No.': row['API No.'], 'Job Start Dt': row['Job Start Dt'],
+                             'State': row['State'], row['County']: row['County']}
+                            for row in rows
+                            if 'event_guuid' not in row])
+
             return rows
         except:
             cur.execute('rollback')
@@ -103,7 +133,8 @@ def check_records(request):
             cur.execute('commit')
 
 @django.views.decorators.csrf.csrf_exempt
-@cors()
+@fcdjangoutils.cors.cors
+@track_client
 @fcdjangoutils.jsonview.json_view
 def parse_pdf(request):
     with contextlib.closing(django.db.connection.cursor()) as cur:
@@ -149,6 +180,8 @@ def parse_pdf(request):
             cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(pdf_seqid)s, 'FracFocusPDFDownloader', 'DONE')""", data)
             cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(pdf_seqid)s, 'FracFocusPDFParser', 'DONE')""", data)
 
+            log_activity(request, "pdf", state=data['state'], county=data['county'], api=data['api'], pdf_seqid=data['pdf_seqid'])
+
         except:
             cur.execute('rollback')
             raise
@@ -164,3 +197,34 @@ def parse_pdf(request):
         check_record(cur, data)
 
         return data
+
+@django.views.decorators.csrf.csrf_exempt
+@fcdjangoutils.cors.cors
+@track_client
+@fcdjangoutils.jsonview.json_view
+def update_states(request):
+    arg = fcdjangoutils.jsonview.from_json(request.POST['arg'])
+    added = []
+    for id, name in arg['states'].iteritems():
+        existing = appomatic_fracbotserver.models.State.objects.filter(name=name)
+        if not existing:
+            appomatic_fracbotserver.models.State(name=name, siteid=id).save()
+            added.append(name)
+    if added:
+        log_activity(request, "states", names=added)
+
+@django.views.decorators.csrf.csrf_exempt
+@fcdjangoutils.cors.cors
+@track_client
+@fcdjangoutils.jsonview.json_view
+def update_counties(request):
+    arg = fcdjangoutils.jsonview.from_json(request.POST['arg'])
+    state = appomatic_fracbotserver.models.State.objects.get(name=arg['state'])
+    added = []
+    for id, name in arg['counties'].iteritems():
+        existing = appomatic_fracbotserver.models.County.objects.filter(state=state, name=name)
+        if not existing:
+            appomatic_fracbotserver.models.County(state=state, name=name, siteid=id).save()
+            added.append(name)
+    if added:
+        log_activity(request, "counties", state=arg['state'], names=added)

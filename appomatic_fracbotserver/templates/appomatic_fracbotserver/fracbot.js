@@ -223,6 +223,40 @@ function mangleSearchPage() {
             iframe.toggle();
         });
     });
+
+    var rpm = Sys.WebForms.PageRequestManager.getInstance();
+    rpm.add_endRequest(function () { update(); });
+
+    var update = function () {
+        var states = {};
+        $("#MainContent_cboStateList option").map(function (idx, item) {
+            if ($(item).val() != "Choose a State") {
+                states[$(item).val()] = $(item).text();
+            }
+        });
+        var countiesNr = 0;
+        var counties = {};
+        $("#MainContent_cboCountyList option").map(function (idx, item) {
+            var value = $(item).val();
+            if (value != "Choose a County" && value != "Choose a State First") {
+                counties[value] = $(item).text();
+                countiesNr++;
+            }
+        });
+        if (countiesNr > 0) {
+            var state = $("#MainContent_cboStateList").val();
+            var stateName = states[state];
+            $.post(fracbotUrl + "/update-counties", {arg: JSON.stringify({state: stateName, counties: counties})}, function (data, textStatus, jqXHR) {
+                console.log(["update-counties-return", data]);
+            }, "json");
+        } else {
+            $.post(fracbotUrl + "/update-states", {arg: JSON.stringify({states: states})}, function (data, textStatus, jqXHR) {
+                console.log(["update-states-return", data]);
+            }, "json");
+        }
+    }
+    update();
+
 }
 
 function getRandomInt(min, max) {
