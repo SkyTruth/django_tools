@@ -28,9 +28,11 @@ def set_cookie(response, key, value, max_age = 365 * 24 * 60 * 60):
 
 def track_client(fn):
     def track_client(request, *arg, **kw):
+        request.fracbotclient = None
         if 'fracbotclientid' in request.COOKIES:
-            request.fracbotclient = appomatic_fracbotserver.models.Client.objects.get(id = request.COOKIES['fracbotclientid'])
-        else:
+            clients = appomatic_fracbotserver.models.Client.objects.filter(id = request.COOKIES['fracbotclientid'])
+            if clients: request.fracbotclient = clients[0]
+        if not request.fracbotclient:
             request.fracbotclient = appomatic_fracbotserver.models.Client(
                 info = dict((key, value)
                             for key, value in request.META.iteritems()
@@ -228,3 +230,10 @@ def update_counties(request):
             added.append(name)
     if added:
         log_activity(request, "counties", state=arg['state'], names=added)
+
+@django.views.decorators.csrf.csrf_exempt
+@fcdjangoutils.cors.cors
+@track_client
+@fcdjangoutils.jsonview.json_view
+def client_log(request):
+    log_activity(request, "client-" + request.POST['activity_type'], **fcdjangoutils.jsonview.from_json(request.POST['info']))

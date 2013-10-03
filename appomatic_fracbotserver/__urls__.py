@@ -3,6 +3,7 @@ from django.conf import settings
 import django.views.generic
 
 urlpatterns = patterns('',
+    (r'^fracbot/client-log/?$', 'appomatic_fracbotserver.views.client_log'),
     (r'^fracbot/update-states/?$', 'appomatic_fracbotserver.views.update_states'),
     (r'^fracbot/update-counties/?$', 'appomatic_fracbotserver.views.update_counties'),
     (r'^fracbot/check-records/?$', 'appomatic_fracbotserver.views.check_records'),

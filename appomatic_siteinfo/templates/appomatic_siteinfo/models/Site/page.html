@@ -73,4 +73,23 @@
     {{obj.render_as.events__html|safe}}
   </div>
 
+  <h2>Nearby detections<h2>
+  <h3>VIIRS flaring detections</h3>
+  {% paginate 10 obj.get_viirs_data using "viirs" as paginated_viirs %}
+  <table class="table table-striped table-bordered table-condesed">
+    <thead><tr><th>Time</th><th>Output</th><th>Temp</th><th>Latitude</th><th>Longitude</th></tr></thead>
+    <tbody>
+      {% for detection in paginated_viirs %}
+        <tr>
+          <td>{{detection.datetime}}</td>
+          <td>{{detection.RadiantOutput}}</td>
+          <td>{{detection.Temperature}}</td>
+          <td>{{detection.latitude}}</td>
+          <td>{{detection.longitude}}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="pagination">{% show_pages %}</div>
+
 {% endblock %}
