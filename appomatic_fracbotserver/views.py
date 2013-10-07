@@ -36,7 +36,10 @@ def track_client(fn):
             request.fracbotclient = appomatic_fracbotserver.models.Client(
                 info = dict((key, value)
                             for key, value in request.META.iteritems()
-                            if isinstance(value, (str, unicode))))
+                            if isinstance(value, (str, unicode))),
+                ip = request.META.get('REMOTE_ADDR', None),
+                domain = request.META.get('REMOTE_HOST', None),
+                agent = request.META.get('HTTP_USER_AGENT', None))
             request.fracbotclient.save()
         response = fn(request, *arg, **kw)
         if 'fracbotclientid' not in request.COOKIES:
@@ -44,15 +47,25 @@ def track_client(fn):
         return response
     return track_client
 
-def log_activity(request, activity_type, **info):
+def log_activity(request, activity_type, amount=1, **info):
     existing = appomatic_fracbotserver.models.ActivityType.objects.filter(name=activity_type)
     if existing:
         activity_type = existing[0]
     else:
         activity_type = appomatic_fracbotserver.models.ActivityType(name=activity_type)
         activity_type.save()
-    appomatic_fracbotserver.models.Activity(client=request.fracbotclient, type=activity_type, info=info).save()
+    appomatic_fracbotserver.models.Activity(client=request.fracbotclient, type=activity_type, amount=amount, info=info).save()
 
+def logged_view(name, amount=1, **info):
+    def logged_view(fn):
+        def logged_view(request, *arg, **kw):
+            try:
+                return fn(request, *arg, **kw)
+            except Exception, e:
+                log_activity(request, "exception-%s" % name, amount=amount, error=e, **info)
+                raise e
+        return logged_view
+    return logged_view
 
 def parseDate(date):
     """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
@@ -113,6 +126,7 @@ def check_record(cur, row):
 @fcdjangoutils.cors.cors
 @track_client
 @fcdjangoutils.jsonview.json_view
+@logged_view("check")
 def check_records(request):
     with contextlib.closing(django.db.connection.cursor()) as cur:
         try:
@@ -120,12 +134,11 @@ def check_records(request):
             for row in rows:
                 check_record(cur, row)
 
-            log_activity(
-                request, "check",
-                new_rows = [{'API No.': row['API No.'], 'Job Start Dt': row['Job Start Dt'],
-                             'State': row['State'], row['County']: row['County']}
-                            for row in rows
-                            if 'event_guuid' not in row])
+            new_rows = [{'API No.': row['API No.'], 'Job Start Dt': row['Job Start Dt'],
+                         'State': row['State'], row['County']: row['County']}
+                        for row in rows
+                        if 'event_guuid' not in row]
+            log_activity(request, "check", len(new_rows), new_rows = new_rows)
 
             return rows
         except:
@@ -138,6 +151,7 @@ def check_records(request):
 @fcdjangoutils.cors.cors
 @track_client
 @fcdjangoutils.jsonview.json_view
+@logged_view("pdf")
 def parse_pdf(request):
     with contextlib.closing(django.db.connection.cursor()) as cur:
         row = fcdjangoutils.jsonview.from_json(request.POST['row'])
@@ -204,6 +218,7 @@ def parse_pdf(request):
 @fcdjangoutils.cors.cors
 @track_client
 @fcdjangoutils.jsonview.json_view
+@logged_view("states")
 def update_states(request):
     arg = fcdjangoutils.jsonview.from_json(request.POST['arg'])
     added = []
@@ -213,12 +228,13 @@ def update_states(request):
             appomatic_fracbotserver.models.State(name=name, siteid=id).save()
             added.append(name)
     if added:
-        log_activity(request, "states", names=added)
+        log_activity(request, "states", len(added), names=added)
 
 @django.views.decorators.csrf.csrf_exempt
 @fcdjangoutils.cors.cors
 @track_client
 @fcdjangoutils.jsonview.json_view
+@logged_view("counties")
 def update_counties(request):
     arg = fcdjangoutils.jsonview.from_json(request.POST['arg'])
     state = appomatic_fracbotserver.models.State.objects.get(name=arg['state'])
@@ -229,7 +245,7 @@ def update_counties(request):
             appomatic_fracbotserver.models.County(state=state, name=name, siteid=id).save()
             added.append(name)
     if added:
-        log_activity(request, "counties", state=arg['state'], names=added)
+        log_activity(request, "counties", len(added), state=arg['state'], names=added)
 
 @django.views.decorators.csrf.csrf_exempt
 @fcdjangoutils.cors.cors

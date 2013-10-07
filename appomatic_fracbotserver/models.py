@@ -22,6 +22,9 @@ class County(django.contrib.gis.db.models.Model):
 
 class Client(django.contrib.gis.db.models.Model):
     id = django.db.models.CharField(max_length=256, primary_key=True, blank=True)
+    ip = django.db.models.CharField(max_length=256)
+    domain = django.db.models.CharField(max_length=512)
+    agent = django.db.models.CharField(max_length=512)
     info = fcdjangoutils.fields.JsonField()
 
     def save(self):
@@ -43,6 +46,7 @@ class Activity(django.contrib.gis.db.models.Model):
     type = django.db.models.ForeignKey(ActivityType, related_name="activities")
     datetime = django.db.models.DateTimeField(auto_now_add=True)
     info = fcdjangoutils.fields.JsonField()
+    amount = django.db.models.FloatField()
 
     def __unicode__(self):
         return "%s by %s @ %s" % (self.type, self.client, self.datetime.strftime("%Y-%m-%d %H:%M:%S"))

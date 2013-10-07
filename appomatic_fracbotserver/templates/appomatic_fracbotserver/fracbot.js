@@ -37,6 +37,9 @@ function downloadRow(row, cb) {
         url: theForm.action,
         type: "POST",
         data:$(theForm).serialize(),
+        xhrFields: {
+            withCredentials: true
+        },
         beforeSend: function(xhr) {
             xhr.overrideMimeType("text/plain; charset=x-user-defined");
         },
@@ -55,6 +58,9 @@ function downloadRow(row, cb) {
                 url: fracbotUrl + "/parse-pdf",
                 type: "POST",
                 data: {pdf: btoa(data), 'row': JSON.stringify(parseRow(row))},
+                xhrFields: {
+                    withCredentials: true
+                },
                 success: function (data, textStatus, jqXHR) {
                     globalParsedData = data;
                     updateRow(row, data);
@@ -158,12 +164,21 @@ function updatePage () {
     $("#MainContent_GridView1 tr:not(.PagerStyle):has(th)").prepend(header);
     $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").prepend("<td class='update'></td>")
    
-    $.post(fracbotUrl + "/check-records", {records: JSON.stringify(parseRows())}, function (data, textStatus, jqXHR) {
-        $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th)):not(:has(td[colspan=13]))").map(function (idx, row) {
-            updateRow(row, data[idx]);
-        });
-        $(document).trigger("pageUpdated");
-    }, "json");
+    $.ajax({
+        type: "POST",
+        url: fracbotUrl + "/check-records",
+        data: {records: JSON.stringify(parseRows())},
+        xhrFields: {
+            withCredentials: true
+        },
+        success: function (data, textStatus, jqXHR) {
+            $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th)):not(:has(td[colspan=13]))").map(function (idx, row) {
+                updateRow(row, data[idx]);
+            });
+            $(document).trigger("pageUpdated");
+        },
+        dataType: "json"
+   });
 }
 
 function mangleResultsPage() {
@@ -246,13 +261,31 @@ function mangleSearchPage() {
         if (countiesNr > 0) {
             var state = $("#MainContent_cboStateList").val();
             var stateName = states[state];
-            $.post(fracbotUrl + "/update-counties", {arg: JSON.stringify({state: stateName, counties: counties})}, function (data, textStatus, jqXHR) {
-                console.log(["update-counties-return", data]);
-            }, "json");
+            $.ajax({
+                type: "POST",
+                url: fracbotUrl + "/update-counties",
+                data: {arg: JSON.stringify({state: stateName, counties: counties})},
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function (data, textStatus, jqXHR) {
+                    console.log(["update-counties-return", data]);
+                },
+                dataType: "json"
+            });
         } else {
-            $.post(fracbotUrl + "/update-states", {arg: JSON.stringify({states: states})}, function (data, textStatus, jqXHR) {
-                console.log(["update-states-return", data]);
-            }, "json");
+            $.ajax({
+                type: "POST",
+                url: fracbotUrl + "/update-states",
+                data: {arg: JSON.stringify({states: states})},
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function (data, textStatus, jqXHR) {
+                    console.log(["update-states-return", data]);
+                },
+                dataType: "json"
+            });
         }
     }
     update();
