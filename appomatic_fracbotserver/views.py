@@ -39,9 +39,9 @@ def track_client(fn):
                 info = dict((key, value)
                             for key, value in request.META.iteritems()
                             if isinstance(value, (str, unicode))),
-                ip = request.META.get('REMOTE_ADDR', None),
-                domain = request.META.get('REMOTE_HOST', None),
-                agent = request.META.get('HTTP_USER_AGENT', None))
+                ip = request.META.get('REMOTE_ADDR', ''),
+                domain = request.META.get('REMOTE_HOST', ''),
+                agent = request.META.get('HTTP_USER_AGENT', ''))
             request.fracbotclient.save()
         response = fn(request, *arg, **kw)
         if 'fracbotclientid' not in request.COOKIES:

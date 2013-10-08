@@ -23,9 +23,9 @@ class County(django.contrib.gis.db.models.Model):
 
 class Client(django.contrib.gis.db.models.Model):
     id = django.db.models.CharField(max_length=256, primary_key=True, blank=True)
-    ip = django.db.models.CharField(max_length=256)
-    domain = django.db.models.CharField(max_length=512)
-    agent = django.db.models.CharField(max_length=512)
+    ip = django.db.models.CharField(max_length=256, blank=True)
+    domain = django.db.models.CharField(max_length=512, blank=True)
+    agent = django.db.models.CharField(max_length=512, blank=True)
     info = fcdjangoutils.fields.JsonField()
 
     def save(self):
