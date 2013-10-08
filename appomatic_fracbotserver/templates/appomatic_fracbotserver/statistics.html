@@ -29,90 +29,117 @@
 {% block content_title %}<h1>{% trans "Statistics" %}</h1>{% endblock %}
 
 {% block content %}
+  <div>
+    Period:
+    <a href="javascript: void(0);" onclick="prev();">Previous</a>
+    <span id="period"></span>
+    <a href="javascript: void(0);" onclick="next();">Next</a>
+  </div>
   <div id="chartdiv_by_activity_and_date" style="height:100%; width:90%; "></div>
   <div id="chartdiv_by_client_and_date" style="height:100%; width:90%; "></div>
   <script>
-    $(function () {
-      $.get("/admin/appomatic_fracbotserver/statistics/data", {period: "addmonths(d(),-1)..last(addmonths(d(),-1))"}, function (data) {
+    charts = [];
+    currentOffset = -1;
+    function next() {
+      currentOffset++;
+      loadStats(currentOffset);
+    }
+    function prev() {
+      currentOffset--;
+      loadStats(currentOffset);
+    }
+    function loadStats(offset) {
+      $.get(
+        "/admin/appomatic_fracbotserver/statistics/data",
+        {period: "addmonths(d()," + offset.toString() + ")..last(addmonths(d()," + offset.toString() + "))"},
+        function (data) {
+          $("#period").html(data.period);
 
-        data.by_activity_and_date.map(function (activity) {
-          activity.values.map(function (row) {
-            row[0] = new Date(row[0].value);
+          charts.map(function (chart) {
+            chart.destroy();
           });
-        });
+          charts = [];
 
-        $.jqplot('chartdiv_by_activity_and_date',
           data.by_activity_and_date.map(function (activity) {
-            return activity.values;
-          }),
-          {
-            title:'By type',
-            stackSeries: true,
-            axes:{
-              xaxis:{
-                renderer: $.jqplot.DateAxisRenderer,
-                tickOptions: {
-                  formatString:'%d/%m'
-                },
-                tickInterval:'1 day'
-              }
-            },
-            seriesDefaults:{
-              renderer:$.jqplot.BarRenderer,
-              pointLabels: {show: true}
-            },
-            series: data.by_activity_and_date.map(function (activity) {
-              return {label: activity.label};
-            }),
-            legend: {
-              show: true,
-              location: 'e',
-              placement: 'outside'
-            }
-          }
-        );
-
-
-        data.by_client_and_date.map(function (activity) {
-          activity.values.map(function (row) {
-            row[0] = new Date(row[0].value);
+            activity.values.map(function (row) {
+              row[0] = new Date(row[0].value);
+            });
           });
-        });
 
-    console.log(data.by_client_and_date);
-
-        $.jqplot('chartdiv_by_client_and_date',
-          data.by_client_and_date.map(function (activity) {
-            return activity.values;
-          }),
-          {
-            title:'By client',
-            stackSeries: true,
-            axes:{
-              xaxis:{
-                renderer: $.jqplot.DateAxisRenderer,
-                tickOptions: {
-                  formatString:'%d/%m'
-                },
-                tickInterval:'1 day'
-              }
-            },
-            seriesDefaults:{
-              renderer:$.jqplot.BarRenderer,
-              pointLabels: {show: true}
-            },
-            series: data.by_client_and_date.map(function (activity) {
-              return {label: activity.label};
+          charts.push($.jqplot('chartdiv_by_activity_and_date',
+            data.by_activity_and_date.map(function (activity) {
+              return activity.values;
             }),
-            legend: {
-              show: true,
-              location: 'e',
-              placement: 'outside'
+            {
+              title:'By type',
+              stackSeries: true,
+              axes:{
+                xaxis:{
+                  renderer: $.jqplot.DateAxisRenderer,
+                  tickOptions: {
+                    formatString:'%d/%m'
+                  },
+                  tickInterval:'1 day'
+                }
+              },
+              seriesDefaults:{
+                renderer:$.jqplot.BarRenderer,
+                pointLabels: {show: true}
+              },
+              series: data.by_activity_and_date.map(function (activity) {
+                return {label: activity.label};
+              }),
+              legend: {
+                show: true,
+                location: 'e',
+                placement: 'outside'
+              }
             }
-          }
-        );
+          ));
 
-      }, "json");
+
+          data.by_client_and_date.map(function (activity) {
+            activity.values.map(function (row) {
+              row[0] = new Date(row[0].value);
+            });
+          });
+
+          charts.push($.jqplot('chartdiv_by_client_and_date',
+            data.by_client_and_date.map(function (activity) {
+              return activity.values;
+            }),
+            {
+              title:'By client',
+              stackSeries: true,
+              axes:{
+                xaxis:{
+                  renderer: $.jqplot.DateAxisRenderer,
+                  tickOptions: {
+                    formatString:'%d/%m'
+                  },
+                  tickInterval:'1 day'
+                }
+              },
+              seriesDefaults:{
+                renderer:$.jqplot.BarRenderer,
+                pointLabels: {show: true}
+              },
+              series: data.by_client_and_date.map(function (activity) {
+                return {label: activity.label};
+              }),
+              legend: {
+                show: true,
+                location: 'e',
+                placement: 'outside'
+              }
+            }
+          ));
+        },
+        "json"
+      );
+    }
+    $(function () {
+      loadStats(currentOffset);
     });
   </script>
 {% endblock %}

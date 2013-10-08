@@ -267,7 +267,7 @@ def statistics_data(request):
         "end": end}
 
     with contextlib.closing(django.db.connection.cursor()) as cur:
-        result = {}
+        result = {"period": start.strftime("%Y-%m")}
 
         cur.execute("""
           select
