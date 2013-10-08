@@ -16,6 +16,8 @@ import contextlib
 import django.db
 import re
 import appomatic_siteinfo.management.commands.fracscrapeimport
+import fcdjangoutils.sqlutils
+import fcdjangoutils.date
 
 def set_cookie(response, key, value, max_age = 365 * 24 * 60 * 60):
     expires = datetime.datetime.strftime(
@@ -253,3 +255,72 @@ def update_counties(request):
 @fcdjangoutils.jsonview.json_view
 def client_log(request):
     log_activity(request, "client-" + request.POST['activity_type'], **fcdjangoutils.jsonview.from_json(request.POST['info']))
+
+def statistics(request):
+    return django.shortcuts.render(request, "appomatic_fracbotserver/statistics.html", {})
+
+@fcdjangoutils.jsonview.json_view
+def statistics_data(request):
+    start, end = fcdjangoutils.date.decode_period(request.GET.get("period", "first() .. last()"))
+    args = {
+        "start": start,
+        "end": end}
+
+    with contextlib.closing(django.db.connection.cursor()) as cur:
+        result = {}
+
+        cur.execute("""
+          select
+            at.name, series date, coalesce(sum(a.amount), 0) amount
+          from
+            appomatic_fracbotserver_activitytype at
+            join generate_series(%(start)s, %(end)s, interval '1 day') series on
+              true
+            left outer join appomatic_fracbotserver_activity a on
+              a.type_id = at.id
+              and a.datetime::date = series
+          group by
+            at.name, series
+          order by
+            at.name, series;
+        """, args)
+        activity = {}
+        
+        for row in fcdjangoutils.sqlutils.dictreader(cur):
+            if row['name'] not in activity: activity[row['name']] = []
+            activity[row['name']].append([row['date'], row['amount']])
+
+        result['by_activity_and_date'] = [{"label": label, "values": values} for label, values in activity.iteritems()]
+
+
+
+        cur.execute("""
+          select
+            c.ip, c.id, series date, coalesce(sum(a.amount),0) amount
+          from
+            appomatic_fracbotserver_client c
+            join generate_series(%(start)s, %(end)s, interval '1 day') series on
+              true
+            left outer join appomatic_fracbotserver_activity a on
+              a.client_id = c.id
+              and a.datetime::date = series
+          group by
+            c.ip, c.id, series
+          order by
+            c.ip, c.id, series;
+        """, args)
+        activity = {}
+        
+        for row in fcdjangoutils.sqlutils.dictreader(cur):
+            if row['ip'] not in activity: activity[row['ip']] = {}
+            if row['id'] not in activity[row['ip']]: activity[row['ip']][row['id']] = []
+            activity[row['ip']][row['id']].append([row['date'], row['amount']])
+
+        activity_flattened = {}
+        for ip, ids in activity.iteritems():
+            for idx, (id, values) in enumerate(ids.iteritems()):
+                activity_flattened["%s-%s" % (ip, idx)] = values
+        
+        result['by_client_and_date'] = [{"label": label, "values": values} for label, values in activity_flattened.iteritems()]
+
+        return result
