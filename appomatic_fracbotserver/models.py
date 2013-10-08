@@ -13,6 +13,7 @@ class County(django.contrib.gis.db.models.Model):
     state = django.db.models.ForeignKey(State, related_name="counties")
     siteid = django.db.models.IntegerField()
     name = django.db.models.CharField(max_length=256)
+    scrapepoints = django.db.models.FloatField(default=1)
 
     class Meta:
         unique_together = (("state", "name"),)

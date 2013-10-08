@@ -104,6 +104,16 @@ def check_record(cur, row):
 
         cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(pdf_seqid)s, 'FracFocusReport', 'NEW')""", row)
 
+        cur.execute("""
+          update appomatic_fracbotserver_county as c
+          set scrapepoints = c.scrapepoints + 1
+          from appomatic_fracbotserver_state as s
+          where
+            c.name=%(County)s
+            and c.state_id = s.id
+            and s.name = %(State)s
+        """, row);
+
     cur.execute("""select * from "FracFocusReport" where pdf_seqid = %(pdf_seqid)s""", row)
     for dbrow in cur:
         row['pdf_content'] = dict(zip([dsc[0] for dsc in cur.description], dbrow))
@@ -137,7 +147,7 @@ def check_records(request):
                 check_record(cur, row)
 
             new_rows = [{'API No.': row['API No.'], 'Job Start Dt': row['Job Start Dt'],
-                         'State': row['State'], row['County']: row['County']}
+                         'State': row['State'], 'County': row['County']}
                         for row in rows
                         if 'event_guuid' not in row]
             log_activity(request, "check", len(new_rows), new_rows = new_rows)
@@ -255,6 +265,26 @@ def update_counties(request):
 @fcdjangoutils.jsonview.json_view
 def client_log(request):
     log_activity(request, "client-" + request.POST['activity_type'], **fcdjangoutils.jsonview.from_json(request.POST['info']))
+
+@fcdjangoutils.cors.cors
+@track_client
+@fcdjangoutils.jsonview.json_view
+@logged_view("task")
+def get_task(request):
+    with contextlib.closing(django.db.connection.cursor()) as cur:
+        cur.execute("""
+           select
+             c.id as county_id, s.id as state_id, c.name as county_name, s.name as state_name
+           from
+             appomatic_fracbotserver_county c
+             join appomatic_fracbotserver_state s on
+               c.state_id = s.id
+           order by
+             c.scrapepoints * random() desc limit 1;
+        """)
+        task = fcdjangoutils.sqlutils.dictreader(cur).next()
+        cur.execute("""update appomatic_fracbotserver_county set scrapepoints = scrapepoints * 0.9 where id = %(county_id)s""", task)
+        return task
 
 def statistics(request):
     return django.shortcuts.render(request, "appomatic_fracbotserver/statistics.html", {})
