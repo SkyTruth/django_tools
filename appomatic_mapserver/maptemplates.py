@@ -1,7 +1,6 @@
 import fastkml.kml
 import fastkml.styles
 import uuid
-import monkeypatches.fastkmlmonkey
 
 KMLNS = '{http://www.opengis.net/kml/2.2}'
 
