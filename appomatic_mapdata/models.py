@@ -174,3 +174,6 @@ class Viirs(Event):
     footprint = django.db.models.FloatField(null=True, blank=True, db_index=True)
     SatZenithAngle = django.db.models.FloatField(null=True, blank=True)
     SourceID = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
+
+class UpdateRegion(Event):
+     pass

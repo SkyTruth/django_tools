@@ -15,7 +15,6 @@ import csv
 import os.path
 import StringIO
 import fastkml.config
-import monkeypatches.fastkmlmonkey
 import fcdjangoutils.sqlutils
 import fcdjangoutils.jsonview
 import time
