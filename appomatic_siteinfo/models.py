@@ -235,8 +235,6 @@ class Site(Aliased, LocationData):
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_sites")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_sites")
 
-    # info = fcdjangoutils.fields.JsonField(null=True, blank=True)
-
     @classmethod
     def get_or_create(cls, name, latitude, longitude):
         if longitude is not None and latitude is not None:
@@ -327,10 +325,6 @@ class Well(LocationData):
     operators = django.db.models.ManyToManyField(Company, related_name='operates_at_wells')
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_wells")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_wells")
-
-    well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
-
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
     GUID_FIELDS = LocationData.GUID_FIELDS + ["api"]
 
@@ -503,7 +497,6 @@ class OperatorInfoEvent(OperatorEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
     infourl = django.db.models.TextField(null=True, blank=True)
-    # info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
 class PermitEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -549,8 +542,6 @@ class ChemicalUsageEventChemical(BaseModel):
     ingredient_weight = django.db.models.FloatField(null=True, blank=True)
     hf_fluid_concentration = django.db.models.FloatField(null=True, blank=True)
     
-    # info = fcdjangoutils.fields.JsonField(null=True, blank=True)
-
     def save(self, *arg, **kw):
         BaseModel.save(self, *arg, **kw)
         self.event.site.chemicals.add(self.chemical)
@@ -601,7 +592,6 @@ class StatusEvent(SiteEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
     status = django.db.models.ForeignKey(Status, related_name="events")
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
 
 class CommentForm(django.forms.ModelForm):
