@@ -27,6 +27,7 @@ class Command(django.core.management.base.BaseCommand):
 
     def handle2(self, *args, **kwargs):
         src = appomatic_siteinfo.models.Source.get("Spud", "")
+        frack = appomatic_siteinfo.models.Operation.get("Fracking")
 
         for idx, row in enumerate(appomatic_legacymodels.models.PaSpud.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
 
@@ -42,13 +43,13 @@ class Command(django.core.management.base.BaseCommand):
                 api.append('00')
             api = '-'.join(api)
             
-            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, row.latitude, row.longitude, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
+            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, row.latitude, row.longitude)
             site = well.site
 
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaSpud._meta.get_all_field_names())
 
-            appomatic_siteinfo.models.SpudEvent(
+            se = appomatic_siteinfo.models.SpudEvent(
                 src = src,
                 latitude = row.latitude,
                 longitude = row.longitude,
@@ -58,7 +59,12 @@ class Command(django.core.management.base.BaseCommand):
                 operator = operator,
                 infourl = None,
                 info = info
-                ).save()
+                )
+            se.save()
+
+            if row.unconventional and row.unconventional.lower() == "yes":
+                se.operations.add(frack)
+
             src.import_id = row.st_id
             src.save()
 

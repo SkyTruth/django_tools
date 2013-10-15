@@ -15,6 +15,7 @@ import pytz
 
 def scrapetoevent(scrape, report, src):
     operator = appomatic_siteinfo.models.Company.get(scrape.operator)
+    frack = appomatic_siteinfo.models.Operation.get("Fracking")
 
     # Format: SS-CCC-NNNNN-XX-XX
     api = scrape.api.split("-")
@@ -48,7 +49,7 @@ def scrapetoevent(scrape, report, src):
         info = info
         )
     event.save()
-
+    event.operations.add(frack)
 
     for reportchemical in appomatic_legacymodels.models.Fracfocusreportchemical.objects.filter(pdf_seqid=scrape.seqid):
         print "    %s" % (reportchemical.trade_name or reportchemical.ingredients or reportchemical.cas_number,)
@@ -103,7 +104,7 @@ class Command(django.core.management.base.BaseCommand):
 
             report = reports[0]
 
-            if not scrapetoevent(scrape, report, src):
+            if not scrapetoevent(scrape, report, src, frack):
                 continue
 
             src.import_id = scrape.seqid

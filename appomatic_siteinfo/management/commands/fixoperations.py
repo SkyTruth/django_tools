@@ -25,11 +25,15 @@ class Command(django.core.management.base.BaseCommand):
             traceback.print_exc()
 
     def handle2(self, *args, **kwargs):
-        total = appomatic_siteinfo.models.PermitEvent.objects.filter(src_id = 88, import_id = None).count()
+        frack = appomatic_siteinfo.models.Operation.get("Fracking")
+        total = appomatic_siteinfo.models.Event.objects.filter().count()
 	print "TOTAL:", total
-        for idx, pe in enumerate(appomatic_siteinfo.models.PermitEvent.objects.filter(src_id = 88, import_id = None)):
-            pe.import_id = pe.info['st_id']
-            pe.save()
+        for idx, e in enumerate(appomatic_siteinfo.models.Event.objects.all()):
+            isfrack = (   (e.src.tool == "WVPermit" and e.info.get('permit_type', None) in ('HORIW', 'HRW6A'))
+                       or (e.src.tool == "Permit" and str(e.info.get('unconventional', '')).lower() == "yes")
+                       or e.src.tool == "FracFocus")
+            if isfrack:
+                e.leafclassobject.operations.add(frack)
 
             sys.stdout.write(".")
             sys.stdout.flush()

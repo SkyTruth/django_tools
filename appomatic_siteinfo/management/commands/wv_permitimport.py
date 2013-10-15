@@ -35,6 +35,8 @@ class Command(django.core.management.base.BaseCommand):
     def handle2(self, *args, **kwargs):
         src = appomatic_siteinfo.models.Source.get("WVPermit", "")
 
+        frack = appomatic_siteinfo.models.Operation.get("Fracking")
+
         for idx, row in enumerate(appomatic_legacymodels.models.WvDrillingpermit.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
             print "%s @ %s" %(row.api, row.permit_activity_date)
             
@@ -57,12 +59,17 @@ class Command(django.core.management.base.BaseCommand):
                 print "IGN"
                 continue
 
-            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, lat, lon)
-            
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.WvDrillingpermit._meta.get_all_field_names())
 
-            appomatic_siteinfo.models.PermitEvent(
+            siteinfo = {}
+            if info['permit_type'] in ('HORIW', 'HRW6A'):
+                siteinfo['conventional'] = False
+
+            well = appomatic_siteinfo.models.Well.get(api, row.farm_name, lat, lon, **siteinfo)
+            
+
+            pe = appomatic_siteinfo.models.PermitEvent(
                 src = src,
                 latitude = lat,
                 longitude = lon,
@@ -73,9 +80,14 @@ class Command(django.core.management.base.BaseCommand):
                 infourl = None,
                 info = info,
                 import_id = row.st_id,
-                ).save()
+                )
+            pe.save()
+
+            if pe.info['permit_type'] in ('HORIW', 'HRW6A'):
+                pe.operations.add(frack)
+
             src.import_id = row.st_id
-            src.save()
+            src.save()            
 
             if idx % 50 == 0:
                 django.db.transaction.commit()

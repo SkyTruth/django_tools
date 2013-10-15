@@ -225,6 +225,24 @@ class CompanyAlias(BaseModel):
         return "%s: %s" % (self.alias_for.name, self.name)
 Company.AliasClass = CompanyAlias
 
+class Operation(BaseModel):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, unique=True)
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
+
+    @classmethod
+    def get(cls, name, *arg, **kw):
+        if not name: return None
+        existing = cls.objects.filter(name = name)
+        if existing:
+            return existing[0]
+        self = cls(name=name, **kw)
+        self.save()
+        return self
+
+    def __unicode__(self):
+        return self.name
+
 class Site(Aliased, LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
@@ -234,6 +252,7 @@ class Site(Aliased, LocationData):
     operators = django.db.models.ManyToManyField(Company, related_name='operates_at_sites')
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_sites")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_sites")
+    operations = django.db.models.ManyToManyField("Operation", related_name="done_at_sites")
 
     @classmethod
     def get_or_create(cls, name, latitude, longitude):
@@ -325,6 +344,7 @@ class Well(LocationData):
     operators = django.db.models.ManyToManyField(Company, related_name='operates_at_wells')
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_wells")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_wells")
+    operations = django.db.models.ManyToManyField("Operation", related_name="done_at_wells")
 
     GUID_FIELDS = LocationData.GUID_FIELDS + ["api"]
 
@@ -333,7 +353,7 @@ class Well(LocationData):
         self.site.update_location(latitude, longitude)
 
     @classmethod
-    def get(cls, api, site_name=None, latitude=None, longitude=None, conventional=True):
+    def get(cls, api, site_name=None, latitude=None, longitude=None, conventional=None):
         wells = cls.objects.filter(api=api)
         if wells:
             well = wells[0]
@@ -441,6 +461,7 @@ class Event(LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
     datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc), verbose_name="Date/time of event")
+    operations = django.db.models.ManyToManyField("Operation", related_name="done_in_events")
 
     GUID_FIELDS = LocationData.GUID_FIELDS + ["datetime"]
 
@@ -476,6 +497,23 @@ class SiteEvent(Event):
 
     def __unicode__(self):
         return "%s @ %s" % (self.datetime, self.well or self.site)
+
+def siteevent_operations_changed(sender, instance, action, reverse, model, pk_set, *arg, **kw):
+    if action == "post_add":
+        if isinstance(instance, SiteEvent):
+            for operation in pk_set:
+                instance.site.operations.add(operation)
+                if instance.well:
+                    instance.well.operations.add(operation)
+        else:
+            for event in pk_set:
+                event = SiteEvent.objects.get(id=event)
+                event.site.operations.add(instance)
+                if event.well:
+                    event.well.operations.add(instance)
+   
+django.db.models.signals.m2m_changed.connect(siteevent_operations_changed, sender=SiteEvent.operations.through)
+
 
 class OperatorEvent(SiteEvent):
     objects = django.contrib.gis.db.models.GeoManager()

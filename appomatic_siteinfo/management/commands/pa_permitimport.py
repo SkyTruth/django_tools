@@ -25,6 +25,7 @@ class Command(django.core.management.base.BaseCommand):
 
     def handle2(self, *args, **kwargs):
         src = appomatic_siteinfo.models.Source.get("Permit", "")
+        frack = appomatic_siteinfo.models.Operation.get("Fracking")
 
         for idx, row in enumerate(appomatic_legacymodels.models.PaDrillingpermit.objects.filter(st_id__gt = src.import_id).order_by("st_id")):
             print "%s @ %s" %(row.complete_api_field, row.date_disposed)
@@ -42,12 +43,12 @@ class Command(django.core.management.base.BaseCommand):
                 continue
             api = '-'.join(api)
             
-            well = appomatic_siteinfo.models.Well.get(api, row.site_name, row.latitude_decimal, row.longitude_decimal, conventional = (not row.unconventional) or row.unconventional.lower() != "yes")
+            well = appomatic_siteinfo.models.Well.get(api, row.site_name, row.latitude_decimal, row.longitude_decimal)
             
             info = dict((name, getattr(row, name))
                         for name in appomatic_legacymodels.models.PaDrillingpermit._meta.get_all_field_names())
 
-            appomatic_siteinfo.models.PermitEvent(
+            pe = appomatic_siteinfo.models.PermitEvent(
                 src = src,
                 latitude = row.latitude_decimal,
                 longitude = row.longitude_decimal,
@@ -57,7 +58,12 @@ class Command(django.core.management.base.BaseCommand):
                 operator = operator,
                 infourl = None,
                 info = info
-                ).save()
+                )
+            pe.save()
+
+            if row.unconventional and row.unconventional.lower() == "yes":
+                pe.operations.add(frack)
+
             src.import_id = row.st_id
             src.save()
 
