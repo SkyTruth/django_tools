@@ -65,23 +65,29 @@ def logged_view(name, amount=1, **info):
                 return fn(request, *arg, **kw)
             except Exception, e:
                 log_activity(request, "exception-%s" % name, amount=amount, error=e, **info)
-                raise e
+                raise
         return logged_view
     return logged_view
 
 def parseDate(date):
     """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
-    if not date: return None
-    date = date.strip()
-    if not date: return None
-    month, day, year = [int(x.lstrip("0")) for x in date.split("/")]
-    return datetime.date(year, month, day)
+    try:
+        if not date: return None
+        date = date.strip()
+        if not date: return None
+        month, day, year = [int(x.lstrip("0")) for x in date.split("/")]
+        return datetime.date(year, month, day)
+    except:
+        return None
 
 def parseFloat(str):
-    if not str: return None
-    str = str.strip()
-    if not str: return None
-    return float(str.replace(',', ''))
+    try:
+        if not str: return None
+        str = str.strip()
+        if not str: return None
+        return float(str.replace(',', ''))
+    except:
+        return None
 
 def get(query):
     if query:
