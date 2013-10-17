@@ -279,14 +279,24 @@ def client_log(request):
 def get_task(request):
     with contextlib.closing(django.db.connection.cursor()) as cur:
         cur.execute("""
-           select
-             c.id as county_id, s.id as state_id, c.name as county_name, s.name as state_name
-           from
-             appomatic_fracbotserver_county c
-             join appomatic_fracbotserver_state s on
-               c.state_id = s.id
-           order by
-             c.scrapepoints * random() desc limit 1;
+          with
+            rand as
+              (select random() * (select sum(scrapepoints) from appomatic_fracbotserver_county) as rand),
+            counties as
+              (select
+                 *, sum(scrapepoints) over (order by id) randpos
+               from appomatic_fracbotserver_county)
+          select
+            r.rand, c.randpos, c.id as county_id, s.id as state_id, c.name as county_name, s.name as state_name
+          from
+            counties c
+            join rand r on
+              r.rand >= c.randpos
+            join appomatic_fracbotserver_state s on
+              c.state_id = s.id
+          order
+            by c.randpos desc
+          limit 1;
         """)
         task = fcdjangoutils.sqlutils.dictreader(cur).next()
         cur.execute("""update appomatic_fracbotserver_county set scrapepoints = scrapepoints * 0.9 where id = %(county_id)s""", task)
