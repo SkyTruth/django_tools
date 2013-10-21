@@ -176,6 +176,7 @@ function updatePage () {
                 updateRow(row, data[idx]);
             });
             $(document).trigger("pageUpdated");
+            console.log("page_is_updated");
         },
         dataType: "json"
    });
