@@ -1,0 +1,11 @@
+<OGRVRTDataSource> 
+  <OGRVRTLayer name="sites"> 
+    <SrcDataSource relativeToVrt="1">sites.csv</SrcDataSource>
+    <GeometryType>wkbPoint</GeometryType> 
+    <LayerSRS>WGS84</LayerSRS> 
+    <GeometryField encoding="PointFromColumns" reportSrcColumn="false" x="longitude" y="latitude"/>
+    <Field name="name" src="name" type="String"/>
+    <Field name="guuid" src="guuid" type="String"/>
+    <Field name="id" src="id" type="Integer"/>
+  </OGRVRTLayer> 
+</OGRVRTDataSource>

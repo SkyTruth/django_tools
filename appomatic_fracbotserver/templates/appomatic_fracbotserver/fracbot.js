@@ -37,6 +37,9 @@ function downloadRow(row, cb) {
         url: theForm.action,
         type: "POST",
         data:$(theForm).serialize(),
+        xhrFields: {
+            withCredentials: true
+        },
         beforeSend: function(xhr) {
             xhr.overrideMimeType("text/plain; charset=x-user-defined");
         },
@@ -55,6 +58,9 @@ function downloadRow(row, cb) {
                 url: fracbotUrl + "/parse-pdf",
                 type: "POST",
                 data: {pdf: btoa(data), 'row': JSON.stringify(parseRow(row))},
+                xhrFields: {
+                    withCredentials: true
+                },
                 success: function (data, textStatus, jqXHR) {
                     globalParsedData = data;
                     updateRow(row, data);
@@ -158,12 +164,22 @@ function updatePage () {
     $("#MainContent_GridView1 tr:not(.PagerStyle):has(th)").prepend(header);
     $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th))").prepend("<td class='update'></td>")
    
-    $.post(fracbotUrl + "/check-records", {records: JSON.stringify(parseRows())}, function (data, textStatus, jqXHR) {
-        $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th)):not(:has(td[colspan=13]))").map(function (idx, row) {
-            updateRow(row, data[idx]);
-        });
-        $(document).trigger("pageUpdated");
-    }, "json");
+    $.ajax({
+        type: "POST",
+        url: fracbotUrl + "/check-records",
+        data: {records: JSON.stringify(parseRows())},
+        xhrFields: {
+            withCredentials: true
+        },
+        success: function (data, textStatus, jqXHR) {
+            $("#MainContent_GridView1 tr:not(.PagerStyle):not(:has(th)):not(:has(td[colspan=13]))").map(function (idx, row) {
+                updateRow(row, data[idx]);
+            });
+            $(document).trigger("pageUpdated");
+            console.log("page_is_updated");
+        },
+        dataType: "json"
+   });
 }
 
 function mangleResultsPage() {
@@ -223,6 +239,58 @@ function mangleSearchPage() {
             iframe.toggle();
         });
     });
+
+    var rpm = Sys.WebForms.PageRequestManager.getInstance();
+    rpm.add_endRequest(function () { update(); });
+
+    var update = function () {
+        var states = {};
+        $("#MainContent_cboStateList option").map(function (idx, item) {
+            if ($(item).val() != "Choose a State") {
+                states[$(item).val()] = $(item).text();
+            }
+        });
+        var countiesNr = 0;
+        var counties = {};
+        $("#MainContent_cboCountyList option").map(function (idx, item) {
+            var value = $(item).val();
+            if (value != "Choose a County" && value != "Choose a State First") {
+                counties[value] = $(item).text();
+                countiesNr++;
+            }
+        });
+        if (countiesNr > 0) {
+            var state = $("#MainContent_cboStateList").val();
+            var stateName = states[state];
+            $.ajax({
+                type: "POST",
+                url: fracbotUrl + "/update-counties",
+                data: {arg: JSON.stringify({state: stateName, counties: counties})},
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function (data, textStatus, jqXHR) {
+                    console.log(["update-counties-return", data]);
+                },
+                dataType: "json"
+            });
+        } else {
+            $.ajax({
+                type: "POST",
+                url: fracbotUrl + "/update-states",
+                data: {arg: JSON.stringify({states: states})},
+                xhrFields: {
+                    withCredentials: true
+                },
+                success: function (data, textStatus, jqXHR) {
+                    console.log(["update-states-return", data]);
+                },
+                dataType: "json"
+            });
+        }
+    }
+    update();
+
 }
 
 function getRandomInt(min, max) {

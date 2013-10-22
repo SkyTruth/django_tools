@@ -15,7 +15,69 @@
 {% endblock %}
 
 {% block content_outer %}
-  <iframe class="map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}?company={{obj.guuid}}"></iframe>
+  <div id="map-canvas" class="map"></div>
+  <script type="text/javascript"
+    src="https://maps.googleapis.com/maps/api/js?key={{settings.GOOGLE_MAPS_KEY}}&sensor=false&libraries=visualization">
+  </script>
+  <script type="text/javascript">
+    function initialize() {
+      {% for site in obj.operates_at_sites.all %}
+        {% if forloop.first %}
+          bounds = new google.maps.LatLngBounds(new google.maps.LatLng({{site.latitude}}, {{site.longitude}}), new google.maps.LatLng({{site.latitude}}, {{site.longitude}}));
+        {% else %}
+          bounds = bounds.extend(new google.maps.LatLng({{site.latitude}}, {{site.longitude}}));
+        {% endif %}
+      {% endfor %}
+      {% for site in obj.supplied_sites.all %}
+        {% if forloop.first and not obj.operates_at_sites.all %}
+          bounds = new google.maps.LatLngBounds(new google.maps.LatLng({{site.latitude}}, {{site.longitude}}), new google.maps.LatLng({{site.latitude}}, {{site.longitude}}));
+        {% else %}
+          bounds = bounds.extend(new google.maps.LatLng({{site.latitude}}, {{site.longitude}}));
+        {% endif %}
+      {% endfor %}
+
+      var map = new google.maps.Map(document.getElementById("map-canvas"), {
+        zoom: 4,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+      });
+      map.fitBounds(bounds);
+      var layer = new google.maps.visualization.MapsEngineLayer({
+        layerId: '{{settings.SITEINFO_GOOGLE_MAPSENGINE_LAYER}}',
+        map: map,
+        suppressInfoWindows: true
+      });
+
+      var icon = {path: google.maps.SymbolPath.CIRCLE, fillColor: "#dd8888", fillOpacity: 1, strokeColor: "#000000", strokeWeight: 1, scale: 4};
+      {% for site in obj.operates_at_sites.all %}
+        var marker = new google.maps.Marker({
+          position: new google.maps.LatLng({{site.latitude}}, {{site.longitude}}),
+          icon: icon,
+          map: map,
+          title:"{{site}}"
+        });
+        google.maps.event.addListener(marker, "click", function (e) {
+          window.location = '{{site_url}}/siteinfo/{{site.guuid}}';
+        });
+      {% endfor %}
+      {% for site in obj.supplied_sites.all %}
+        var marker = new google.maps.Marker({
+          position: new google.maps.LatLng({{site.latitude}}, {{site.longitude}}),
+          icon: icon,
+          map: map,
+          title:"{{site}}"
+        });
+        google.maps.event.addListener(marker, "click", function (e) {
+          window.location = '{{site_url}}/siteinfo/{{site.guuid}}';
+        });
+      {% endfor %}
+
+      google.maps.event.addListener(layer, "click", function (e) {
+        window.location = '{{site_url}}/siteinfo/' + e.infoWindowHtml;
+      });
+    }
+    google.maps.event.addDomListener(window, 'load', initialize);
+  </script>
+
   <div class="objinfo">
     {{block.super}}
   </div>

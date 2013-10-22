@@ -24,6 +24,11 @@ class Command(django.core.management.base.BaseCommand):
     args = '<query> <filename>'
 
     option_list = django.core.management.base.BaseCommand.option_list + (
+        optparse.make_option('--list',
+            action='store_true',
+            dest='list',
+            default=False,
+            help='List pre-defined queries'),
         optparse.make_option('--name',
             action='store',
             dest='name',
@@ -43,13 +48,13 @@ class Command(django.core.management.base.BaseCommand):
             action='store',
             type='int',
             dest='size',
-            default=4,
+            default=None,
             help='Minimum cluster size (number of events) for a cluster to be included in the output.'),
         optparse.make_option('--radius',
             action='store',
             type='int',
             dest='radius',
-            default=7500,
+            default=None,
             help='Cluster radius in meters within which events are included in the cluster.'),
         optparse.make_option('--period',
             action='append',
@@ -58,8 +63,23 @@ class Command(django.core.management.base.BaseCommand):
             help='Time period to cluster over, start and end dates separated by a colon, e.g. 2013-01-01:2013-02-01. This option can be given multiple times to give multiple date ranges.'),
         )
 
-    def handle2(self, query, filename, *args, **options):
-        name = options.pop('name')
+    def handle2(self, query = None, filename = None, *args, **options):
+        if options["list"]:
+            for qobj in appomatic_mapcluster.models.Query.objects.all():
+                print qobj.slug
+            return
+        try:
+            qobj = appomatic_mapcluster.models.Query.objects.get(slug=query)
+        except:
+            if options["size"] is None: options["size"] = 4
+            if options["radius"] is None: options["radius"] = 7500
+        else:
+            query = qobj.query
+            options["query_id"] = qobj.id
+            options["template"] = options["template"] or qobj.template
+            if options["size"] is None: options["size"] = qobj.size
+            if options["radius"] is None: options["radius"] = qobj.radius
+        name = options.pop('name', None)
         if not name: name = os.path.splitext(os.path.split(filename)[1])[0]
         with open(filename, "w") as f:
             f.write(appomatic_mapcluster.genclusters.extract(name, query, *args, **options))

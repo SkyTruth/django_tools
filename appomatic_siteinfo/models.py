@@ -34,7 +34,7 @@ class Source(appomatic_renderable.models.Source):
             source.save()
             return source
 
-class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable):
+class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable, fcdjangoutils.modelhelpers.SubclasModelMixin):
     objects = django.contrib.gis.db.models.GeoManager()
 
     GUID_FIELDS = ['type']
@@ -44,6 +44,13 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
     import_id = django.db.models.IntegerField(null=True, blank=True, db_index=True, verbose_name="Importing id")
     quality = django.db.models.FloatField(default = 1.0, db_index=True, verbose_name="Quality of data")
     guuid = django.db.models.CharField(max_length=64, null=False, blank=True, db_index=True)
+    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    typename = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
+
+    def save(self):
+        t = type(self.leafclassobject)
+        self.typename = "%s.%s" % (t.__model__, t.__name__)
+        super(BaseModel, self).save()
 
     @classmethod
     def get_or_create(cls, src, import_id, **kw):
@@ -119,6 +126,29 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
         res['Content-Disposition'] = 'attachment; filename="%s.csv"' % (self.guuid,)
         return res
 
+    def merge(self, other):
+        info = other.info or {}
+        info.update(self.info or {})
+        other.info = info
+    
+        for name in dir(type(self)):
+            if name.startswith("__"): continue
+            field = getattr(type(self), name, None)
+            fieldtype = type(field)
+            if fieldtype is django.db.models.fields.related.ForeignRelatedObjectsDescriptor:
+                relatedname = field.related.field.name
+                for item in getattr(self, name).all():
+                    setattr(item, relatedname, other)
+                    item.save()
+            elif fieldtype is django.db.models.fields.related.ReverseManyRelatedObjectsDescriptor:
+                for item in getattr(self, name).all():
+                    getattr(other, name).add(item)
+                getattr(self, name).clear()
+        
+        other.save()
+        self.delete()
+        return other
+
 class LocationData(BaseModel):
     objects = django.contrib.gis.db.models.GeoManager()
     latitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Latitude")
@@ -166,6 +196,11 @@ class Aliased(object):
         alias.save()
         return self
 
+    def merge(self, other):
+        for alias in self.aliases.all():
+            if other.aliases.filter(name = alias.name).count():
+                alias.delete()
+        super(Aliased, self).merge(other)
 
 class Company(Aliased, BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
@@ -190,6 +225,24 @@ class CompanyAlias(BaseModel):
         return "%s: %s" % (self.alias_for.name, self.name)
 Company.AliasClass = CompanyAlias
 
+class Operation(BaseModel):
+    name = django.db.models.CharField(max_length=256, null=False, blank=False, unique=True)
+
+    GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
+
+    @classmethod
+    def get(cls, name, *arg, **kw):
+        if not name: return None
+        existing = cls.objects.filter(name = name)
+        if existing:
+            return existing[0]
+        self = cls(name=name, **kw)
+        self.save()
+        return self
+
+    def __unicode__(self):
+        return self.name
+
 class Site(Aliased, LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
@@ -199,8 +252,7 @@ class Site(Aliased, LocationData):
     operators = django.db.models.ManyToManyField(Company, related_name='operates_at_sites')
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_sites")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_sites")
-
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    operations = django.db.models.ManyToManyField("Operation", related_name="done_at_sites")
 
     @classmethod
     def get_or_create(cls, name, latitude, longitude):
@@ -243,31 +295,8 @@ class Site(Aliased, LocationData):
 
         if self.datetime is not None and (other.datetime is None or self.datetime > other.datetime):
             other.datetime = self.datetime
-        info = other.info or {}
-        info.update(self.info or {})
-        other.info = info
-    
-        for alias in self.aliases.all():
-            if other.aliases.filter(name = alias.name).count():
-                alias.delete()
 
-        for name in dir(type(self)):
-            if name.startswith("__"): continue
-            field = getattr(type(self), name, None)
-            fieldtype = type(field)
-            if fieldtype is django.db.models.fields.related.ForeignRelatedObjectsDescriptor:
-                relatedname = field.related.field.name
-                for item in getattr(self, name).all():
-                    setattr(item, relatedname, other)
-                    item.save()
-            elif fieldtype is django.db.models.fields.related.ReverseManyRelatedObjectsDescriptor:
-                for item in getattr(self, name).all():
-                    getattr(other, name).add(item)
-                getattr(self, name).clear()
-        
-        other.save()
-        self.delete()
-        return other
+        super(Site, self).merge(other)
 
     def __unicode__(self):
         return self.name
@@ -290,6 +319,11 @@ class Site(Aliased, LocationData):
     def search(cls, query):
         return cls.objects.filter(name__icontains=query)
 
+    def get_viirs_data(self):
+        import appomatic_mapdata.models
+        import django.contrib.gis.measure
+        return appomatic_mapdata.models.Viirs.objects.filter(location__distance_lte=(self.location, django.contrib.gis.measure.D(m=750)))
+
 class SiteAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(Site, related_name="aliases")
@@ -310,10 +344,7 @@ class Well(LocationData):
     operators = django.db.models.ManyToManyField(Company, related_name='operates_at_wells')
     suppliers = django.db.models.ManyToManyField(Company, related_name="supplied_wells")
     chemicals = django.db.models.ManyToManyField("Chemical", related_name="used_at_wells")
-
-    well_type = django.db.models.CharField(max_length=128, null=True, blank=True, db_index=True)
-
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
+    operations = django.db.models.ManyToManyField("Operation", related_name="done_at_wells")
 
     GUID_FIELDS = LocationData.GUID_FIELDS + ["api"]
 
@@ -322,7 +353,7 @@ class Well(LocationData):
         self.site.update_location(latitude, longitude)
 
     @classmethod
-    def get(cls, api, site_name=None, latitude=None, longitude=None, conventional=True):
+    def get(cls, api, site_name=None, latitude=None, longitude=None, conventional=None):
         wells = cls.objects.filter(api=api)
         if wells:
             well = wells[0]
@@ -430,6 +461,7 @@ class Event(LocationData):
     objects = django.contrib.gis.db.models.GeoManager()
 
     datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc), verbose_name="Date/time of event")
+    operations = django.db.models.ManyToManyField("Operation", related_name="done_in_events")
 
     GUID_FIELDS = LocationData.GUID_FIELDS + ["datetime"]
 
@@ -466,6 +498,23 @@ class SiteEvent(Event):
     def __unicode__(self):
         return "%s @ %s" % (self.datetime, self.well or self.site)
 
+def siteevent_operations_changed(sender, instance, action, reverse, model, pk_set, *arg, **kw):
+    if action == "post_add":
+        if isinstance(instance, SiteEvent):
+            for operation in pk_set:
+                instance.site.operations.add(operation)
+                if instance.well:
+                    instance.well.operations.add(operation)
+        else:
+            for event in pk_set:
+                event = SiteEvent.objects.get(id=event)
+                event.site.operations.add(instance)
+                if event.well:
+                    event.well.operations.add(instance)
+   
+django.db.models.signals.m2m_changed.connect(siteevent_operations_changed, sender=SiteEvent.operations.through)
+
+
 class OperatorEvent(SiteEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
@@ -486,7 +535,6 @@ class OperatorInfoEvent(OperatorEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
     infourl = django.db.models.TextField(null=True, blank=True)
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
 class PermitEvent(OperatorInfoEvent):
     objects = django.contrib.gis.db.models.GeoManager()
@@ -532,8 +580,6 @@ class ChemicalUsageEventChemical(BaseModel):
     ingredient_weight = django.db.models.FloatField(null=True, blank=True)
     hf_fluid_concentration = django.db.models.FloatField(null=True, blank=True)
     
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
-
     def save(self, *arg, **kw):
         BaseModel.save(self, *arg, **kw)
         self.event.site.chemicals.add(self.chemical)
@@ -584,7 +630,6 @@ class StatusEvent(SiteEvent):
     objects = django.contrib.gis.db.models.GeoManager()
 
     status = django.db.models.ForeignKey(Status, related_name="events")
-    info = fcdjangoutils.fields.JsonField(null=True, blank=True)
 
 
 class CommentForm(django.forms.ModelForm):

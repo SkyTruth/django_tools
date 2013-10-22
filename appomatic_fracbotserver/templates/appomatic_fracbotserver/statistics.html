@@ -1,0 +1,145 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <!--[if lt IE 9]><script language="javascript" type="text/javascript" src="{{STATIC_URL}}appomatic_fracbotserver/jqplot/excanvas.js"></script><![endif]-->
+  <script language="javascript" type="text/javascript" src="{{STATIC_URL}}appomatic_fracbotserver/jqplot/jquery.min.js"></script>
+  <script language="javascript" type="text/javascript" src="{{STATIC_URL}}appomatic_fracbotserver/jqplot/jquery.jqplot.min.js"></script>
+  <script type="text/javascript" src="{{STATIC_URL}}appomatic_fracbotserver/jqplot/plugins/jqplot.dateAxisRenderer.min.js"></script>
+  <script type="text/javascript" src="{{STATIC_URL}}appomatic_fracbotserver/jqplot/plugins/jqplot.barRenderer.min.js"></script>
+  <script type="text/javascript" src="{{STATIC_URL}}appomatic_fracbotserver/jqplot/plugins/jqplot.pointLabels.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="{{STATIC_URL}}appomatic_fracbotserver/jqplot/jquery.jqplot.css" />
+{% endblock %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">
+      {% trans "Home" %}
+    </a>
+     &rsaquo; 
+     <a href="{% url 'admin:app_list' app_label="appomatic_fracbotserver" %}">
+       {% trans "FracBot" %}
+    </a>
+    &rsaquo; 
+    {% trans "Statistics" %}
+  </div>
+{% endblock %}
+
+{% block content_title %}<h1>{% trans "Statistics" %}</h1>{% endblock %}
+
+{% block content %}
+  <div>
+    Period:
+    <a href="javascript: void(0);" onclick="prev();">Previous</a>
+    <span id="period"></span>
+    <a href="javascript: void(0);" onclick="next();">Next</a>
+  </div>
+  <div id="chartdiv_by_activity_and_date" style="height:100%; width:90%; "></div>
+  <div id="chartdiv_by_client_and_date" style="height:100%; width:90%; "></div>
+  <script>
+    charts = [];
+    currentOffset = -1;
+    function next() {
+      currentOffset++;
+      loadStats(currentOffset);
+    }
+    function prev() {
+      currentOffset--;
+      loadStats(currentOffset);
+    }
+    function loadStats(offset) {
+      $.get(
+        "/admin/appomatic_fracbotserver/statistics/data",
+        {period: "addmonths(d()," + offset.toString() + ")..last(addmonths(d()," + offset.toString() + "))"},
+        function (data) {
+          $("#period").html(data.period);
+
+          charts.map(function (chart) {
+            chart.destroy();
+          });
+          charts = [];
+
+          data.by_activity_and_date.map(function (activity) {
+            activity.values.map(function (row) {
+              row[0] = new Date(row[0].value);
+            });
+          });
+
+          charts.push($.jqplot('chartdiv_by_activity_and_date',
+            data.by_activity_and_date.map(function (activity) {
+              return activity.values;
+            }),
+            {
+              title:'By type',
+              stackSeries: true,
+              axes:{
+                xaxis:{
+                  renderer: $.jqplot.DateAxisRenderer,
+                  tickOptions: {
+                    formatString:'%d/%m'
+                  },
+                  tickInterval:'1 day'
+                }
+              },
+              seriesDefaults:{
+                renderer:$.jqplot.BarRenderer,
+                pointLabels: {show: true}
+              },
+              series: data.by_activity_and_date.map(function (activity) {
+                return {label: activity.label};
+              }),
+              legend: {
+                show: true,
+                location: 'e',
+                placement: 'outside'
+              }
+            }
+          ));
+
+
+          data.by_client_and_date.map(function (activity) {
+            activity.values.map(function (row) {
+              row[0] = new Date(row[0].value);
+            });
+          });
+
+          charts.push($.jqplot('chartdiv_by_client_and_date',
+            data.by_client_and_date.map(function (activity) {
+              return activity.values;
+            }),
+            {
+              title:'By client',
+              stackSeries: true,
+              axes:{
+                xaxis:{
+                  renderer: $.jqplot.DateAxisRenderer,
+                  tickOptions: {
+                    formatString:'%d/%m'
+                  },
+                  tickInterval:'1 day'
+                }
+              },
+              seriesDefaults:{
+                renderer:$.jqplot.BarRenderer,
+                pointLabels: {show: true}
+              },
+              series: data.by_client_and_date.map(function (activity) {
+                return {label: activity.label};
+              }),
+              legend: {
+                show: true,
+                location: 'e',
+                placement: 'outside'
+              }
+            }
+          ));
+        },
+        "json"
+      );
+    }
+    $(function () {
+      loadStats(currentOffset);
+    });
+  </script>
+{% endblock %}

@@ -3,5 +3,30 @@
 {% block body_class %}index{% endblock %}
 
 {% block content_outer %}
-  <iframe name="map" class="fullscreen map" src="{% url 'appomatic_mapserver.views.application' application='appomatic_siteinfo.models.SiteInfoMap' %}"></iframe>
+  <div id="map-canvas" class="map fullscreen"></div>
+  <script type="text/javascript"
+    src="https://maps.googleapis.com/maps/api/js?key={{settings.GOOGLE_MAPS_KEY}}&sensor=false&libraries=visualization">
+  </script>
+  <script type="text/javascript">
+    function initialize() {
+      var map = new google.maps.Map(document.getElementById("map-canvas"), {
+        center: new google.maps.LatLng(40, -90),
+        zoom: 4,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+      });
+      var layer = new google.maps.visualization.MapsEngineLayer({
+        layerId: '{{settings.SITEINFO_GOOGLE_MAPSENGINE_LAYER}}',
+        map: map,
+        suppressInfoWindows: true
+      });
+
+      var infoWindow = new google.maps.InfoWindow({});
+      google.maps.event.addListener(layer, "click", function (e) {
+        infoWindow.setContent("<iframe style='width: 400px; height: 300px; border: none;' src='{{site_url}}/siteinfo/" + e.infoWindowHtml + "?style=iframe.html'></iframe>");
+        infoWindow.setPosition(e.latLng);
+        infoWindow.open(map);
+      });
+    }
+    google.maps.event.addDomListener(window, 'load', initialize);
+  </script>
 {% endblock %}

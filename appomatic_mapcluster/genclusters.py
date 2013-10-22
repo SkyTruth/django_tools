@@ -1,6 +1,7 @@
 import django.db
 import django.core.management.base
 import appomatic_mapdata.models
+import appomatic_mapcluster.models
 import optparse
 import contextlib
 import shapely.wkb
@@ -14,61 +15,16 @@ import csv
 import os.path
 import StringIO
 import fastkml.config
-import monkeypatches.fastkmlmonkey
 import fcdjangoutils.sqlutils
-
+import fcdjangoutils.jsonview
+import time
+from appomatic_mapcluster.template import *
 
 KMLNS = '{http://www.opengis.net/kml/2.2}'
 
 def dictreader(cur):
     for row in cur:
         yield dict(zip([col[0] for col in cur.description], row))
-
-def template_reports_mangle_row(columns, row):
-    pass
-
-def template_reports_name():
-    return "Reports"
-
-def template_reports_description():
-    return 'All reports'
-
-def template_cluster_mangle_row(columns, row):
-    pass
-
-def template_cluster_name(columns):
-    return ""
-
-def template_cluster_description(columns):
-    columnnames = columns.keys()
-    columnnames.sort()
-    description = []
-    for name in columnnames:
-        t = columns[name]
-        if name == 'id': continue
-        if t == 'NUMBER':
-            description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
-            description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
-            description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
-            description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
-        elif t == 'DATETIME':
-            description.append('<tr><th>%s (min)</th><td>%%(%s_min)s' % (name, name))
-            description.append('<tr><th>%s (max)</th><td>%%(%s_max)s' % (name, name))
-            description.append('<tr><th>%s (avg)</th><td>%%(%s_avg)s' % (name, name))
-            description.append('<tr><th>%s (stddev)</th><td>%%(%s_stddev)s' % (name, name))
-    return '<h2>%(count)s</h2><table>' + ''.join(description) + '</table>'
-
-def template_report_name(columns):
-    return ""
-
-def template_report_description(columns):
-    columnnames = columns.keys()
-    columnnames.sort()
-    description = []
-    for name in columnnames:
-        if name == 'id': continue
-        description.append('<tr><th>%s</th><td>%%(%s)s' % (name, name))
-    return '<h2>%(id)s</h2><table>' + ''.join(description) + '</table>'
 
 def sql_cluster_columns(columns):
     sqlcols = []
@@ -78,12 +34,12 @@ def sql_cluster_columns(columns):
             sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
             sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
             sqlcols.append('avg(c."%s") as "%s_avg"' % (name, name))
-            sqlcols.append('stddev(c."%s") as "%s_stddev"' % (name, name))
+            sqlcols.append('coalesce(stddev(c."%s"), 0) as "%s_stddev"' % (name, name))
         elif t == 'DATETIME':
             sqlcols.append('min(c."%s") as "%s_min"' % (name, name))
             sqlcols.append('max(c."%s") as "%s_max"' % (name, name))
             sqlcols.append('to_timestamp(avg(extract(\'epoch\' from c."%s"))) as "%s_avg"' % (name, name))
-            sqlcols.append('stddev(extract(\'epoch\' from c."%s")) * interval \'1second\' as "%s_stddev"' % (name, name))
+            sqlcols.append('coalesce(stddev(extract(\'epoch\' from c."%s")), 0) * interval \'1second\' as "%s_stddev"' % (name, name))
     return sqlcols
 
 def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255), maxcolor = (255, 00, 00, 255), nonecolor = (255, 00, 255, 255)):
@@ -101,24 +57,28 @@ def get_color(value, minvalue = 0, maxvalue = 1, mincolor = (255, 00, 255, 255),
     return "%02x%02x%02x%02x" % color
 
 
-def extract_clusters(cur, query, size, radius, timeperiod):
+def extract_clusters(cur, query, size, radius, timeperiod, **kw):
     columns = fcdjangoutils.sqlutils.query_columns(cur, query)
 
     # Remove old data if any
-    cur.execute("truncate table appomatic_mapcluster_cluster")
+    cur.execute("truncate table appomatic_mapcluster_tempcluster")
 
     #### Select the timeframe to work with
     filter = "true"
-    args = {}
+    countedfilter = "true"
+    args = dict(kw)
     if timeperiod is not None:
         filter = """
-          datetime >= %(period_min)s and datetime <= %(period_max)s 
+          datetime >= %(period_min)s - '60 days'::interval and datetime <= %(period_max)s 
+        """
+        countedfilter = """
+          datetime >= %(period_min)s
         """
         args["period_min"] = timeperiod[0]
         args["period_max"] = timeperiod[1]
     cur.execute("""
-      insert into appomatic_mapcluster_cluster (
-        reportnum, src, datetime, latitude, longitude, location, glocation)
+      insert into appomatic_mapcluster_tempcluster (
+        reportnum, src, datetime, latitude, longitude, location, glocation, quality, iscounted)
       select
         id,
         src,
@@ -126,14 +86,16 @@ def extract_clusters(cur, query, size, radius, timeperiod):
         latitude,
         longitude,
         location,
-        location
+        location,
+        1,
+        """ + countedfilter + """
       from
         """ + query + """ as a
       where
         """ + filter, args)
 
     # Create buffer
-    # cur.execute("update appomatic_mapcluster_cluster set buffer = st_buffer(location, %(radius)s)", {"radius": radius})
+    # cur.execute("update appomatic_mapcluster_tempcluster set buffer = st_buffer(location, %(radius)s)", {"radius": radius})
 
     ### Compute score - all reports in buffer 
     ### Tack on the reportnum after the decimal place on the score
@@ -143,12 +105,19 @@ def extract_clusters(cur, query, size, radius, timeperiod):
     ### included in the output)
     cur.execute("""
       update
-        appomatic_mapcluster_cluster a
+        appomatic_mapcluster_tempcluster a
       set
+        countedscore = (select
+                          count(*) as c
+                        from
+                          appomatic_mapcluster_tempcluster b
+                        where
+                          b.iscounted
+                          and ST_DWithin(a.glocation, b.glocation, %(radius)s)),
         score = ((select
                     count(*) as c
                   from
-                    appomatic_mapcluster_cluster b
+                    appomatic_mapcluster_tempcluster b
                   where
                     ST_DWithin(a.glocation, b.glocation, %(radius)s))
                  || '.' || reportnum)::double precision
@@ -157,30 +126,31 @@ def extract_clusters(cur, query, size, radius, timeperiod):
     ### Set max_score equal to the highest score in the buffer 
     cur.execute("""
       update
-        appomatic_mapcluster_cluster a
+        appomatic_mapcluster_tempcluster a
       set
          max_score = (select
                         max(score) as c
                       from
-                        appomatic_mapcluster_cluster b
+                        appomatic_mapcluster_tempcluster b
                       where
                         ST_DWithin(a.glocation, b.glocation, %(radius)s))
     """, {"radius": radius})
 
     sqlcols = ["a.id",
-               "floor(a.max_score) as count",
+               "a.countedscore as count",
                "ST_Y(ST_Centroid(ST_Collect(b.location))) as latitude",
                "ST_X(ST_Centroid(ST_Collect(b.location))) as longitude",
+               "ST_Centroid(ST_Collect(b.location)) as location",
                "ST_AsText(ST_Centroid(ST_Collect(b.location))) as shape"]
     sqlcols.extend(sql_cluster_columns(columns))
     sqlcols = ', '.join(sqlcols)
 
     cur.execute("""
       select
-         min(floor(a.max_score)) as min,
-         max(floor(a.max_score)) as max
+         min(floor(a.countedscore)) as min,
+         max(floor(a.countedscore)) as max
        from  
-         appomatic_mapcluster_cluster a
+         appomatic_mapcluster_tempcluster a
        where
          a.score = a.max_score
          and a.score >= %(size)s
@@ -191,17 +161,18 @@ def extract_clusters(cur, query, size, radius, timeperiod):
       select
          """ + sqlcols + """
        from  
-         appomatic_mapcluster_cluster a
-         join appomatic_mapcluster_cluster b on
+         appomatic_mapcluster_tempcluster a
+         join appomatic_mapcluster_tempcluster b on
            ST_DWithin(a.glocation, b.glocation, %(radius)s)
          join """ + query + """ as c on
            b.reportnum = c.id
        where
          a.score = a.max_score
-         and a.score >= %(size)s
+         and a.countedscore >= %(size)s
        group by
          a.id,
-         a.max_score
+         a.max_score,
+         a.countedscore
        order by
          a.max_score desc
     """
@@ -218,11 +189,73 @@ def extract_clusters(cur, query, size, radius, timeperiod):
     ''', result_query)
     colormin, colormax = cur.next()
 
+    if 'query_id' in args:
+        cur.execute("""
+          insert into appomatic_mapcluster_report (query_id, timeperiod_min, timeperiod_max)
+          values (%(query_id)s, %(period_min)s, %(period_max)s)
+        """, args)
+        cur.execute("select lastval()")
+        report_id = cur.next()[0]
+        cur.execute(result_sql, result_query)
+        with contextlib.closing(django.db.connection.cursor()) as cur2:
+            for row in dictreader(cur):
+                info = dict(row)
+                row['info'] = fcdjangoutils.jsonview.to_json(info)
+                row['datetime_stddev'] = row['datetime_stddev'].days * 24*60*60 + row['datetime_stddev'].seconds + 0.000001 * row['datetime_stddev'].microseconds
+                row['report_id'] = report_id
+                cur2.execute("""
+                  insert into appomatic_mapcluster_cluster (
+                    src,
+                    report_id,
+                    datetime,
+                    latitude,
+                    longitude,
+                    location,
+                    glocation,
+                    quality,
+                    longitude_max,
+                    longitude_avg,
+                    longitude_stddev,
+                    datetime_min,
+                    datetime_max,
+                    datetime_avg,
+                    datetime_stddev,
+                    latitude_min,
+                    latitude_max,
+                    latitude_avg,
+                    latitude_stddev,
+                    count,
+                    info
+                  ) values (
+                    'CLUSTER',
+                    %(report_id)s,
+                    %(datetime_avg)s,
+                    %(latitude_avg)s,
+                    %(longitude_avg)s,
+                    %(location)s,
+                    %(location)s,
+                    1.0,
+                    %(longitude_max)s,
+                    %(longitude_avg)s,
+                    %(longitude_stddev)s,
+                    %(datetime_min)s,
+                    %(datetime_max)s,
+                    %(datetime_avg)s,
+                    %(datetime_stddev)s,
+                    %(latitude_min)s,
+                    %(latitude_max)s,
+                    %(latitude_avg)s,
+                    %(latitude_stddev)s,
+                    %(count)s,
+                    %(info)s
+                  )
+                """, row)
+            cur2.execute("commit")
     cur.execute(result_sql, result_query)
 
     seq = 0
     for row in dictreader(cur):
-	template_clusters_mangle_row(columns, row)
+	template_cluster_mangle_row(columns, row)
         yield {
             "seq": seq,
             "color": get_color(
@@ -368,7 +401,7 @@ def extract_reports_kml(cur, query, periods, doc):
 
 
 
-def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
+def extract_clusters_kml(cur, query, size, radius, timeperiod, doc, **kw):
     timeperiodstr = "%s-%s" % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
 
     foldername = 'Clusters %s:%s' % (timeperiod[0].strftime("%Y-%m-%d"), timeperiod[1].strftime("%Y-%m-%d"))
@@ -409,7 +442,7 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
     doc.append_style(style_map)
 
 
-    for info in extract_clusters(cur, query, size, radius, timeperiod):
+    for info in extract_clusters(cur, query, size, radius, timeperiod, **kw):
         if info['scoremax'] - info['scoremin']:
             scale = 0.5 + 2 * (float(info['row']['count'] - info['scoremin']) / (info['scoremax'] - info['scoremin']))
         else:
@@ -444,7 +477,7 @@ def extract_clusters_kml(cur, query, size, radius, timeperiod, doc):
         folder.append(placemark)
 
 
-def extract_kml(name, cur, query, size, radius, periods):
+def extract_kml(name, cur, query, size, radius, periods, **kw):
     kml = fastkml.kml.KML()
 
     docname = name
@@ -456,16 +489,16 @@ def extract_kml(name, cur, query, size, radius, periods):
     kml.append(doc)
 
     for timeperiod in periods:
-        extract_clusters_kml(cur, query, size, radius, timeperiod, doc)
+        extract_clusters_kml(cur, query, size, radius, timeperiod, doc, **kw)
 
     extract_reports_kml(cur, query, periods, doc)
 
     return kml.to_string(prettyprint=True)
 
 
-def extract_clusters_csv(cur, query, radius, size, timeperiod, doc):
+def extract_clusters_csv(cur, query, radius, size, timeperiod, doc, **kw):
     global columns
-    for info in extract_clusters(cur, query, radius, size, timeperiod):
+    for info in extract_clusters(cur, query, radius, size, timeperiod, **kw):
         info['row']['periodstart'] = timeperiod[0]
         info['row']['periodend'] = timeperiod[1]
         del info['row']['shape']
@@ -491,23 +524,42 @@ def extract_reports_csv(cur, query, periods, doc):
 
             doc.writerow([info['row'][col] for col in columns])
 
-def extract_csv(name, cur, query, size, radius, periods, doc):
+def extract_csv(name, cur, query, size, radius, periods, doc, **kw):
     global columns
     columns = None
     for timeperiod in periods:
-        extract_clusters_csv(cur, query, size, radius, timeperiod, doc)
+        extract_clusters_csv(cur, query, size, radius, timeperiod, doc, **kw)
 
 def extract_csv_reports(name, cur, query, size, radius, periods, doc):
     global columns
     columns = None
     extract_reports_csv(cur, query, periods, doc)
 
+def decodeDate(datestr, other=None):
+    if not datestr: return None
+    def d(datestr = None):
+        if datestr is None:
+            return datetime.datetime.now()
+        return datetime.datetime.strptime(datestr, '%Y-%m-%d')
+    def first(dt):
+        return datetime.datetime(dt.year, dt.month, 1)
+    def last(dt):
+        return first(first(dt) + datetime.timedelta(35)) - datetime.timedelta(1)
+    def addmonths(dt, months):
+        month = dt.month + months
+        year = dt.year + (month / 12)
+        month = month % 12
+        return datetime.datetime(year, month, 1)
+    try:
+        return d(datestr)
+    except:
+        return eval(datestr, {"__builtins__": {}, "datetime": datetime, "time": time, "other": other, "d": d, "first": first, "last": last, "addmonths": addmonths})
+
 def decodePeriod(period):
     start, end = period.split(":")
-    if start:
-        start = datetime.datetime.strptime(start, '%Y-%m-%d')
-    if end:
-        end = datetime.datetime.strptime(end, '%Y-%m-%d')
+    end = decodeDate(end)
+    start = decodeDate(start, end)
+
     if not start:
         if not end:
             end = datetime.datetime.now()
@@ -516,7 +568,7 @@ def decodePeriod(period):
         end = start + datetime.interval(30)
     return (start, end)
 
-def extract(name, query, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **options):
+def extract(name, query, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **kw):
     if template:
         with open(os.path.expanduser(template)) as f:
             exec f in globals()
@@ -531,10 +583,10 @@ def extract(name, query, template=None, format='kml', size = 4, radius=7500, per
 
     with contextlib.closing(django.db.connection.cursor()) as cur:
         if format == 'kml':
-            return extract_kml(name, cur, query, size, radius, periods).encode('utf-8')
+            return extract_kml(name, cur, query, size, radius, periods, **kw).encode('utf-8')
         elif format == 'csv':
             f = StringIO.StringIO()
-            extract_csv(name, cur, query, size, radius, periods, csv.writer(f))
+            extract_csv(name, cur, query, size, radius, periods, csv.writer(f), **kw)
             return f.getvalue()
         elif format == 'csv_reports':
             f = StringIO.StringIO()

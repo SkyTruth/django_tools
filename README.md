@@ -1,41 +1,39 @@
 # Installation
 
+Set up a virtualenv
+
     virtualenv iuumapserver # or some other directory name where you want the installation
     cd iuumapserver
     source bin/activate
+    root="$(pwd)"
 
 Download and install latest development version of Django. Tested with Django==1.6.dev20130219095124
 
-pip install the following:
+    mkdir $root/src
+    cd $root/src
+    git clone git://github.com/django/django.git
+    cd django
+    python setup.py install
+    
+Download and install this software
 
-    Shapely==1.2.17
-    appomatic==0.0.14
-    appomatic-admin==0.0.14
-    appomatic-appadmin==0.0.14
-    appomaticcore==0.0.15
-    bitstring==3.0.2
-    distribute==0.6.24
-    fastkml==0.3dev
-    geojson==1.0.1
-    paramiko==1.9.0
-    psycopg2==2.4.6
-    pycrypto==2.6
-    pygeoif==0.3.1dev
-    python-dateutil==2.1
-    simplejson==3.0.7
-    six==1.2.0
+    cd $root/src
+    git clone git@github.com:SkyTruth/django_tools.git
+    pip install -r $root/src/django_tools/requirements.txt
 
-Put this git repo at iuumapserver/src
-Create a directory apps, and add symlinks to the appomatic-apps you want/need from this repo inside it. 
-Create a directory apps/appomatic_settings, and inside it the empty files __app__.py and __init__.py. In addition, create a __settings__py containing your django database config. 
+    mkdir $root/apps
+    cd $root/apps
+    for x in ../src/django_tools/appomatic_*; do if [ "$x" = "../src/django_tools/appomatic_config" ]; then cp -r "$x" .; else ln -s $x; fi; done
 
-Run
+Edit $root/apps/appomatic_config/__settings__.py to suit your database config and google accounts.
+
+If you created a new database (not all functionality will work without our full dataset), run
 
     appomatic syncdb
-
-Optionally run
-
     appomatic syncmapviews
+
+Optionally run any of the data importers (you need to set up passwords for some of them to work)
+
     appomatic mapimport_exactearth
     appomatic mapimport_ksat
 
@@ -120,4 +118,3 @@ Configures the userena signup/signin/signout user management framework
 ## appomatic_websitebase
 
 Some base templates used in the IUU project
-
