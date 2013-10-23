@@ -9,7 +9,7 @@ class SiteinfoTest(unittest.TestCase):
     def setUp(self):
         self.driver = webdriver.Firefox()
         self.driver.implicitly_wait(30)
-        self.base_url = "http://siteinfo.skytruth.org/"
+        self.base_url = "http://localhost:8000"
         self.verificationErrors = []
         self.accept_next_alert = True
     
@@ -22,6 +22,8 @@ class SiteinfoTest(unittest.TestCase):
         driver.find_element_by_xpath("//em[normalize-space(.)='FracEvent: -77.066594E 41.932717N @ Jan. 3, 2011, 6 p.m.']").click()
         driver.find_element_by_link_text("Shell").click()
         driver.find_element_by_link_text("Carrier/Base Fluid").click()
+        self.assertRegexpMatches(driver.find_element_by_css_selector("BODY").text, r"^[\s\S]*ChemicalPurpose: Carrier/Base Fluid[\s\S]*$")
+        self.assertTrue(self.is_element_present(By.CSS_SELECTOR, "body.appomatic_siteinfo-models-ChemicalPurpose"))
 
     def test_pages(self):
         driver = self.driver
@@ -31,6 +33,9 @@ class SiteinfoTest(unittest.TestCase):
         driver.find_element_by_xpath("//em[normalize-space(.)='FracEvent: -77.066594E 41.932717N @ Jan. 3, 2011, 6 p.m.']").click()
         driver.find_element_by_link_text("Shell").click()
         driver.find_element_by_link_text("Carrier/Base Fluid").click()
+        self.assertRegexpMatches(driver.find_element_by_css_selector("BODY").text, r"^[\s\S]*ChemicalPurpose: Carrier/Base Fluid[\s\S]*$")
+        self.assertTrue(self.is_element_present(By.CSS_SELECTOR, "body.appomatic_siteinfo-models-ChemicalPurpose"))
+
     
     def is_element_present(self, how, what):
         try: self.driver.find_element(by=how, value=what)
