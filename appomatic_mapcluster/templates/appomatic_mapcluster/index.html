@@ -1,50 +1,74 @@
+{% extends "admin/base_site.html" %}
+{% load admin_list i18n %}
+{% load url from future %}
 {% load static %}
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Clusters</title>
 
-    <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/css/smoothness/jquery-ui-1.10.0.custom.min.css" />
+{% block extrastyle %}
+  {{ block.super }}
+  {{ media.css }}
 
-    <script src="{% get_static_prefix %}appomatic_mapserver/libs/async.js"></script>
-    <script src="{% get_static_prefix %}appomatic_mapserver/libs/date.format.js"></script>
-    <script src="{% get_static_prefix %}appomatic_mapserver/libs/mustache/mustache.js"></script>
-    <script src="{% get_static_prefix %}appomatic_mapserver/libs/OpenLayers-2.12/OpenLayers.js"></script>
-    <script src="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/js/jquery-1.9.0.js"></script>
-    <script src="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/js/jquery-ui-1.10.0.custom.min.js"></script>
-    <script>
-      $(function() {
-        $(".datepicker" ).datepicker({dateFormat: "yy-mm-dd"});
-        $(".expandable .body").hide();
-        $(".expandable .expander").click(function () {
-          $(this).parent().find(".body").toggle();
-        });
+  <link rel="stylesheet" href="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/css/smoothness/jquery-ui-1.10.0.custom.min.css" />
+
+  <script src="{% get_static_prefix %}appomatic_mapserver/libs/async.js"></script>
+  <script src="{% get_static_prefix %}appomatic_mapserver/libs/date.format.js"></script>
+  <script src="{% get_static_prefix %}appomatic_mapserver/libs/mustache/mustache.js"></script>
+  <script src="{% get_static_prefix %}appomatic_mapserver/libs/OpenLayers-2.12/OpenLayers.js"></script>
+  <script src="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/js/jquery-1.9.0.js"></script>
+  <script src="{% get_static_prefix %}appomatic_mapserver/libs/jquery-ui-1.10.0/js/jquery-ui-1.10.0.custom.min.js"></script>
+  <script>
+    $(function() {
+      $(".datepicker" ).datepicker({dateFormat: "yy-mm-dd"});
+      $(".expandable .body").hide();
+      $(".expandable .expander").click(function () {
+        $(this).parent().find(".body").toggle();
       });
-    </script>
-  </head>
-  <body>
-    {% for query in queries %}
-      <div class="expandable">
-        <div class="expander">{{query.name}}</div>
-        <div class="body">
-          <form action="{% url 'appomatic_mapcluster.views.cluster' name=query.slug %}" method="GET"> 
-            <p>Start date: <input type="text" name="startdate" class="datepicker" /></p>
-            <p>End date: <input type="text" name="enddate" class="datepicker" /></p>
-            <p>Format:
-              <select name="format">
-                <option value="kml">KML</option>
-                <option value="csv">CSV</option>
-                <option value="csv_reports">CSV - individual detections</option>
-              </select>
-            </p>
-            <input type="submit" value="Get it">
-          </form>
-          <p>{{query.description}}</p>
-        </div>
-      </div>
-    {% endfor %}
-  </body>
-</html>
+    });
+  </script>
+{% endblock %}
+
+{% if not is_popup %}
+  {% block breadcrumbs %}
+    <div class="breadcrumbs">
+      <a href="{% url 'admin:index' %}">
+        {% trans "Home" %}
+      </a>
+       &rsaquo; 
+       <a href="{% url 'admin:app_list' app_label="appomatic_mapcluster" %}">
+         {% trans "MapCluster" %}
+      </a>
+      &rsaquo; 
+      {% trans "Generate / view clusters" %}
+    </div>
+  {% endblock %}
+{% endif %}
+
+{% block coltype %}flex{% endblock %}
+
+{% block content %}
+  {% for query in queries %}
+    <div class="app-appomatic_mapcluster module expandable">
+      <table style="width: 100%">
+        <caption class="expander">{{query.name}}</caption>
+        <tbody class="body">
+          <tr>
+            <th>
+              <form action="{% url 'appomatic_mapcluster.views.cluster' name=query.slug %}" method="GET"> 
+                <p>Start date: <input type="text" name="startdate" class="datepicker" /></p>
+                <p>End date: <input type="text" name="enddate" class="datepicker" /></p>
+                <p>Format:
+                  <select name="format">
+                    <option value="kml">KML</option>
+                    <option value="csv">CSV</option>
+                    <option value="csv_reports">CSV - individual detections</option>
+                  </select>
+                </p>
+                <input type="submit" value="Get it">
+              </form>
+              <p>{{query.description}}</p>
+            </th>
+          </tr>           
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+{% endblock %}
