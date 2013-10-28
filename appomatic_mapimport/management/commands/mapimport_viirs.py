@@ -20,13 +20,23 @@ KML_ROOT = os.path.join(settings.MEDIA_ROOT, "nightfire")
 
 
 class Command(appomatic_mapimport.mapimport.Import):
-    SRC = 'VIIRS'
-    help = 'Import data from VIIRS'
+    help = """Import data from VIIRS
+Usages:
+mapimport_viirs corrected
+mapimport_viirs raw
+    """
 
     # Included in an iframe at http://ngdc.noaa.gov/eog/viirs/download_viirs_fire.html
-    starturl = "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_cor.html"
-    baseurl = os.path.dirname(starturl)
+    starturls = {"corrected": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_cor.html",
+                "raw": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_ncor.html"}
 
+    @property
+    def SRC(self):
+        return 'VIIRS_' + self.args[0].upper()
+
+    @property
+    def starturl(self):
+        return self.starturls[self.args[0]]
 
     def connectioninfo(self):
         raise NotImplementedError
@@ -123,6 +133,7 @@ class Command(appomatic_mapimport.mapimport.Import):
                 yield detection
 
     def insertrow(self, row):
+        row['src'] = self.SRC
         self.cur.execute("""
                     insert into appomatic_mapdata_viirs (
                       "src",
@@ -140,7 +151,7 @@ class Command(appomatic_mapimport.mapimport.Import):
                       "SourceID",
                       "quality")
                     values (
-                      'VIIRS',
+                      %(src)s,
                       %(filename)s,
                       %(datetime)s,
                       %(name)s,
