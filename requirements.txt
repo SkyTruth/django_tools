@@ -22,3 +22,4 @@ psycopg2
 pyOpenSSL
 pyproj
 Shapely
+lxml
