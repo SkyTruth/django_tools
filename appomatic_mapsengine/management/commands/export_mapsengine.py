@@ -1,4 +1,5 @@
 import appomatic_mapsengine.exporter
+import django.core.management.base
 
 class Command(django.core.management.base.BaseCommand):
     def handle(self, *args, **kwargs):

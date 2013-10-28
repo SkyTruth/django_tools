@@ -39,8 +39,9 @@ class RequestException(Exception):
 
 class Exporter(object):
     def log(self, **info):
+        self.logstatus.update(info)
         if self.out:
-            self.out.write(json.dumps(info) + "\n")
+            self.out.write(json.dumps(self.logstatus) + "\n")
             self.out.flush()
         else:
             print info["status"]
@@ -80,6 +81,7 @@ class Exporter(object):
 
     def __init__(self, queryset, out=None):
         self.out = out
+        self.logstatus = {"done": 0}
 
         self.connect()
 
