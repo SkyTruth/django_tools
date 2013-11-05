@@ -17,11 +17,6 @@ geod = pyproj.Geod(ellps="WGS84")
 class Command(django.core.management.base.BaseCommand):
 
     option_list = django.core.management.base.BaseCommand.option_list + (
-        optparse.make_option('--size',
-            action='store',
-            type='int',
-            default=1200,
-            help='The size of the task area'),
         optparse.make_option('--year',
             action='store',
             default="2010",
@@ -56,36 +51,21 @@ class Command(django.core.management.base.BaseCommand):
                 l.longitude x,
                 b.guuid as guuid,
                 c.name as county,
-                substring(st.name from 3) as state
+                substring(st.code from 4) as state
               from
                 appomatic_siteinfo_site s
                 join appomatic_siteinfo_locationdata l on
                   s.locationdata_ptr_id = l.basemodel_ptr_id
                 join appomatic_siteinfo_basemodel b on
                   l.basemodel_ptr_id = b.id
-                join region r on
-                  st_contains(r.the_geom, l.location)
-                  and r.code = %(region)s
                 join region c on
                   st_contains(c.the_geom, l.location)
                   and c.src = 'US-COUNTY'
                 join region st on
                   st_contains(st.the_geom, l.location)
                   and st.src = 'US-STATE'
-                join (
-                  select distinct
-                    se.site_id
-                  from
-                    appomatic_siteinfo_event e
-                    join appomatic_siteinfo_siteevent se on
-                      e.locationdata_ptr_id = se.event_ptr_id
-                      and e.datetime < (%(year)s || '-12-29')::timestamp
-                    join appomatic_siteinfo_statusevent ste on
-                      se.event_ptr_id = ste.siteevent_ptr_id
-                    join appomatic_siteinfo_status st on
-                      ste.status_id = st.basemodel_ptr_id
-                      and st.name in ('empty', 'equipment')) h on
-                  s.locationdata_ptr_id = h.site_id
+                join sitesforranaarvalis ra on
+                  b.guuid = ra.siteid
             """, kwargs)
 
             if kwargs['format'] == 'geojson':
@@ -94,10 +74,10 @@ class Command(django.core.management.base.BaseCommand):
             first = True
             for site in fcdjangoutils.sqlutils.dictreader(cur):
 
-                dummy, top, dummy = geod.fwd(site['x'], site['y'], 0, kwargs['size'] / 2)
-                left, dummy, dummy = geod.fwd(site['x'], site['y'], 270, kwargs['size'] / 2)
-                right, dummy, dummy = geod.fwd(site['x'], site['y'], 90, kwargs['size'] / 2)
-                dummy, bottom, dummy = geod.fwd(site['x'], site['y'], 180, kwargs['size'] / 2)
+                dummy, top, dummy = geod.fwd(site['x'], site['y'], 0, 600)
+                left, dummy, dummy = geod.fwd(site['x'], site['y'], 270, 600)
+                right, dummy, dummy = geod.fwd(site['x'], site['y'], 90, 600)
+                dummy, bottom, dummy = geod.fwd(site['x'], site['y'], 180, 600)
                 
                 info = {
                     "latitude": site['y'],
