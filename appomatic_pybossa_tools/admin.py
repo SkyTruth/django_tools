@@ -38,3 +38,9 @@ class AnswerAdmin(django.contrib.admin.ModelAdmin):
     list_filter = ('task',)
     search_fields = list_display
 django.contrib.admin.site.register(appomatic_pybossa_tools.models.Answer, AnswerAdmin)
+class GeoAnswerAdmin(django.contrib.admin.ModelAdmin):
+    list_display = ('answer', 'latitude', 'longitude')
+    list_display_links = list_display
+    list_filter = ('answer',)
+    search_fields = list_display
+django.contrib.admin.site.register(appomatic_pybossa_tools.models.GeoAnswer, GeoAnswerAdmin)

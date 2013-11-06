@@ -6,6 +6,7 @@ import httplib2
 import json
 import datetime
 import sys
+import django.contrib.gis.geos.geometry
 
 class Server(django.db.models.Model):
     name = django.db.models.CharField(max_length=256, blank=True)
@@ -80,6 +81,17 @@ class Answer(django.db.models.Model):
         if not self.task.dirty:
             self.task.dirty = True
             self.task.save()
+        if 'info' in self.info and 'positions' in self.info['info']:
+            for pos in self.info['info']['positions']:
+                info = {"answer":self, "latitude": pos['lat'], "longitude": pos['lon']}
+                info['geom'] = django.contrib.gis.geos.geometry.Point(info['longitude'], info['latitude'])
+                GeoAnswer(**info).save()
 
     def __unicode__(self):
         return "%s for %s" % (self.answerid, self.task)
+
+class GeoAnswer(django.contrib.gis.db.models.Model):
+    answer = django.db.models.ForeignKey(Answer, related_name="geo")
+    latitude = django.db.models.FloatField(db_index=True, verbose_name="Latitude")
+    longitude = django.db.models.FloatField(db_index=True, verbose_name="Longitude")
+    geom = django.contrib.gis.db.models.GeometryField(db_index=True)
