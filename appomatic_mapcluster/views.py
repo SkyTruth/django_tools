@@ -26,7 +26,7 @@ def cluster(request, name):
 
     response = django.http.HttpResponse(
         appomatic_mapcluster.genclusters.extract(
-            query.name, query.query, query.template, format, query.size, query.radius, periods = periods),
+            query.name, query.query, query.template, format, query.size, query.radius, query_id=query.id, periods = periods),
         content_type=contentTypes[format])
 
     filename = query.name
