@@ -10,6 +10,7 @@ import logging
 from django.conf import settings 
 import django.db.transaction
 import pytz
+import csv
 
 class Command(django.core.management.base.BaseCommand):
 
@@ -25,31 +26,42 @@ class Command(django.core.management.base.BaseCommand):
     def handle2(self, *args, **kwargs):
         src = appomatic_siteinfo.models.Source.get("Frackfinder", "")
 
-        for idx, task in enumerate(appomatic_pybossa_tools.models.Task.objects.filter(app__name="frackfinder_tadpole", id__gt = src.import_id).order_by("id")):
-            site = appomatic_siteinfo.models.Site.objects.get(guuid=task.info['info']['siteID'])
-            if 'summary' not in task.info: continue
-            if 'type' not in task.info['summary']: continue
+        with open(args[0]) as f:
+            for idx, row in enumerate(csv.DictReader(f)):
+                # Cols: longitude,latitude,siteID,year,county,url,class,class-source,class-quality
 
-            status = appomatic_siteinfo.models.Status.get(task.info['summary']['type'][0][0])
+                site = appomatic_siteinfo.models.Site.objects.get(guuid=row['siteID'])
+                timestamp = datetime.datetime(int(row['year']), 1, 1).replace(tzinfo=pytz.utc)
+                status = appomatic_siteinfo.models.Status.get({
+                        "NO PAD": "nopad",
+                        "PAD": "empty",
+                        "PAD-EQUIP": "equipment",
+                        "unknown": "unknown"
+                        }[row['class']])
 
-            event = appomatic_siteinfo.models.StatusEvent(
-                src = src,
-                import_id = task.id,
-                datetime = datetime.datetime(int(task.info['info']['year']), 1, 1).replace(tzinfo=pytz.utc),
-                site = site,
-                status = status,
-                info = task.info
-                )
-            event.save()
+                existing = appomatic_siteinfo.models.StatusEvent.objects.filter(site=site, datetime=timestamp)
+                if existing:
+                    if existing[0].status.name != status.name:
+                        existing[0].status = status
+                        existing[0].save()
+                        sys.stdout.write("+"); sys.stdout.flush()
+                    else:
+                        sys.stdout.write("-"); sys.stdout.flush()
+                else:
+                    event = appomatic_siteinfo.models.StatusEvent(
+                        src = src,
+                        import_id = None,
+                        datetime = timestamp,
+                        site = site,
+                        status = status,
+                        )
+                    event.save()
+                    sys.stdout.write("*"); sys.stdout.flush()
 
-            src.import_id = task.id
-            src.save()
+                if idx % 50 == 49:
+                    django.db.transaction.commit()
+                    django.db.reset_queries()
 
-            if idx % 50 == 0:
-                django.db.transaction.commit()
-                django.db.reset_queries()
+                    sys.stdout.write("X"); sys.stdout.flush()
 
-                sys.stdout.write(".")
-                sys.stdout.flush()
-
-        django.db.transaction.commit()
+            django.db.transaction.commit()
