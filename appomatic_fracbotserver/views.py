@@ -103,7 +103,14 @@ def check_record(cur, row):
     cur.execute("""select seqid from "FracFocusScrape" where api = %(api)s and job_date = %(jobdate)s""", {'api': api, 'jobdate':jobdate})
     for dbrow in cur:
         row['pdf_seqid'] = dbrow[0]
-    if 'pdf_seqid' not in row:
+    if 'pdf_seqid' in row:
+
+        # There really should be a bot status if we get here, but in case there isn't... fix it
+        cur.execute("""select count(*) as existing from "BotTaskStatus" where task_id = %(pdf_seqid) and bot = 'FracFocusReport'""",row)
+        if not fcdjangoutils.sqlutils.dictreader(cur).next()['existing']:
+            cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values (%(pdf_seqid)s, 'FracFocusReport', 'NEW')""", row)
+
+    else:
         cur.execute("""insert into "FracFocusScrape" (api, job_date, state, county, operator, well_name, well_type, latitude, longitude, datum) values(%(API No.)s, %(job_date)s, %(State)s, %(County)s, %(Operator)s, %(WellName)s, NULL,%(Latitude)s, %(Longitude)s, %(Datum)s)""", row)
         cur.execute("select lastval()")
         row['pdf_seqid'] = cur.fetchone()[0]
@@ -121,8 +128,8 @@ def check_record(cur, row):
         """, row);
 
     cur.execute("""select * from "FracFocusReport" where pdf_seqid = %(pdf_seqid)s""", row)
-    for dbrow in cur:
-        row['pdf_content'] = dict(zip([dsc[0] for dsc in cur.description], dbrow))
+    for dbrow in fcdjangoutils.sqlutils.dictreader(cur):
+        row['pdf_content'] = dbrow
 
     well = get(appomatic_siteinfo.models.Well.objects.filter(api = api))
     if well:
@@ -179,6 +186,9 @@ def parse_pdf(request):
 
         if 'pdf_content' in data: return data
 
+        # This is stuff that really shouldn't happen, but if it does, we don't want to fail either...
+        cur.execute("""delete from "BotTaskStatus" where task_id = %(pdf_seqid) and bot in ('FracFocusPDFDownloader', 'FracFocusPDFParser')""", data)
+
         try:
             logger = fracfocustools.Logger()
             pdf = fracfocustools.FracFocusPDFParser(base64.decodestring(request.POST['pdf']), logger).parse_pdf()
@@ -211,8 +221,8 @@ def parse_pdf(request):
                 cur.execute("""insert into "FracFocusReportChemical" (pdf_seqid, api, fracture_date, row, trade_name, supplier, purpose, ingredients, cas_number, additive_concentration, hf_fluid_concentration, comments, cas_type) values (%(pdf_seqid)s, %(api)s, %(fracture_date)s, %(row)s, %(trade_name)s, %(supplier)s, %(purpose)s, %(ingredients)s, %(cas_number)s, %(additive_concentration)s, %(hf_fluid_concentration)s, %(comments)s, NULL)""", tmp)
 
             cur.execute("""update "BotTaskStatus" set status='DONE' where task_id=%(pdf_seqid)s and bot='FracFocusReport'""", data)
-            cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(pdf_seqid)s, 'FracFocusPDFDownloader', 'DONE')""", data)
-            cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values(%(pdf_seqid)s, 'FracFocusPDFParser', 'DONE')""", data)
+            cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values (%(pdf_seqid)s, 'FracFocusPDFDownloader', 'DONE')""", data)
+            cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values (%(pdf_seqid)s, 'FracFocusPDFParser', 'DONE')""", data)
 
             log_activity(request, "pdf", state=data['state'], county=data['county'], api=data['api'], pdf_seqid=data['pdf_seqid'])
 
