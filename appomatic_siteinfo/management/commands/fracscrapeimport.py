@@ -52,7 +52,7 @@ def scrapetoevent(scrape, report, src):
     event.operations.add(frack)
 
     for reportchemical in appomatic_legacymodels.models.Fracfocusreportchemical.objects.filter(pdf_seqid=scrape.seqid):
-        print "    %s" % (reportchemical.trade_name or reportchemical.ingredients or reportchemical.cas_number,)
+        print (u"    %s" % (reportchemical.trade_name or reportchemical.ingredients or reportchemical.cas_number,)).encode("utf-8")
 
         info = dict((name, getattr(reportchemical, name))
                     for name in appomatic_legacymodels.models.Fracfocusreportchemical._meta.get_all_field_names())
