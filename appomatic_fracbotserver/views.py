@@ -106,7 +106,7 @@ def check_record(cur, row):
     if 'pdf_seqid' in row:
 
         # There really should be a bot status if we get here, but in case there isn't... fix it
-        cur.execute("""select count(*) as existing from "BotTaskStatus" where task_id = %(pdf_seqid) and bot = 'FracFocusReport'""",row)
+        cur.execute("""select count(*) as existing from "BotTaskStatus" where task_id = %(pdf_seqid)s and bot = 'FracFocusReport'""",row)
         if not fcdjangoutils.sqlutils.dictreader(cur).next()['existing']:
             cur.execute("""insert into "BotTaskStatus" (task_id, bot, status) values (%(pdf_seqid)s, 'FracFocusReport', 'NEW')""", row)
 
@@ -187,7 +187,7 @@ def parse_pdf(request):
         if 'pdf_content' in data: return data
 
         # This is stuff that really shouldn't happen, but if it does, we don't want to fail either...
-        cur.execute("""delete from "BotTaskStatus" where task_id = %(pdf_seqid) and bot in ('FracFocusPDFDownloader', 'FracFocusPDFParser')""", data)
+        cur.execute("""delete from "BotTaskStatus" where task_id = %(pdf_seqid)s and bot in ('FracFocusPDFDownloader', 'FracFocusPDFParser')""", data)
 
         try:
             logger = fracfocustools.Logger()
