@@ -19,6 +19,7 @@ import fcdjangoutils.sqlutils
 import fcdjangoutils.jsonview
 import time
 from appomatic_mapcluster.template import *
+from django.conf import settings
 
 KMLNS = '{http://www.opengis.net/kml/2.2}'
 
@@ -570,7 +571,7 @@ def decodePeriod(period):
 
 def extract(name, query, template=None, format='kml', size = 4, radius=7500, periods = [], *args, **kw):
     if template:
-        with open(os.path.expanduser(template)) as f:
+        with open(os.path.join(settings.VIRTUALENV_DIR, os.path.expanduser(template))) as f:
             exec f in globals()
 
     if periods:
