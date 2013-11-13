@@ -66,11 +66,13 @@ function downloadRow(row, cb) {
                     updateRow(row, data);
                     if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({items: 1, msg: "Downloaded."});
                     if (cb) cb(data);
+                    console.log("pdf_upload_success");
                 },
                 error: function(jqXHR, textStatus, errorThrown) {
                     $(row).find(".update").html('Failed :(');
                     if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({failed: 1, msg: "Failed :("});
                     if (cb) cb();
+                    console.log("pdf_upload_error");
                 },
                 dataType: "json"
             });
