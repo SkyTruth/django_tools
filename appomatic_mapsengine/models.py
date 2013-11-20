@@ -11,8 +11,8 @@ class Export(django.contrib.gis.db.models.Model):
 
     query = django.db.models.TextField(null=False, blank=False)
     lastid = django.db.models.IntegerField(null=True, blank=True)
-    tableid = django.db.models.CharField(max_length=1024, null=False, blank=False)
-
+    tableid = django.db.models.CharField(max_length=1024, null=True, blank=True)
+    projectid = django.db.models.CharField(max_length=1024, null=True, blank=True)
     clear = django.db.models.BooleanField(default=False, blank=True)
 
     def save(self, *args, **kwargs):

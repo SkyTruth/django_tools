@@ -16,14 +16,57 @@ import fcdjangoutils.jsonview
 import oauth2client.client
 import django.db.transaction
 import django.core.management.base
+import csv
+import fcdjangoutils.sqlutils
+import StringIO
 from django.conf import settings 
 
-def dictreader(cur):
-    cols = None
-    for row in cur:
-        if cols is None: cols = [x[0] for x in cur.description]
-        yield dict(zip(cols, row))
+dbtovrtnames = {
+    'BINARY': 'Binary',
+    'BINARYARRAY': 'Binary',
+    'BOOLEAN': 'String',
+    'BOOLEANARRAY': 'String',
+    'DATE': 'Date',
+    'DATEARRAY': 'String',
+    'DATETIME': 'DateTime',
+    'DATETIMEARRAY': 'String',
+    'DECIMAL': 'Real',
+    'DECIMALARRAY': 'RealList',
+    'FLOAT': 'Real',
+    'FLOATARRAY': 'RealList',
+    'INTEGER': 'Integer',
+    'INTEGERARRAY': 'IntegerList',
+    'INTERVAL': 'Real',
+    'INTERVALARRAY': 'RealList',
+    'PYDATE': 'DateTime',
+    'PYDATEARRAY': 'String',
+    'PYDATETIME': 'DateTime',
+    'PYDATETIMEARRAY': 'String',
+    'PYINTERVAL': 'Real',
+    'PYINTERVALARRAY': 'RealList',
+    'PYTIME': 'Time',
+    'PYTIMEARRAY': 'String',
+    'ROWID': 'Integer',
+    'ROWIDARRAY': 'IntegerList',
+    'STRING': 'String',
+    'STRINGARRAY': 'StringList',
+    'TIME': 'Time',
+    'TIMEARRAY': 'String',
+    'UNICODE': 'String',
+    'UNICODEARRAY': 'String'
+    }
 
+colnames = {
+    'the_geom': 'geom',
+    'geom': 'geom',
+    'gemoetry': 'geom',
+    'location': 'geom',
+    'lat': 'lat',
+    'latitude': 'lat',
+    'lon': 'lon',
+    'lng': 'lon',
+    'longitude': 'lon'
+    }
 
 class RequestException(Exception):
     def __init__(self, response, content, url, kw):
@@ -53,10 +96,10 @@ class Exporter(object):
             self.log(status="GEOM: %s\n" % (geom,))
             raise
 
-    def request(self, url, raise_errors=True, **kw):
+    def request(self, url, raise_errors=True, as_json=True, **kw):
         time.sleep(1)
         kw['headers'] = dict(kw.get('headers', {}))
-        if 'body' in kw:
+        if 'body' in kw and as_json:
             kw['body'] = json.dumps(kw['body'])
             kw['headers']["Content-Type"] = "application/json"
         response, content = self.http.request(url, **kw)
@@ -80,6 +123,8 @@ class Exporter(object):
 
 
     def __init__(self, queryset, out=None):
+        self.start_time = datetime.datetime.now()
+
         self.out = out
         self.logstatus = {"done": 0}
 
@@ -91,20 +136,113 @@ class Exporter(object):
                 
                 lastid = export.lastid
 
-                if export.clear:
-                    self.log(status="Deleteeting old data\n")
-                    while True:
-                        response, content = self.request(
-                            "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50" % (export.tableid,))
-                        if not content['features']: break
+                if export.projectid:
+                    self.log(status="Getting column names and types\n")
+                    cur.execute("select * from (" + export.query + ") as a limit 1")
+                    cur.next()
+                    dbmodule = sys.modules[type(cur.db.connection).__module__]
+                    cols = {}
+                    for col in cur.description:
+                        for dbname, vrtname in dbtovrtnames.iteritems():
+                            if col.type_code == getattr(dbmodule, dbname):
+                                cols[col.name] = vrtname
+                                break
 
-                        response, content = self.request(
-                            "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchDelete" % (export.tableid,),
-                            method="POST",
-                            body={"gx_ids":
-                                      [feature['properties']['gx_id'] for feature in content['features']]})
-                    lastid = -1
-                else:
+                    geocols = {}
+                    for colname, usage in colnames.iteritems():
+                        if colname in cols:
+                            geocols[usage] = colname
+
+                    vrtinfo = {}
+                    if 'geom' in geocols:
+                        vrtinfo['geomtype'] = 'wkbUnknown'
+                        vrtinfo['geofield'] = """<GeometryField encoding="WKT" reportSrcColumn="false" field="%(geom)s"/>"""  % geocols
+                    elif 'lat' in geocols and 'lon' in geocols:
+                        vrtinfo['geomtype'] = 'wkbPoint'
+                        vrtinfo['geofield'] = """<GeometryField encoding="PointFromColumns" reportSrcColumn="false" x="%(lon)s" y="%(lat)s"/>"""  % geocols
+                    else:
+                        raise Exception("No geometry column found!")
+
+                    vrtinfo['fields'] = '\n'.join(
+                        """<Field name="%s" src="%s" type="%s"/>""" % (colname, colname, coltype)
+                        for colname, coltype in cols.iteritems()
+                        if colname not in (geocols.get('geom', None), geocols.get('lat', None), geocols.get('lon', None)))
+
+                    vrt = """
+                      <OGRVRTDataSource> 
+                        <OGRVRTLayer name="file"> 
+                          <SrcDataSource relativeToVrt="1">file.csv</SrcDataSource>
+                          <GeometryType>%(geomtype)s</GeometryType> 
+                          <LayerSRS>WGS84</LayerSRS>
+                          %(geofield)s
+                          %(fields)s
+                        </OGRVRTLayer> 
+                      </OGRVRTDataSource>
+                    """ % vrtinfo
+
+                    self.log(status="Loading data\n")
+                    data_file = StringIO.StringIO()
+                    data = csv.DictWriter(data_file, cols.keys())
+                    data.writeheader()
+                    cur.execute("select * from (" + export.query + ") as a")
+                    for row in fcdjangoutils.sqlutils.dictreader(cur):
+                        data.writerow(row)
+                    data = data_file.getvalue()
+
+                    info = {
+                        "name": "%s-%s" % (export.slug, self.start_time.strftime("%Y-%m-%d-%H:%M:%S.%f")),
+                        "description": "%s at %s" % (export.name, self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f GMT%z")),
+                        "files": [{"filename": "file.vrt"},
+                                  {"filename": "file.csv"}],
+                        "sharedAccessList": "Map Editors",
+                        "sourceEncoding": "UTF-8",
+                        "tags": ["abc", "def"]
+                        }
+
+                    self.log(status="Creating table\n")
+                    response, content = self.request(
+                            "https://www.googleapis.com/mapsengine/create_tt/tables/upload?projectId=%s" % export.projectid, method="POST", body=info)
+                    tableid = content['id']
+
+                    self.log(status="Uploading table schema\n")
+                    response, content = self.request(
+                        "https://www.googleapis.com/upload/mapsengine/create_tt/tables/%s/files?filename=file.vrt" % tableid,
+                        method="POST",
+                        as_json=False,
+                        body = vrt)
+
+                    self.log(status="Uploading table content\n")
+                    response, content = self.request(
+                        "https://www.googleapis.com/upload/mapsengine/create_tt/tables/%s/files?filename=file.csv" % tableid,
+                        method="POST",
+                        as_json=False,
+                        body = data)
+
+                    # print "================{VRT}================"
+                    # print vrt
+                    # print
+                    # print
+                    # print "================{DATA}================"
+                    # print data
+                    # print
+                    # print
+
+
+                elif export.tableid:
+                    if export.clear:
+                        self.log(status="Deleteeting old data\n")
+                        while True:
+                            response, content = self.request(
+                                "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50" % (export.tableid,))
+                            if not content['features']: break
+
+                            response, content = self.request(
+                                "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchDelete" % (export.tableid,),
+                                method="POST",
+                                body={"gx_ids":
+                                          [feature['properties']['gx_id'] for feature in content['features']]})
+                        lastid = -1
+
                     self.log(status="Clearing overshooting data\n")
                     while True:
                         response, content = self.request(
@@ -113,12 +251,14 @@ class Exporter(object):
 
                         lastid = max([int(x['properties']['id']) for x in content['features']])
                         self.log(status="Cleared to %s\n" % lastid)
+                else:
+                    raise Exception("Neither tableid nor projectid specified...")
 
                 while True:
                     cur.execute("select * from (" + export.query + ") as a where id > %(lastid)s order by id asc limit 50", {'lastid': lastid})
                     features = []
                     lastid = None
-                    for row in dictreader(cur):
+                    for row in fcdjangoutils.sqlutils.dictreader(cur):
                         geom = row.pop('the_geom')
                         if geom is None: continue
                         lastid = row['id']
