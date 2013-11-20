@@ -22,10 +22,10 @@ class Command(django.core.management.base.BaseCommand):
             type='int',
             default=1200,
             help='The size of the task area'),
-        optparse.make_option('--year',
+        optparse.make_option('--years',
             action='store',
-            default="2010",
-            help='Region to filter to. Should be a value from the "code" column of the region table'),
+            default="2005,2008,2010",
+            help='Years, comma separated'),
         optparse.make_option('--region',
             action='store',
             default="US-PA",
@@ -36,7 +36,11 @@ class Command(django.core.management.base.BaseCommand):
             help='Output format: pybossa, geojson'),
         )
 
-    layers = {"2010": {"url": "https://mapsengine.google.com/06136759344167181854-15360160187865123339-4/wms/",
+    layers = {"2005": {"url": "https://mapsengine.google.com/placeholder-map-2005/wms/",
+                       "options": {"version": "1.3.0", "layers":"placeholder-layer-2005"}},
+              "2008": {"url": "https://mapsengine.google.com/placeholder-map-2008/wms/",
+                       "options": {"version": "1.3.0", "layers":"placeholder-layer-2008"}},
+              "2010": {"url": "https://mapsengine.google.com/06136759344167181854-15360160187865123339-4/wms/",
                        "options": {"version": "1.3.0", "layers":"06136759344167181854-16779344390631852423-4"}}}
 
     @django.db.transaction.commit_manually
@@ -56,7 +60,7 @@ class Command(django.core.management.base.BaseCommand):
                 l.longitude x,
                 b.guuid as guuid,
                 c.name as county,
-                substring(st.name from 3) as state
+                substring(st.code from 3) as state
               from
                 appomatic_siteinfo_site s
                 join appomatic_siteinfo_locationdata l on
@@ -79,51 +83,59 @@ class Command(django.core.management.base.BaseCommand):
                     appomatic_siteinfo_event e
                     join appomatic_siteinfo_siteevent se on
                       e.locationdata_ptr_id = se.event_ptr_id
-                      and e.datetime < (%(year)s || '-12-29')::timestamp
                     join appomatic_siteinfo_statusevent ste on
                       se.event_ptr_id = ste.siteevent_ptr_id
                     join appomatic_siteinfo_status st on
                       ste.status_id = st.basemodel_ptr_id
                       and st.name in ('empty', 'equipment')) h on
                   s.locationdata_ptr_id = h.site_id
+              order by st.name, c.name, b.guuid
             """, kwargs)
 
-            if kwargs['format'] == 'geojson':
-                print '{"type": "FeatureCollection", "features": ['
+            with open(args[0], 'w') as f:
 
-            first = True
-            for site in fcdjangoutils.sqlutils.dictreader(cur):
+                if kwargs['format'] == 'geojson':
+                    f.write('{"type": "FeatureCollection", "features": [\n')
+                elif kwargs['format'] == 'pybossa':
+                    f.write('[\n')
 
-                dummy, top, dummy = geod.fwd(site['x'], site['y'], 0, kwargs['size'] / 2)
-                left, dummy, dummy = geod.fwd(site['x'], site['y'], 270, kwargs['size'] / 2)
-                right, dummy, dummy = geod.fwd(site['x'], site['y'], 90, kwargs['size'] / 2)
-                dummy, bottom, dummy = geod.fwd(site['x'], site['y'], 180, kwargs['size'] / 2)
-                
-                info = {
-                    "latitude": site['y'],
-                    "longitude": site['x'],
-                    "SiteID": site["guuid"],
-                    "county": site["county"],
-                    "state": site["state"],
-                    "year": kwargs["year"]
-                    }
+                first = True
+                for site in fcdjangoutils.sqlutils.dictreader(cur):
+                    for year in kwargs["years"].split(','):
 
-                if kwargs['format'] == 'pybossa':
-                    info.update(self.layers[kwargs["year"]])
-                    info.update({"bbox": "%s,%s,%s,%s" % (left, bottom, right, top)})
-                    print json.dumps(info)
-                elif kwargs['format'] == 'geojson':
-                    if not first:
-                        print ","
-                    print geojson.dumps(
-                        geojson.Feature(
-                            geometry=geojson.Polygon(
-                                coordinates=[[[left, top], [right, top], [right, bottom], [left, bottom], [left, top]]]),
-                            properties=info
-                            )
-                        )
-                    
-                first = False
+                        dummy, top, dummy = geod.fwd(site['x'], site['y'], 0, kwargs['size'] / 2)
+                        left, dummy, dummy = geod.fwd(site['x'], site['y'], 270, kwargs['size'] / 2)
+                        right, dummy, dummy = geod.fwd(site['x'], site['y'], 90, kwargs['size'] / 2)
+                        dummy, bottom, dummy = geod.fwd(site['x'], site['y'], 180, kwargs['size'] / 2)
 
-            if kwargs['format'] == 'geojson':
-                print ']}'
+                        info = {
+                            "latitude": site['y'],
+                            "longitude": site['x'],
+                            "SiteID": site["guuid"],
+                            "county": site["county"],
+                            "state": site["state"],
+                            "year": year
+                            }
+
+                        if not first:
+                            f.write(",")
+                        if kwargs['format'] == 'pybossa':
+                            info.update(self.layers[year])
+                            info.update({"bbox": "%s,%s,%s,%s" % (left, bottom, right, top)})
+                            f.write(json.dumps(info) + "\n")
+                        elif kwargs['format'] == 'geojson':
+                            f.write(
+                                geojson.dumps(
+                                    geojson.Feature(
+                                        geometry=geojson.Polygon(
+                                            coordinates=[[[left, top], [right, top], [right, bottom], [left, bottom], [left, top]]]),
+                                        properties=info
+                                        )
+                                    ) + "\n")
+
+                        first = False
+
+                if kwargs['format'] == 'geojson':
+                    f.write(']}\n')
+                elif kwargs['format'] == 'pybossa':
+                    f.write(']\n')
