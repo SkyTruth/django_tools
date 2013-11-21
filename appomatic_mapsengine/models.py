@@ -15,6 +15,9 @@ class Export(django.contrib.gis.db.models.Model):
     projectid = django.db.models.CharField(max_length=1024, null=True, blank=True)
     clear = django.db.models.BooleanField(default=False, blank=True)
 
+    access_list = django.db.models.CharField(max_length=2048, null=True, blank=True)
+    tags = django.db.models.CharField(max_length=2048, null=True, blank=True)
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)

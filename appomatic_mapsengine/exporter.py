@@ -96,22 +96,26 @@ class Exporter(object):
             self.log(status="GEOM: %s\n" % (geom,))
             raise
 
-    def request(self, url, raise_errors=True, as_json=True, **kw):
-        time.sleep(1)
-        kw['headers'] = dict(kw.get('headers', {}))
-        if 'body' in kw and as_json:
-            kw['body'] = json.dumps(kw['body'])
-            kw['headers']["Content-Type"] = "application/json"
-        response, content = self.http.request(url, **kw)
-        try:
-            content = json.loads(content)
-        except:
-            pass
-        response['status'] = int(response['status'])
-        if raise_errors:
+    def request(self, url, as_json=True, raise_errors=True, retries=3, **kw):
+        while retries:
+            retries -= 1
+            kw['headers'] = dict(kw.get('headers', {}))
+            if 'body' in kw and as_json:
+                kw['body'] = json.dumps(kw['body'])
+                kw['headers']["Content-Type"] = "application/json"
+            response, content = self.http.request(url, **kw)
+            try:
+                content = json.loads(content)
+            except:
+                pass
+            response['status'] = int(response['status'])
             if response['status'] < 200 or response['status'] > 299:
-                raise RequestException(response, content, url, kw)
-        return response, content
+                if retries:
+                    self.log(status="retry")
+                    continue
+                elif raise_errors:
+                    raise RequestException(response, content, url, kw)
+            return response, content
 
     def connect(self):
         with file(settings.GOOGLE_MAPSENGINE_KEY, 'rb') as key_file:
@@ -194,9 +198,9 @@ class Exporter(object):
                         "description": "%s at %s" % (export.name, self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f GMT%z")),
                         "files": [{"filename": "file.vrt"},
                                   {"filename": "file.csv"}],
-                        "sharedAccessList": "Map Editors",
+                        "sharedAccessList": export.access_list or "Map Editors",
                         "sourceEncoding": "UTF-8",
-                        "tags": ["abc", "def"]
+                        "tags": export.tags and [tag.strip() for tag in export.tags.split(",")] or []
                         }
 
                     self.log(status="Creating table\n")
@@ -217,15 +221,6 @@ class Exporter(object):
                         method="POST",
                         as_json=False,
                         body = data)
-
-                    # print "================{VRT}================"
-                    # print vrt
-                    # print
-                    # print
-                    # print "================{DATA}================"
-                    # print data
-                    # print
-                    # print
 
 
                 elif export.tableid:
