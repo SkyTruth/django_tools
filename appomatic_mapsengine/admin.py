@@ -7,6 +7,10 @@ import django.shortcuts
 import json
 
 class ExportAdmin(django.contrib.admin.ModelAdmin):
+    list_display = ('name', 'lastid', 'tableid', 'projectid', 'clear', 'access_list', 'tags', 'description')
+    list_display_links = list_display
+    search_fields = ('slug', 'name', 'description')
+
     actions = ["run_export"]
 
     def run_export(self, request, queryset):
