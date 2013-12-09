@@ -7,6 +7,7 @@ import json
 import datetime
 import sys
 import django.contrib.gis.geos.geometry
+import django.contrib.gis.db.models
 
 class Server(django.db.models.Model):
     name = django.db.models.CharField(max_length=256, blank=True)

@@ -14,7 +14,7 @@ class Importer(object):
             self.out.write(json.dumps(self.logstatus) + "\n")
             self.out.flush()
         else:
-            print info["status"]
+            print info.get("status", "X")
 
     def __init__(self, queryset, out=None):
         self.out = out

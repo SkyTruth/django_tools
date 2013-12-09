@@ -4,6 +4,7 @@ import pytz
 import httplib2
 import json
 import appomatic_pybossa_tools.models
+import appomatic_pybossa_tools.importer
 import datetime
 import sys
 
@@ -25,6 +26,4 @@ class Command(django.core.management.base.BaseCommand):
             traceback.print_exc()
 
     def handle2(self, servername, appname, *args, **kwargs):
-        server = appomatic_pybossa_tools.models.Server.object.get(name=servername)
-        app = server.apps.get(name=appname)
-        app.imp()
+        appomatic_pybossa_tools.importer.Importer(appomatic_pybossa_tools.models.App.objects.filter(server__name=servername, name=appname))
