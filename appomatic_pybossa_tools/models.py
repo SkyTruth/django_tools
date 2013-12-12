@@ -30,9 +30,13 @@ class App(django.db.models.Model):
         return "%s @ %s" % (self.name, self.server.name)
 
 
-class Task(django.db.models.Model):
+class Task(django.contrib.gis.db.models.Model):
     app = django.db.models.ForeignKey(App, related_name="tasks")
     taskid = django.db.models.IntegerField()
+    n_answers = django.db.models.IntegerField()
+    latitude = django.db.models.FloatField(blank = True, null = True, db_index=True, verbose_name="Latitude")
+    longitude = django.db.models.FloatField(blank = True, null = True, db_index=True, verbose_name="Longitude")
+    geom = django.contrib.gis.db.models.GeometryField(blank = True, null = True, db_index=True)
     info = fcdjangoutils.fields.JsonField(null=True, blank=True)
     dirty = django.db.models.BooleanField(blank=True, default=True)
 
@@ -41,12 +45,21 @@ class Task(django.db.models.Model):
         tasks = cls.objects.filter(app=app, taskid=taskid)
         if tasks:
             task = tasks[0]
-            if info is not None:
-                task.info = info
-                task.save()
-            return task
-        task = cls(app=app, taskid=taskid, info=info)
-        task.save()
+        else:
+            task = cls(app=app, taskid=taskid)
+
+        if info is not None:
+            task.info = info
+            task.n_answers = info.get("n_answers", None)
+            info2 = info.get("info", {})
+            task.latitude = info2.get("latitude", None)
+            task.longitude = info2.get("longitude", None)
+            if task.latitude is not None and task.longitude is not None:
+                task.geom = django.contrib.gis.geos.geometry.Point(task.longitude, task.latitude)
+
+        if info is not None or not tasks:
+            task.save()
+
         return task
 
     def __unicode__(self):
