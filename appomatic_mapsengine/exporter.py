@@ -7,7 +7,6 @@ import sys
 import os.path
 import logging
 import pytz
-import json
 import urllib2
 import httplib2
 import geojson
@@ -19,7 +18,11 @@ import django.core.management.base
 import csv
 import fcdjangoutils.sqlutils
 import StringIO
+import fcdjangoutils.jsonview
 from django.conf import settings 
+
+RETRIES = 1
+REQUEST_DELAY = 3
 
 dbtovrtnames = {
     'BINARY': 'Binary',
@@ -76,7 +79,7 @@ class RequestException(Exception):
         self.kw = kw
         Exception.__init__(self)
     def __unicode__(self):
-        return "%s %s\n%s\n%s" % (self.response['status'], self.url, json.dumps(self.response, indent=2), json.dumps(self.content, indent=2))
+        return "%s %s\n%s\n%s" % (self.response['status'], self.url, fcdjangoutils.jsonview.to_json(self.response, indent=2), fcdjangoutils.jsonview.to_json(self.content, indent=2))
     def __str__(self): return unicode(self).encode("utf-8")
     def __repr__(self): return unicode(self)
 
@@ -84,28 +87,33 @@ class Exporter(object):
     def log(self, **info):
         self.logstatus.update(info)
         if self.out:
-            self.out.write(json.dumps(self.logstatus) + "\n")
+            self.out.write(fcdjangoutils.jsonview.to_json(self.logstatus) + "\n")
             self.out.flush()
         else:
             print info["status"]
 
     def load_geom(self, geom):
         try:
-            return json.loads(geojson.dumps(shapely.wkt.loads(geom)))
+            return fcdjangoutils.jsonview.from_json(geojson.dumps(shapely.wkt.loads(geom)))
         except:
             self.log(status="GEOM: %s\n" % (geom,))
             raise
 
-    def request(self, url, as_json=True, raise_errors=True, retries=3, **kw):
+    def request(self, url, as_json=True, raise_errors=True, retries=RETRIES, **kw):
+        time.sleep(REQUEST_DELAY)
         while retries:
             retries -= 1
             kw['headers'] = dict(kw.get('headers', {}))
             if 'body' in kw and as_json:
-                kw['body'] = json.dumps(kw['body'])
+                try:
+                    kw['body'] = fcdjangoutils.jsonview.to_json(kw['body'])
+                except:
+                    import pdb
+                    pdb.set_trace()
                 kw['headers']["Content-Type"] = "application/json"
             response, content = self.http.request(url, **kw)
             try:
-                content = json.loads(content)
+                content = fcdjangoutils.jsonview.from_json(content)
             except:
                 pass
             response['status'] = int(response['status'])
@@ -272,14 +280,12 @@ class Exporter(object):
                                 "properties": row})
                     if not features: break
                     
-                    self.log(status="Pushing batch %s\n" % lastid)
+                    self.log(status="Pushing batch %s (%s)\n" % (lastid, len(features)))
                     response, content = self.request(
                         "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchInsert" % export.tableid, method="POST", body = {"features": features})
 
                     cur.execute("update appomatic_mapsengine_export set lastid=%(lastid)s where id=%(id)s", {'lastid': lastid, "id": export.id})
 
                     cur.execute("commit")
-
-                    time.sleep(5)
 
                 cur.execute("commit")
