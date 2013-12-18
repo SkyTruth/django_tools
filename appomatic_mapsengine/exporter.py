@@ -59,6 +59,18 @@ dbtovrtnames = {
     'UNICODEARRAY': 'String'
     }
 
+pythontovrtnames = {
+    'dict': 'String',
+    'list': 'String',
+    'tuple': 'String',
+    'str': 'String',
+    'unicode': 'String',
+    'int': 'Integer',
+    'float': 'Real',
+    'bool': 'String',
+    'NoneType': 'String',
+}
+
 colnames = {
     'the_geom': 'geom',
     'geom': 'geom',
@@ -134,6 +146,30 @@ class Exporter(object):
         self.http = credentials.authorize(self.http)
 
 
+    # Flatten a column tree from json
+    def addcols(self, cols, value, prefix):
+        if isinstance(value, dict):
+            for key, subvalue in value.iteritems():
+                self.addcols(cols, subvalue, prefix + (key,))
+        else:
+            cols['__'.join(prefix)] = pythontovrtnames.get(type(value).__name__, "String")
+
+    def addcolvalues(self, row, value, prefix):
+        if isinstance(value, dict):
+            for key, subvalue in value.iteritems():
+                self.addcolvalues(row, subvalue, prefix + (key,))
+        elif isinstance(value, (str, unicode, int, float, bool)) or value is None:
+            row['__'.join(prefix)] = value
+        else:
+            row['__'.join(prefix)] = fcdjangoutils.jsonview.to_json(value)
+
+    def flattencols(self, row):
+        for key in row.keys():
+            if key.endswith("_info"):
+                self.addcolvalues(row, fcdjangoutils.jsonview.from_json(row.pop(key)), (key[:-len("_info")],))
+        return row
+
+
     def __init__(self, queryset, out=None):
         self.start_time = datetime.datetime.now()
 
@@ -151,14 +187,19 @@ class Exporter(object):
                 if export.projectid:
                     self.log(status="Getting column names and types\n")
                     cur.execute("select * from (" + export.query + ") as a limit 1")
-                    cur.next()
+                    row = fcdjangoutils.sqlutils.dictreader(cur).next()
                     dbmodule = sys.modules[type(cur.db.connection).__module__]
                     cols = {}
+
                     for col in cur.description:
-                        for dbname, vrtname in dbtovrtnames.iteritems():
-                            if col.type_code == getattr(dbmodule, dbname):
-                                cols[col.name] = vrtname
-                                break
+                        if col.name.endswith("_info"):
+                            self.addcols(cols, fcdjangoutils.jsonview.from_json(row[col.name]), (col.name[:-len("_info")],))
+                        else:
+                            cols[col.name] = "String"
+                            for dbname, vrtname in dbtovrtnames.iteritems():
+                                if col.type_code == getattr(dbmodule, dbname):
+                                    cols[col.name] = vrtname
+                                    break
 
                     geocols = {}
                     for colname, usage in colnames.iteritems():
@@ -194,38 +235,40 @@ class Exporter(object):
 
                     self.log(status="Loading data\n")
                     data_file = StringIO.StringIO()
-                    data = csv.DictWriter(data_file, cols.keys())
+                    data = csv.DictWriter(data_file, cols.keys(), extrasaction='ignore')
                     data.writeheader()
                     cur.execute("select * from (" + export.query + ") as a")
+
                     for row in fcdjangoutils.sqlutils.dictreader(cur):
-                        data.writerow(row)
+                        data.writerow(self.flattencols(row))
                     data = data_file.getvalue()
 
                     info = {
+                        "projectId": export.projectid,
                         "name": "%s-%s" % (export.slug, self.start_time.strftime("%Y-%m-%d-%H:%M:%S.%f")),
                         "description": "%s at %s" % (export.name, self.start_time.strftime("%Y-%m-%d %H:%M:%S.%f GMT%z")),
                         "files": [{"filename": "file.vrt"},
                                   {"filename": "file.csv"}],
-                        "sharedAccessList": export.access_list or "Map Editors",
+                        "draftAccessList": export.access_list or "Map Editors",
                         "sourceEncoding": "UTF-8",
                         "tags": export.tags and [tag.strip() for tag in export.tags.split(",")] or []
                         }
 
                     self.log(status="Creating table\n")
                     response, content = self.request(
-                            "https://www.googleapis.com/mapsengine/create_tt/tables/upload?projectId=%s" % export.projectid, method="POST", body=info)
+                            "https://www.googleapis.com/mapsengine/v1/tables/upload", method="POST", body=info)
                     tableid = content['id']
 
                     self.log(status="Uploading table schema\n")
                     response, content = self.request(
-                        "https://www.googleapis.com/upload/mapsengine/create_tt/tables/%s/files?filename=file.vrt" % tableid,
+                        "https://www.googleapis.com/upload/mapsengine/v1/tables/%s/files?filename=file.vrt" % tableid,
                         method="POST",
                         as_json=False,
                         body = vrt)
 
                     self.log(status="Uploading table content\n")
                     response, content = self.request(
-                        "https://www.googleapis.com/upload/mapsengine/create_tt/tables/%s/files?filename=file.csv" % tableid,
+                        "https://www.googleapis.com/upload/mapsengine/v1/tables/%s/files?filename=file.csv" % tableid,
                         method="POST",
                         as_json=False,
                         body = data)
@@ -233,7 +276,7 @@ class Exporter(object):
 
                 elif export.tableid:
                     if export.clear:
-                        self.log(status="Deleteeting old data\n")
+                        self.log(status="Deleting old data\n")
                         while True:
                             response, content = self.request(
                                 "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50" % (export.tableid,))
@@ -244,6 +287,8 @@ class Exporter(object):
                                 method="POST",
                                 body={"gx_ids":
                                           [feature['properties']['gx_id'] for feature in content['features']]})
+                            self.log(status=".")
+                            
                         lastid = -1
 
                     self.log(status="Clearing overshooting data\n")
