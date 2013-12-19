@@ -18,6 +18,7 @@ import re
 import appomatic_siteinfo.management.commands.fracscrapeimport
 import fcdjangoutils.sqlutils
 import fcdjangoutils.date
+import dateutil.parser
 
 def set_cookie(response, key, value, max_age = 365 * 24 * 60 * 60):
     expires = datetime.datetime.strftime(
@@ -72,11 +73,7 @@ def logged_view(name, amount=1, **info):
 def parseDate(date):
     """Parses dates in american format (mm/dd/yyyy) with optional 0-padding."""
     try:
-        if not date: return None
-        date = date.strip()
-        if not date: return None
-        month, day, year = [int(x.lstrip("0")) for x in date.split("/")]
-        return datetime.date(year, month, day)
+        return datetime.date(*dateutil.parser.parse(date,fuzzy=1).timetuple()[:3])
     except:
         return None
 
