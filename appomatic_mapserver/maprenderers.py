@@ -1,7 +1,10 @@
 import appomatic_mapserver.maplayer
-import shapely.geometry
-import shapely.wkb
-import shapely.wkt
+try:
+    import shapely.wkt
+    load_wkt = shapely.wkt.loads
+except:
+    import pygeoif.geometry
+    load_wkt = pygeoif.geometry.from_wkt
 import fastkml.kml
 import fastkml.geometry
 import geojson
@@ -124,7 +127,7 @@ class MapRendererGeojson(MapRenderer):
                 for row in source.get_map_data():
                     layer.template.row_generate_text(row)
                     try:
-                        geometry = shapely.wkt.loads(str(row['shape']))
+                        geometry = load_wkt(str(row['shape']))
                     except Exception, e:
                         e.args += (row['shape'],)
                         raise e
@@ -239,7 +242,7 @@ class MapRendererKml(MapRenderer):
                 yield '<kml:description>%s</kml:description>' % cgi.escape(row['description'])
                 yield '<kml:visibility>1</kml:visibility>'
                 yield layer.template.row_kml_style(row)
-                yield fastkml.geometry.Geometry(geometry = shapely.wkt.loads(str(row['shape']))).to_string()
+                yield fastkml.geometry.Geometry(geometry = load_wkt(str(row['shape']))).to_string()
 
                 if 'timemax' in row and 'timemin' in row:
                     yield "<TimeSpan><begin>%s</begin><end>%s</end></TimeSpan>" % (row['timemin'].strftime("%Y-%m-%dT%H:%M:%SZ"),

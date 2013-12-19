@@ -1,24 +1,11 @@
 import django.template
 import django.shortcuts
-import django.http
 import fcdjangoutils.jsonview
 import django.db
-import contextlib
 import datetime
-import shapely.geometry
-import shapely.wkb
-import shapely.wkt
-import fastkml.kml
-import geojson
-import json
-import datetime
-import math
 import os
 import os.path
-import re
-import uuid
 from django.conf import settings
-import cProfile
 
 import appomatic_mapserver.maprenderers
 
@@ -38,6 +25,7 @@ def profiled(filename_pattern):
         def profiled_fn(request, *arg, **kw):
             def profiled_fn():
                 return fn(request, *arg, **kw)
+            import cProfile
             profiler = cProfile.Profile()
             try:
                 return profiler.runcall(profiled_fn)

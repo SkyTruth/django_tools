@@ -1,15 +1,12 @@
-import django.contrib.gis.db.models
 import django.db.models
 import django.core.urlresolvers
 import django.forms
-import django.contrib.gis.geos
-import django.contrib.gis.measure
 import django.contrib.auth.models
 import ckeditor.fields
-import fcdjangoutils.geomodels
 import appomatic_renderable.models
 import appomatic_mapserver.maptemplates
 import appomatic_mapserver.models
+import fcdjangoutils.modelhelpers
 import datetime
 from django.conf import settings
 import pytz
@@ -19,7 +16,6 @@ import urllib
 import math
 import csv
 import StringIO
-import shapely
 
 class Source(appomatic_renderable.models.Source):
     import_id = django.db.models.IntegerField(null=True, blank=True, default=-1)
@@ -34,9 +30,7 @@ class Source(appomatic_renderable.models.Source):
             source.save()
             return source
 
-class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.Renderable, fcdjangoutils.modelhelpers.SubclasModelMixin):
-    objects = django.contrib.gis.db.models.GeoManager()
-
+class BaseModel(django.db.models.Model, appomatic_renderable.models.Renderable, fcdjangoutils.modelhelpers.SubclasModelMixin):
     GUID_FIELDS = ['type']
     GUID_BASEURL = 'http://siteinfo.skytruth.org/'
     
@@ -150,10 +144,8 @@ class BaseModel(django.contrib.gis.db.models.Model, appomatic_renderable.models.
         return other
 
 class LocationData(BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
     latitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Latitude")
     longitude = django.db.models.FloatField(null=True, blank=True, db_index=True, verbose_name="Longitude")
-    location = django.contrib.gis.db.models.GeometryField(null=True, blank=True, db_index=True)
 
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["latitude", "longitude"]
     
@@ -165,14 +157,6 @@ class LocationData(BaseModel):
         if latitude is not None and longitude is not None and (self.latitude is None or self.longitude is None):
             self.set_location(latitude, longitude)
             self.save()
-
-    def save(self, *arg, **kw):
-        if self.longitude is not None and self.latitude is not None:
-            self.location = django.contrib.gis.geos.Point(self.longitude, self.latitude)
-        else:
-            self.location = None
-
-        super(LocationData, self).save(*arg, **kw)
 
 class Aliased(object):
     AliasClass = NotImplemented
@@ -226,7 +210,7 @@ class CompanyAlias(BaseModel):
 Company.AliasClass = CompanyAlias
 
 class Operation(BaseModel):
-    name = django.db.models.CharField(max_length=256, null=False, blank=False, unique=True)
+    name = django.db.models.CharField(max_length=255, null=False, blank=False, unique=True)
 
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
 
@@ -244,8 +228,6 @@ class Operation(BaseModel):
         return self.name
 
 class Site(Aliased, LocationData):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     datetime = django.db.models.DateTimeField(null=True, blank=True, db_index=True)
 
@@ -257,6 +239,7 @@ class Site(Aliased, LocationData):
     @classmethod
     def get_or_create(cls, name, latitude, longitude):
         if longitude is not None and latitude is not None:
+            # FIXME: This does not work without GEO stuff
             location = django.contrib.gis.geos.Point(longitude, latitude)
             sites = cls.objects.filter(location__distance_lt=(location, django.contrib.gis.measure.Distance(m=100)))
         else:
@@ -289,7 +272,6 @@ class Site(Aliased, LocationData):
             longitude = self.longitude
             self.latitude = None
             self.longitude = None
-            self.location = None
             self.save()
             other = Site.get(self.name, latitude, longitude)
 
@@ -319,11 +301,6 @@ class Site(Aliased, LocationData):
     def search(cls, query):
         return cls.objects.filter(name__icontains=query)
 
-    def get_viirs_data(self):
-        import appomatic_mapdata.models
-        import django.contrib.gis.measure
-        return appomatic_mapdata.models.Viirs.objects.filter(location__distance_lte=(self.location, django.contrib.gis.measure.D(m=750)))
-
 class SiteAlias(BaseModel):
     name = django.db.models.CharField(max_length=256, null=False, blank=False, db_index=True)
     alias_for = django.db.models.ForeignKey(Site, related_name="aliases")
@@ -335,8 +312,6 @@ class SiteAlias(BaseModel):
 Site.AliasClass = SiteAlias
 
 class Well(LocationData):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     api = django.db.models.CharField(max_length=128, null=False, blank=False, db_index=True)
     site = django.db.models.ForeignKey(Site, related_name="wells")
     datetime = django.db.models.DateTimeField(null=True, blank=True, db_index=True)
@@ -392,7 +367,6 @@ class Well(LocationData):
 
 
 class ChemicalPurpose(Aliased, BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
     name = django.db.models.CharField(max_length=256, db_index=True)
 
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
@@ -411,9 +385,7 @@ class ChemicalPurposeAlias(BaseModel):
 ChemicalPurpose.AliasClass = ChemicalPurposeAlias
 
 
-class Chemical(Aliased, BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
-    
+class Chemical(Aliased, BaseModel):    
     name = django.db.models.CharField(max_length=256, db_index=True)
     trade_name = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
     ingredients = django.db.models.CharField(max_length=256, null=True, blank=True, db_index=True)
@@ -458,8 +430,6 @@ Chemical.AliasClass = ChemicalAlias
 # Event types
 
 class Event(LocationData):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     datetime = django.db.models.DateTimeField(null=False, blank=False, db_index=True, default=lambda:datetime.datetime.now(pytz.utc), verbose_name="Date/time of event")
     operations = django.db.models.ManyToManyField("Operation", related_name="done_in_events")
 
@@ -472,7 +442,6 @@ class Event(LocationData):
         ordering = ('-datetime', )
 
 class SiteEvent(Event):
-    objects = django.contrib.gis.db.models.GeoManager()
 
     site = django.db.models.ForeignKey(Site, related_name="events")
     well = django.db.models.ForeignKey(Well, blank=True, null=True, related_name="events")
@@ -516,7 +485,6 @@ django.db.models.signals.m2m_changed.connect(siteevent_operations_changed, sende
 
 
 class OperatorEvent(SiteEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
 
     operator = django.db.models.ForeignKey(Company, related_name="events", null=True, blank=True)
 
@@ -532,44 +500,26 @@ class OperatorEvent(SiteEvent):
 
 
 class OperatorInfoEvent(OperatorEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     infourl = django.db.models.TextField(null=True, blank=True)
 
-class PermitEvent(OperatorInfoEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
-class SpudEvent(OperatorInfoEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
-class InspectionEvent(OperatorInfoEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
-class ViolationEvent(OperatorInfoEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
-class PollutionEvent(OperatorInfoEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
+class PermitEvent(OperatorInfoEvent): pass
+class SpudEvent(OperatorInfoEvent): pass
+class InspectionEvent(OperatorInfoEvent): pass
+class ViolationEvent(OperatorInfoEvent): pass
+class PollutionEvent(OperatorInfoEvent): pass
 
 class UserEvent(SiteEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     author = django.db.models.ForeignKey(django.contrib.auth.models.User, related_name="events", blank=True, null=True)
 
     def __unicode__(self):
         return "%s @ %s for %s" % (self.datetime, self.well or self.site, self.author)
 
 class CommentEvent(UserEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     content = ckeditor.fields.RichTextField(verbose_name="Comment", config_name='small')
 
-class ChemicalUsageEvent(OperatorInfoEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
+class ChemicalUsageEvent(OperatorInfoEvent): pass
 
-class ChemicalUsageEventChemical(BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
-    
+class ChemicalUsageEventChemical(BaseModel):    
     event = django.db.models.ForeignKey(ChemicalUsageEvent, related_name="chemicals")
     
     chemical = django.db.models.ForeignKey(Chemical, related_name="used_in_events")
@@ -600,14 +550,12 @@ class ChemicalUsageEventChemical(BaseModel):
         ordering = ('-event__datetime', )
 
 class FracEvent(ChemicalUsageEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
     true_vertical_depth = django.db.models.FloatField(null=True, blank=True)
     total_water_volume = django.db.models.FloatField(null=True, blank=True)
     published = django.db.models.DateTimeField(null=True, blank=True)
 
 
 class Status(Aliased, BaseModel):
-    objects = django.contrib.gis.db.models.GeoManager()
     name = django.db.models.CharField(max_length=256, db_index=True)
 
     GUID_FIELDS = BaseModel.GUID_FIELDS + ["name"]
@@ -627,8 +575,6 @@ Status.AliasClass = StatusAlias
 
 
 class StatusEvent(SiteEvent):
-    objects = django.contrib.gis.db.models.GeoManager()
-
     status = django.db.models.ForeignKey(Status, related_name="events")
 
 
