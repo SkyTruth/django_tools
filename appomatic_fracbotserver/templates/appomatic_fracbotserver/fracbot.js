@@ -53,6 +53,7 @@ function downloadRow(row, cb) {
             globalData = data;
             globalTextStatus = textStatus;
             globalJqXHR = jqXHR;
+            var api = $($(row).find("td")[2]).text();
         
             $.ajax({
                 url: fracbotUrl + "/parse-pdf",
@@ -66,13 +67,13 @@ function downloadRow(row, cb) {
                     updateRow(row, data);
                     if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({items: 1, msg: "Downloaded."});
                     if (cb) cb(data);
-                    console.log("pdf_upload_success");
+                    console.log("pdf_upload_success on "+api);
                 },
                 error: function(jqXHR, textStatus, errorThrown) {
                     $(row).find(".update").html('Failed :(');
                     if (top.document.autoupdate != undefined) top.document.autoupdate.updateStatus({failed: 1, msg: "Failed :("});
                     if (cb) cb();
-                    console.log("pdf_upload_error");
+                    console.log("pdf_upload_error on "+api);
                 },
                 dataType: "json"
             });
