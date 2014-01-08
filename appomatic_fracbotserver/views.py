@@ -19,6 +19,11 @@ import appomatic_siteinfo.management.commands.fracscrapeimport
 import fcdjangoutils.sqlutils
 import fcdjangoutils.date
 import dateutil.parser
+import os.path
+
+PDFDIR = os.path.join(settings.MEDIA_ROOT, 'fracbot')
+if not os.path.exists(PDFDIR):
+    os.makedirs(PDFDIR)
 
 def set_cookie(response, key, value, max_age = 365 * 24 * 60 * 60):
     expires = datetime.datetime.strftime(
@@ -188,7 +193,12 @@ def parse_pdf(request):
 
         try:
             logger = fracfocustools.Logger()
-            pdf = fracfocustools.FracFocusPDFParser(base64.decodestring(request.POST['pdf']), logger).parse_pdf()
+
+            pdfdata = base64.decodestring(request.POST['pdf'])
+            with open(os.path.join(PDFDIR, "%(API No.)s-%(job_date)s.pdf" % data), "w") as f:
+                f.write(pdfdata)
+
+            pdf = fracfocustools.FracFocusPDFParser(pdfdata, logger).parse_pdf()
 
             if not pdf:
                 raise Exception("Unable to parse PDF:" + str(logger.messages))
