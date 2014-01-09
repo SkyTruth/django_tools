@@ -244,7 +244,7 @@ def parse_pdf(request):
             appomatic_legacymodels.models.Fracfocusreport.objects.get(pdf_seqid = data['pdf_seqid']),
             appomatic_siteinfo.models.Source.get("FracBot", ""))
 
-        data = row        
+        data = row
         check_record(cur, data)
 
         return data
@@ -319,6 +319,77 @@ def get_task(request):
         cur.execute("""update appomatic_fracbotserver_county set scrapepoints = scrapepoints * 0.9 where id = %(county_id)s""", task)
         return task
 
+@fcdjangoutils.cors.cors
+@track_client
+@fcdjangoutils.jsonview.json_view
+@logged_view("task")
+def get_task2(request):
+    with contextlib.closing(django.db.connection.cursor()) as cur:
+        cur.execute("""
+                SELECT scraped from "FracFocusTask" where state_code='00';""")
+        last_update, = cur.next()
+        if datetime.datetime.utcnow()-last_update > datetime.timedelta(days=1):
+            update_fracfocustask_scores(cur)
+        try:
+            cur.execute("""SELECT seqid, score, records, scraped,
+                           state_name, state_code, county_name, county_code
+                           from "FracFocusTask"
+                           where task_flag=1
+                           order by score desc limit 1;"""
+                       )
+            task = fcdjangoutils.sqlutils.dictreader(cur).next()
+            cur.execute("""UPDATE "FracFocusTask"
+                           set scraped='{}', score=0.0 where seqid={};"""
+                           .format(datetime.datetime.utcnow(), task['seqid'])
+                       )
+        except:
+            cur.execute('rollback')
+            raise
+        else:
+            cur.execute('commit')
+        return task
+
+def update_fracfocustask_scores(cur):
+    try:
+        cur.execute("""SELECT api_prefix from "FracFocusTask"
+                       where task_flag=1;""")
+        api_prefixes = list(cur)
+        # set task record counts
+        for api_prefix, in api_prefixes:
+            cur.execute("""
+                    UPDATE "FracFocusTask"
+                    set records=(SELECT count(*) from "FracFocusScrape"
+                                 where api like '{0}'||'%')
+                    where api_prefix='{0}';""".format(api_prefix)
+                    )
+                    # could add 90 day window to inner 'while' clause
+
+        # compute score
+        cur.execute("""SELECT max(records) from "FracFocusTask"
+                       where task_flag=1;""")
+        max_records, = cur.next()
+        cur.execute("""
+                UPDATE "FracFocusTask"
+                set score=CASE
+                   when scraped is NULL then 1.0
+                   when age(scraped) < interval '7 days' then 0.0
+                   when age(scraped) > interval '30 days' then 1.0
+                   else greatest(date_part('day', age(scraped)) / 23.0,
+                                 records / {})
+                   END
+               where task_flag=1;""".format(max_records)
+               )
+
+        cur.execute("""update "FracFocusTask" set scraped = '{}'
+                       where state_code='00';"""
+                    .format(datetime.datetime.utcnow())
+                   )
+    except:
+        cur.execute('rollback')
+        raise
+    else:
+        cur.execute('commit')
+
 def statistics(request):
     return django.shortcuts.render(request, "appomatic_fracbotserver/statistics.html", {})
 
@@ -348,7 +419,7 @@ def statistics_data(request):
             at.name, series;
         """, args)
         activity = {}
-        
+
         for row in fcdjangoutils.sqlutils.dictreader(cur):
             if row['name'] not in activity: activity[row['name']] = []
             activity[row['name']].append([row['date'], row['amount']])
@@ -373,7 +444,7 @@ def statistics_data(request):
             c.ip, c.id, series;
         """, args)
         activity = {}
-        
+
         for row in fcdjangoutils.sqlutils.dictreader(cur):
             if row['ip'] not in activity: activity[row['ip']] = {}
             if row['id'] not in activity[row['ip']]: activity[row['ip']][row['id']] = []
@@ -383,7 +454,7 @@ def statistics_data(request):
         for ip, ids in activity.iteritems():
             for idx, (id, values) in enumerate(ids.iteritems()):
                 activity_flattened["%s-%s" % (ip, idx)] = values
-        
+
         result['by_client_and_date'] = [{"label": label, "values": values} for label, values in activity_flattened.iteritems()]
 
         return result
