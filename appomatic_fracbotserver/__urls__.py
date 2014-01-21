@@ -10,6 +10,7 @@ urlpatterns = patterns('',
     (r'^fracbot/parse-pdf/?$', 'appomatic_fracbotserver.views.parse_pdf'),
     url(r'^fracbot/fracbot.user.js$', django.views.generic.TemplateView.as_view(template_name='appomatic_fracbotserver/fracbot.js', content_type="application/x-javascript; charset=UTF-8"), name="appomatic_fracbotserver_fracbot"),
     (r'^fracbot/task/?$', 'appomatic_fracbotserver.views.get_task'),
+    (r'^fracbot/task2/?$', 'appomatic_fracbotserver.views.get_task2'),
     (r'^admin/appomatic_fracbotserver/statistics/?$', 'appomatic_fracbotserver.views.statistics'),
     (r'^admin/appomatic_fracbotserver/statistics/data/?$', 'appomatic_fracbotserver.views.statistics_data'),
 )
