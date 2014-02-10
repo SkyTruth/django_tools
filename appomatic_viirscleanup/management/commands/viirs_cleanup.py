@@ -44,12 +44,25 @@ viirs_cleanup
                     print "Cleaning up %s..." % filename
                     try:
                         readcur.execute("""
-                            select count(*) from appomatic_mapdata_viirs where src = 'VIIRS_CORRECTED' and srcfile = %(srcfile)s
+                            select count(*) from appomatic_mapdata_viirs where
+                              src = 'VIIRS_CORRECTED'
+                              and srcfile = %(srcfile)s
+
+                              and "Temperature" > 1773
+                              and "Temperature" != 1810
+                              and "Temperature" < 5273.15
+
                         """, {'srcfile': filename})
                         nr_records = readcur.next()[0]
-
+                        
                         readcur.execute("""
-                            select * from appomatic_mapdata_viirs where src = 'VIIRS_CORRECTED' and srcfile = %(srcfile)s
+                            select * from appomatic_mapdata_viirs where
+                              src = 'VIIRS_CORRECTED'
+                              and srcfile = %(srcfile)s
+
+                              and "Temperature" > 1773
+                              and "Temperature" != 1810
+                              and "Temperature" < 5273.15
                         """, {'srcfile': filename})
                         print "    Clustering %s records..." % nr_records
 
@@ -108,8 +121,8 @@ viirs_cleanup
                                     'datetime': datetime.datetime.fromtimestamp(numpy.average(points[:,2])),
                                     'RadiantOutput': numpy.average(points[:,3]),
                                     'Temperature': numpy.average(points[:,4]),
-                                    'RadiativeHeat': numpy.average(points[:,5]),
-                                    'footprint': numpy.average(points[:,6]),
+                                    'RadiativeHeat': numpy.sum(points[:,5]),
+                                    'footprint': numpy.sum(points[:,6]),
                                     'SatZenithAngle': numpy.average(points[:,7]),
                                     'quality': numpy.average(points[:,8])
                                     })
