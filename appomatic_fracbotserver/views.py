@@ -64,6 +64,17 @@ def log_activity(request, activity_type, amount=1, **info):
         activity_type.save()
     appomatic_fracbotserver.models.Activity(client=request.fracbotclient, type=activity_type, amount=amount, info=info).save()
 
+def process_client_event(cur, info):
+    data = info.get('data', {})
+    event = data.get('event', None)
+    key = data.get('key', None)
+    if key and (event == 'TASKOK'):
+        cur.execute("""UPDATE "FracFocusTask"
+                       set scraped='{}', score=0.0 where seqid={};"""
+                       .format(datetime.datetime.utcnow(), key)
+                   )
+        cur.execute('commit')
+
 def logged_view(name, amount=1, **info):
     def logged_view(fn):
         def logged_view(request, *arg, **kw):
@@ -244,7 +255,7 @@ def parse_pdf(request):
             appomatic_legacymodels.models.Fracfocusreport.objects.get(pdf_seqid = data['pdf_seqid']),
             appomatic_siteinfo.models.Source.get("FracBot", ""))
 
-        data = row        
+        data = row
         check_record(cur, data)
 
         return data
@@ -287,7 +298,12 @@ def update_counties(request):
 @track_client
 @fcdjangoutils.jsonview.json_view
 def client_log(request):
-    log_activity(request, "client-" + request.POST['activity_type'], **fcdjangoutils.jsonview.from_json(request.POST['info']))
+    activity_type = request.POST['activity_type'] 
+    info = fcdjangoutils.jsonview.from_json(request.POST['info'])
+    log_activity(request, "client-" + activity_type, **info)
+    if activity_type == 'fracbot_event':
+        with contextlib.closing(django.db.connection.cursor()) as cur:
+            process_client_event(cur, info)
 
 @fcdjangoutils.cors.cors
 @track_client
@@ -319,6 +335,83 @@ def get_task(request):
         cur.execute("""update appomatic_fracbotserver_county set scrapepoints = scrapepoints * 0.9 where id = %(county_id)s""", task)
         return task
 
+@fcdjangoutils.cors.cors
+@track_client
+@fcdjangoutils.jsonview.json_view
+@logged_view("task2")
+def get_task2(request):
+    with contextlib.closing(django.db.connection.cursor()) as cur:
+        cur.execute("""
+                SELECT scraped from "FracFocusTask" where state_code='00';""")
+        last_update, = cur.next()
+        if (last_update is None or
+            datetime.datetime.utcnow()-last_update > datetime.timedelta(days=1)
+           ):
+            update_fracfocustask_scores(cur)
+        try:
+            cur.execute("""SELECT seqid, score, records, scraped,
+                           state_name, state_code, county_name, county_code
+                           from "FracFocusTask"
+                           where task_flag=1
+                           order by score desc, random() limit 1;"""
+                       )
+            task = fcdjangoutils.sqlutils.dictreader(cur).next()
+            cur.execute("""UPDATE "FracFocusTask"
+                           set scraped='{}', score=-1.0 where seqid={};"""
+                           .format(datetime.datetime.utcnow(), task['seqid'])
+                       )
+        except:
+            cur.execute('rollback')
+            raise
+        else:
+            cur.execute('commit')
+        return task
+
+def update_fracfocustask_scores(cur):
+    try:
+        # get api prefixs used in records search and as unique index
+        cur.execute("""SELECT api_prefix from "FracFocusTask"
+                       where task_flag=1;""")
+        api_prefixes = list(cur)
+
+        # set task record counts for last record interval
+        for api_prefix, in api_prefixes:
+            cur.execute("""UPDATE "FracFocusTask"
+                           set records=(SELECT count(*) from "FracFocusScrape"
+                                        where api like '{0}'||'%%'
+                                          and age(job_date) < interval '1 year')
+                           where api_prefix='{0}';""".format(api_prefix)
+                           )
+
+        # compute score
+        cur.execute("""SELECT max(records) from "FracFocusTask"
+                       where task_flag=1;""")
+        max_records, = cur.next()
+        cur.execute("""UPDATE "FracFocusTask"
+                       set score=CASE
+                          when scraped is NULL then 1.0
+                          when score = -1.0 then 1.0
+                          when age(scraped) < interval '7 days' then 0.0
+                          when age(scraped) > interval '30 days' then 1.0
+                          else greatest(date_part('day', age(scraped)) / 30.0,
+                                        records::float / {})
+                          END
+                       where task_flag=1;""".format(max_records)
+                   )
+        cur.execute("""UPDATE "FracFocusTask"
+                       set score=score*0.9
+                       where task_flag=1 and records=0;""")
+
+        cur.execute("""update "FracFocusTask" set scraped = '{}'
+                       where state_code='00';"""
+                    .format(datetime.datetime.utcnow())
+                   )
+    except:
+        cur.execute('rollback')
+        raise
+    else:
+        cur.execute('commit')
+
 def statistics(request):
     return django.shortcuts.render(request, "appomatic_fracbotserver/statistics.html", {})
 
@@ -348,7 +441,7 @@ def statistics_data(request):
             at.name, series;
         """, args)
         activity = {}
-        
+
         for row in fcdjangoutils.sqlutils.dictreader(cur):
             if row['name'] not in activity: activity[row['name']] = []
             activity[row['name']].append([row['date'], row['amount']])
@@ -373,7 +466,7 @@ def statistics_data(request):
             c.ip, c.id, series;
         """, args)
         activity = {}
-        
+
         for row in fcdjangoutils.sqlutils.dictreader(cur):
             if row['ip'] not in activity: activity[row['ip']] = {}
             if row['id'] not in activity[row['ip']]: activity[row['ip']][row['id']] = []
@@ -383,7 +476,7 @@ def statistics_data(request):
         for ip, ids in activity.iteritems():
             for idx, (id, values) in enumerate(ids.iteritems()):
                 activity_flattened["%s-%s" % (ip, idx)] = values
-        
+
         result['by_client_and_date'] = [{"label": label, "values": values} for label, values in activity_flattened.iteritems()]
 
         return result

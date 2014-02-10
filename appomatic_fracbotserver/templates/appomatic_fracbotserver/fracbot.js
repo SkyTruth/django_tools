@@ -15,7 +15,7 @@
 
 var fracbotUrl = "{{site_url}}/fracbot";
 var siteinfoUrl = "{{site_url}}/siteinfo";
-var downloadAllTimeout = 3000; // seconds between each download...
+var downloadAllTimeout = 5000; // seconds between each download...
 var downloadAllPagesTimeout = 10000; // seconds to wait before doing a new search 
 
 function zipToDict(keys, values) {
@@ -91,7 +91,9 @@ function downloadRows(cb) {
     var next = function() {
         idx++;
         if (idx < rows.length) {
-            downloadRow(rows[idx], function () { setTimeout(next, downloadAllTimeout); });
+            downloadRow(rows[idx], function () {
+                setTimeout(next, (Math.random+1)*downloadAllTimeout);
+            });
         } else {
             cb();
         }
@@ -108,7 +110,7 @@ function downloadAllPages(cb) {
             } else {
                 $(document).off("pageUpdated", downloadOneMorePage);
                 if (cb) {
-                    setTimeout(cb, downloadAllPagesTimeout);
+                    setTimeout(cb, (Math.random()+1)*downloadAllPagesTimeout);
                 } else {
                     console.log("Done downloading all pages");
                 }
@@ -333,7 +335,9 @@ function autoupdateSearchPage() {
 
 $(document).ready(function () {
     if ($(".BackToFilterBox").length > 0) {
-        mangleResultsPage();
+        if ($("#MainContent_GridView1 tr").length > 1) {
+            mangleResultsPage();
+        }
     } else if ($(".BrowseFilterBox").length > 0) {
         if (top.document.autoupdate != undefined) {
             autoupdateSearchPage();
