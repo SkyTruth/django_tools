@@ -23,3 +23,6 @@ pyOpenSSL
 pyproj
 Shapely
 lxml
+numpy
+scipy
+scikit-learn
