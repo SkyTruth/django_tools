@@ -78,7 +78,7 @@ viirs_cleanup
                                 X[idx][7] = row['SatZenithAngle'] and float(row['SatZenithAngle']) or 0.0
                                 X[idx][8] = row['quality'] and float(row['quality']) or 0.0
                         
-                        db = sklearn.cluster.DBSCAN(eps=0.013498916666666666, min_samples=3).fit(X[:,0:2])
+                        db = sklearn.cluster.DBSCAN(eps=0.013498916666666666, min_samples=1).fit(X[:,0:2])
 
                         for k in set(db.labels_):
                             points = X[(db.labels_ == k).nonzero()]
