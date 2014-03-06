@@ -7,6 +7,7 @@ import sys
 import os.path
 import logging
 import pytz
+import urllib
 import urllib2
 import httplib2
 import geojson
@@ -282,7 +283,7 @@ class Exporter(object):
                             if export.keep_days != 0:
                                 delete_before = datetime.date.today() - datetime.timedelta(export.keep_days)
                                 delete_before = datetime.datetime(*delete_before.timetuple()[:3])
-                                where = "where=" + urllib.quote('datetime<' + delete_before.strftime("%Y-%m-%d %H:%M:%S"))
+                                where = "&where=" + urllib.quote('datetime<' + delete_before.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
                             response, content = self.request(
                                 "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50%s" % (export.tableid, where))
