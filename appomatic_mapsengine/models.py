@@ -14,6 +14,7 @@ class Export(django.contrib.gis.db.models.Model):
     tableid = django.db.models.CharField(max_length=1024, null=True, blank=True)
     projectid = django.db.models.CharField(max_length=1024, null=True, blank=True)
     clear = django.db.models.BooleanField(default=False, blank=True)
+    clear_query = django.db.models.StringField(default='', blank=True)
 
     access_list = django.db.models.CharField(max_length=2048, null=True, blank=True)
     tags = django.db.models.CharField(max_length=2048, null=True, blank=True)

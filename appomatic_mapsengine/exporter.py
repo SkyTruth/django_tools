@@ -279,7 +279,7 @@ class Exporter(object):
                         self.log(status="Deleting old data\n")
                         while True:
                             response, content = self.request(
-                                "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50" % (export.tableid,))
+                                "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50%s" % (export.tableid, export.clear_query))
                             if not content['features']: break
 
                             response, content = self.request(
