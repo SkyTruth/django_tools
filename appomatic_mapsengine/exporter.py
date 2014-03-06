@@ -278,8 +278,14 @@ class Exporter(object):
                     if export.clear:
                         self.log(status="Deleting old data\n")
                         while True:
+                            where = ''
+                            if export.keep_days != 0:
+                                delete_before = datetime.date.today() - datetime.timedelta(export.keep_days)
+                                delete_before = datetime.datetime(*delete_before.timetuple()[:3])
+                                where = "where=" + urllib.quote('datetime<' + delete_before.strftime("%Y-%m-%d %H:%M:%S"))
+
                             response, content = self.request(
-                                "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50%s" % (export.tableid, export.clear_query))
+                                "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50%s" % (export.tableid, where))
                             if not content['features']: break
 
                             response, content = self.request(
