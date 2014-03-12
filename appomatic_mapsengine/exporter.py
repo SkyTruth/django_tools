@@ -32,7 +32,7 @@ dbtovrtnames = {
     'BOOLEANARRAY': 'String',
     'DATE': 'Date',
     'DATEARRAY': 'String',
-    'DATETIME': 'DateTime',
+    'DATETIME': 'String',
     'DATETIMEARRAY': 'String',
     'DECIMAL': 'Real',
     'DECIMALARRAY': 'RealList',
@@ -42,9 +42,9 @@ dbtovrtnames = {
     'INTEGERARRAY': 'IntegerList',
     'INTERVAL': 'Real',
     'INTERVALARRAY': 'RealList',
-    'PYDATE': 'DateTime',
+    'PYDATE': 'String',
     'PYDATEARRAY': 'String',
-    'PYDATETIME': 'DateTime',
+    'PYDATETIME': 'String',
     'PYDATETIMEARRAY': 'String',
     'PYINTERVAL': 'Real',
     'PYINTERVALARRAY': 'RealList',
@@ -166,6 +166,12 @@ class Exporter(object):
 
     def flattencols(self, row):
         for key in row.keys():
+            if isinstance(row[key], datetime.timedelta):
+                row[key] = str(int(row[key].days * 24 * 60 * 60 * 1000000 + row[key].seconds * 1000000 + row[key].microseconds))
+            if isinstance(row[key], datetime.datetime):
+                row[key] = row[key].strftime("%Y-%m-%d %H:%M:%S")
+            if isinstance(row[key], datetime.date):
+                row[key] = row[key].strftime("%Y-%m-%d")
             if key.endswith("_info"):
                 self.addcolvalues(row, fcdjangoutils.jsonview.from_json(row.pop(key)), (key[:-len("_info")],))
         return row
@@ -240,7 +246,9 @@ class Exporter(object):
                     data.writeheader()
                     cur.execute("select * from (" + export.query + ") as a")
 
+                    latsid = 0
                     for row in fcdjangoutils.sqlutils.dictreader(cur):
+                        lastid = row['id']
                         data.writerow(self.flattencols(row))
                     data = data_file.getvalue()
 
@@ -274,17 +282,20 @@ class Exporter(object):
                         as_json=False,
                         body = data)
 
+                    cur.execute("update appomatic_mapsengine_export set lastid=%(lastid)s where id=%(id)s", {'lastid': lastid, "id": export.id})
+    
+                    cur.execute("commit")
 
                 elif export.tableid:
                     if export.clear:
                         self.log(status="Deleting old data\n")
+                        where = ''
+                        if export.keep_days > 0:
+                            delete_before = datetime.date.today() - datetime.timedelta(export.keep_days)
+                            delete_before = datetime.datetime(*delete_before.timetuple()[:3])
+                            where = "&where=" + urllib.quote("datetime<'%s'" % delete_before.strftime("%Y-%m-%d %H:%M:%S"))
+                        print "WHERE: ", where
                         while True:
-                            where = ''
-                            if export.keep_days != 0:
-                                delete_before = datetime.date.today() - datetime.timedelta(export.keep_days)
-                                delete_before = datetime.datetime(*delete_before.timetuple()[:3])
-                                where = "&where=" + urllib.quote('epoch<' + delete_before.strftime("%s"))
-
                             response, content = self.request(
                                 "https://www.googleapis.com/mapsengine/v1/tables/%s/features?maxResults=50%s" % (export.tableid, where))
                             if not content['features']: break
@@ -295,8 +306,9 @@ class Exporter(object):
                                 body={"gx_ids":
                                           [feature['properties']['gx_id'] for feature in content['features']]})
                             self.log(status=".")
-                            
-                        lastid = -1
+                        
+	                if export.keep_days < 1:
+                            lastid = -1
 
                     self.log(status="Clearing overshooting data\n")
                     while True:
@@ -306,38 +318,37 @@ class Exporter(object):
 
                         lastid = max([int(x['properties']['id']) for x in content['features']])
                         self.log(status="Cleared to %s\n" % lastid)
+
+                    self.log(status="Uploading new data (id > %s)\n" % lastid)
+                    while True:
+                        cur.execute("select * from (" + export.query + ") as a where id > %(lastid)s order by id asc limit 50", {'lastid': lastid})
+                        features = []
+                        lastid = None
+                        for row in fcdjangoutils.sqlutils.dictreader(cur):
+                            geom = row.pop('the_geom')
+                            if geom is None: continue
+                            lastid = row['id']
+                            row['gx_id'] = str(row['id'])
+                            self.flattencols(row)
+                            for key in ('longitude', 'latitude', 'location', 'glocation', 'shape'):
+                                if key in row:
+                                    del row[key]
+                            features.append({
+                                    "type": "Feature",
+                                    "geometry": self.load_geom(geom),
+                                    "properties": row})
+                        if not features: break
+                        
+                        self.log(status="Pushing batch %s (%s)\n" % (lastid, len(features)))
+                        response, content = self.request(
+                            "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchInsert" % export.tableid, method="POST", body = {"features": features})
+    
+                        cur.execute("update appomatic_mapsengine_export set lastid=%(lastid)s where id=%(id)s", {'lastid': lastid, "id": export.id})
+    
+                        cur.execute("commit")
+
                 else:
                     raise Exception("Neither tableid nor projectid specified...")
 
-                while True:
-                    cur.execute("select * from (" + export.query + ") as a where id > %(lastid)s order by id asc limit 50", {'lastid': lastid})
-                    features = []
-                    lastid = None
-                    for row in fcdjangoutils.sqlutils.dictreader(cur):
-                        geom = row.pop('the_geom')
-                        if geom is None: continue
-                        lastid = row['id']
-                        row['gx_id'] = str(row['id'])
-                        if 'info' in row:
-                            row.update(fcdjangoutils.jsonview.from_json(row.pop('info')))
-                        for key in row.keys():
-                            if isinstance(row[key], int): row[key] = str(row[key])
-                            if isinstance(row[key], datetime.datetime): row[key] = str(int(time.mktime(row[key].timetuple()) * 1000000))
-                            if isinstance(row[key], datetime.timedelta): row[key] = str(int(row[key].days * 24 * 60 * 60 * 1000000 + row[key].seconds * 1000000 + row[key].microseconds))
-                            if key in ('longitude', 'latitude', 'location', 'glocation', 'shape'):
-                                del row[key]
-                        features.append({
-                                "type": "Feature",
-                                "geometry": self.load_geom(geom),
-                                "properties": row})
-                    if not features: break
-                    
-                    self.log(status="Pushing batch %s (%s)\n" % (lastid, len(features)))
-                    response, content = self.request(
-                        "https://www.googleapis.com/mapsengine/v1/tables/%s/features/batchInsert" % export.tableid, method="POST", body = {"features": features})
-
-                    cur.execute("update appomatic_mapsengine_export set lastid=%(lastid)s where id=%(id)s", {'lastid': lastid, "id": export.id})
-
-                    cur.execute("commit")
 
                 cur.execute("commit")
