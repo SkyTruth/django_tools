@@ -125,6 +125,8 @@ def index(request, bbox):
                 if i % 1000 == 0:
                     print "%.2f%%" % (100 * float(i) / datalen)
 
+            cols['datetime']['multiplier'] = 1000
+
             cols = cols.values()
             cols.sort(lambda a, b: cmp(a['name'], b['name']))
             header.update({'cols': cols, 'length': len(data), 'series': nrseries})
