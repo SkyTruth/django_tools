@@ -6,6 +6,10 @@ import StringIO
 import django.db
 import contextlib
 import os.path
+import fcdjangoutils.cors
+import fcdjangoutils.jsonview
+import appomatic_tileserver.models
+import django.views.decorators.csrf
 from django.conf import settings
 
 limit = 1000
@@ -175,6 +179,7 @@ def get_data_series(tileset, bbox):
         """ % {"tileset":tileset, "bbox":bbox.sql(), "limit": limit})
         return [row for row in dictreader(cur)]
 
+@fcdjangoutils.cors.cors(headers = ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'X-Client-Cache'])
 def index(request, tileset, bbox):
     pathname = os.path.join(settings.MEDIA_ROOT, "tiles", tileset)
     filename = os.path.join(pathname, bbox)
@@ -212,8 +217,11 @@ def index(request, tileset, bbox):
             if i % 1000 == 0:
                 print "%.2f%%" % (100 * float(i) / datalen)
 
-        if 'datetime' in cols:
-            cols['datetime']['multiplier'] = 1000
+        if 'datetime' in cols: cols['datetime']['multiplier'] = 1000
+        if 'red' in cols: cols['red']['multiplier'] = 1.0/256
+        if 'green' in cols: cols['green']['multiplier'] = 1.0/256
+        if 'blue' in cols: cols['blue']['multiplier'] = 1.0/256
+        if 'magnitude' in cols: cols['magnitude']['multiplier'] = 1.0/256
 
         cols = cols.values()
         cols.sort(lambda a, b: cmp(a['name'], b['name']))
@@ -239,3 +247,22 @@ def index(request, tileset, bbox):
         res = django.http.HttpResponse(f.read(), mimetype="application/binary")
         res["Access-Control-Allow-Origin"] = "*"
         return res
+
+@django.views.decorators.csrf.csrf_exempt
+@fcdjangoutils.cors.cors(headers = ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'X-Client-Cache'])
+@fcdjangoutils.jsonview.json_view
+def workspace(request):
+    if request.method == "POST":
+        workspace = appomatic_tileserver.models.Workspace(definition = request.body)
+        workspace.save()
+        return {"id": workspace.id}
+    else:
+        return json.loads(appomatic_tileserver.models.Workspace.objects.get(id=request.GET['id']).definition)
+
+@django.views.decorators.csrf.csrf_exempt
+@fcdjangoutils.cors.cors(headers = ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'X-Client-Cache'])
+@fcdjangoutils.jsonview.json_view
+def log(request):
+    if request.method == "POST":
+        appomatic_tileserver.models.Log(data = request.body).save()
+        return {}
