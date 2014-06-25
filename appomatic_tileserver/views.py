@@ -231,6 +231,7 @@ def index(request, tileset, bbox):
         print headerstr
 
         with open(filename, "w") as f:
+            f.write('tmtx')
             f.write(struct.pack("<i", len(headerstr)))
             f.write(headerstr)
 
