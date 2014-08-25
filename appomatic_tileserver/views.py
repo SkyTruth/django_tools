@@ -11,6 +11,7 @@ import fcdjangoutils.jsonview
 import appomatic_tileserver.models
 import django.views.decorators.csrf
 from django.conf import settings
+import typedmatrix.TypedMatrix
 
 limit = 1000
 
@@ -227,6 +228,7 @@ def index(request, tileset, bbox):
                 nrseries += 1;
                 series = d.get('series', None)
             for key, value in d.iteritems():
+                if key == 'mmsi': continue
                 if value == '__None__' or value is None: continue
                 t = type(value)
                 if t not in typemap: continue
@@ -238,6 +240,8 @@ def index(request, tileset, bbox):
             if i % 1000 == 0:
                 print "%.2f%%" % (100 * float(i) / datalen)
 
+        header.update({'series': nrseries})
+
         if 'datetime' in cols: cols['datetime']['multiplier'] = 1000
         if 'red' in cols: cols['red']['multiplier'] = 1.0/256
         if 'green' in cols: cols['green']['multiplier'] = 1.0/256
@@ -246,26 +250,9 @@ def index(request, tileset, bbox):
 
         cols = cols.values()
         cols.sort(lambda a, b: cmp(a['name'], b['name']))
-        header.update({'cols': cols, 'length': len(data), 'series': nrseries})
-        headerstr = json.dumps(header)
-
-        print headerstr
 
         with open(filename, "w") as f:
-            f.write('tmtx')
-            f.write(struct.pack("<i", 1)) # version
-            f.write('r')
-            f.write(struct.pack("<i", len(headerstr)))
-            f.write(headerstr)
-
-            formatmap = '<' + ''.join(typeformatmap[col['type']] for col in cols)
-            colspecs = [{'name': col['name'], 'conv': typeconvertmap[coltypes[col['name']]], 'default': typedefaultmap[col['type']]} for col in cols]
-
-            for d in data:
-                f.write(struct.pack(
-                        formatmap,
-                        *[conv(d[colspec['name']], colspec['conv'], colspec['default'])
-                          for colspec in colspecs]))
+            f.write(typedmatrix.TypedMatrix.pack(data, header, cols))
 
     with open(filename) as f:
         res = django.http.HttpResponse(f.read(), mimetype="application/binary")
