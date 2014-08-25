@@ -179,6 +179,27 @@ def get_data_series(tileset, bbox):
         """ % {"tileset":tileset, "bbox":bbox.sql(), "limit": limit})
         return [row for row in dictreader(cur)]
 
+@django.views.decorators.csrf.csrf_exempt
+@fcdjangoutils.cors.cors(headers = ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'X-Client-Cache'])
+@fcdjangoutils.jsonview.json_view
+def series(request, tileset):
+    body = json.loads(request.body)
+
+    return {
+        "IMO": "-",
+        "MMSI": body['series'],
+        "Call Sign": "SKHD",
+        "Flag": "Sweden (SE)",
+        "AIS Type": "Special Craft",
+        "Gross Tonnage": "-",
+        "DeadWeight": "-",
+        "Length x Breadth": "17m x 5m",
+        "Year Built": "-",
+        "Status": "Active",
+        "name": "Flying Dutchman",
+        "link": "http://www.marinetraffic.com/en/ais/details/ships/265511380/vessel:PILOT_746_SE"
+        }
+
 @fcdjangoutils.cors.cors(headers = ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'X-Client-Cache'])
 def index(request, tileset, bbox):
     pathname = os.path.join(settings.MEDIA_ROOT, "tiles", tileset)
