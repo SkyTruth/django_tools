@@ -253,6 +253,8 @@ def index(request, tileset, bbox):
 
         with open(filename, "w") as f:
             f.write('tmtx')
+            f.write(struct.pack("<i", 1)) # version
+            f.write('r')
             f.write(struct.pack("<i", len(headerstr)))
             f.write(headerstr)
 
