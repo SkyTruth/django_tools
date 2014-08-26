@@ -57,41 +57,6 @@ class Bbox(object):
     def sql(self):
         return "latitude >= %s and latitude < %s and longitude >= %s and longitude < %s" % (self.latmin, self.latmax, self.lonmin, self.lonmax)
 
-
-def timestamp(data):
-    if not isinstance(data, datetime.datetime):
-        data = dateutil.parser.parse(data)
-    return int(data.strftime("%s"))
-
-def conv(data, t, default):
-    try:
-        return t(data)
-    except:
-        return default
-
-typemap = {
-    datetime: 'Int32',
-    int: 'Int32',
-    float: 'Float32',
-    bool: 'Int32'
-    }
-
-typeconvertmap = {
-    datetime: timestamp,
-    int: int,
-    float: float,
-    bool: bool
-}
-
-typeformatmap = {
-    'Int32': 'i',
-    'Float32': 'f'
-    }
-typedefaultmap = {
-    'Int32': 0,
-    'Float32': 0.0
-    }
-
 def is_tileset_lines(tileset):
     with contextlib.closing(django.db.connection.cursor()) as cur:
         cur.execute("select * from %(tileset)s limit 1" % {"tileset": tileset})
@@ -231,9 +196,9 @@ def index(request, tileset, bbox):
                 if key == 'mmsi': continue
                 if value == '__None__' or value is None: continue
                 t = type(value)
-                if t not in typemap: continue
+                if t not in typedmatrix.TypedMatrix.typemap: continue
                 if key not in cols:
-                    cols[key] = {'name': key, 'type': typemap[t], 'min': value, 'max': value}
+                    cols[key] = {'name': key, 'type': typedmatrix.TypedMatrix.typemap[t], 'min': value, 'max': value}
                     coltypes[key] = t
                 cols[key]['max'] = max(cols[key]['max'], value)
                 cols[key]['min'] = min(cols[key]['min'], value)
@@ -252,7 +217,7 @@ def index(request, tileset, bbox):
         cols.sort(lambda a, b: cmp(a['name'], b['name']))
 
         with open(filename, "w") as f:
-            f.write(typedmatrix.TypedMatrix.pack(data, header, cols))
+            f.write(typedmatrix.TypedMatrix.pack(data, header, cols, 'columnwise'))
 
     with open(filename) as f:
         res = django.http.HttpResponse(f.read(), mimetype="application/binary")
