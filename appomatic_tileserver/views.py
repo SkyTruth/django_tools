@@ -11,7 +11,7 @@ import fcdjangoutils.jsonview
 import appomatic_tileserver.models
 import django.views.decorators.csrf
 from django.conf import settings
-import typedmatrix.TypedMatrix
+import vectortile.TypedMatrix
 
 limit = 1000
 
@@ -196,9 +196,9 @@ def index(request, tileset, bbox):
                 if key == 'mmsi': continue
                 if value == '__None__' or value is None: continue
                 t = type(value)
-                if t not in typedmatrix.TypedMatrix.typemap: continue
+                if t not in vectortile.TypedMatrix.typemap: continue
                 if key not in cols:
-                    cols[key] = {'name': key, 'type': typedmatrix.TypedMatrix.typemap[t], 'min': value, 'max': value}
+                    cols[key] = {'name': key, 'type': vectortile.TypedMatrix.typemap[t], 'min': value, 'max': value}
                     coltypes[key] = t
                 cols[key]['max'] = max(cols[key]['max'], value)
                 cols[key]['min'] = min(cols[key]['min'], value)
@@ -217,7 +217,7 @@ def index(request, tileset, bbox):
         cols.sort(lambda a, b: cmp(a['name'], b['name']))
 
         with open(filename, "w") as f:
-            f.write(typedmatrix.TypedMatrix.pack(data, header, cols, 'columnwise'))
+            f.write(vectortile.TypedMatrix.pack(data, header, cols, 'columnwise'))
 
     with open(filename) as f:
         res = django.http.HttpResponse(f.read(), mimetype="application/binary")
