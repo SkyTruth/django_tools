@@ -10,5 +10,5 @@ find "$MEDIA" -type f |
   while read name; do
     rm -f "$name"
   done
-s3cmd put --recursive --progress "$TMP/"* "$S3DIR"
+s3cmd put --reduced-redundancy --recursive --progress "$TMP/"* "$S3DIR"
 rm -rf "$TMP"

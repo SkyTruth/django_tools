@@ -22,7 +22,9 @@ viirs_cleanup
             import traceback
             traceback.print_exc()
 
-    def handle2(self, *args, **kwargs):
+    def handle2(self, src = "corrected", *args, **kwargs):
+	src = "VIIRS_" + src.upper()
+	dst = src + "_CLUSTERED"
         with contextlib.closing(django.db.connection.cursor()) as readcur:
             with contextlib.closing(django.db.connection.cursor()) as writecur:
                 readcur.execute("""
@@ -33,11 +35,11 @@ viirs_cleanup
                       appomatic_mapimport_downloaded d1
                       left outer join appomatic_mapimport_downloaded d2 on
                         d1.id = d2.parent_id
-                        and d2.src='VIIRS_CORRECTED_CLUSTERED'
+                        and d2.src=%(dst)s
                     where
-                      d1.src = 'VIIRS_CORRECTED'
+                      d1.src = %(src)s
                       and d2.id is null
-                    """)
+                    """, {"src":src, "dst":dst})
                 to_update = [row for row in readcur]
 
                 for file_id, filename in to_update:
@@ -45,25 +47,25 @@ viirs_cleanup
                     try:
                         readcur.execute("""
                             select count(*) from appomatic_mapdata_viirs where
-                              src = 'VIIRS_CORRECTED'
+                              src = %(src)s
                               and srcfile = %(srcfile)s
 
                               and "Temperature" > 1773
                               and "Temperature" != 1810
                               and "Temperature" < 5273.15
 
-                        """, {'srcfile': filename})
+                        """, {'srcfile': filename, "src":src})
                         nr_records = readcur.next()[0]
                         
                         readcur.execute("""
                             select * from appomatic_mapdata_viirs where
-                              src = 'VIIRS_CORRECTED'
+                              src = %(src)s
                               and srcfile = %(srcfile)s
 
                               and "Temperature" > 1773
                               and "Temperature" != 1810
                               and "Temperature" < 5273.15
-                        """, {'srcfile': filename})
+                        """, {'srcfile': filename, "src":src})
                         print "    Clustering %s records..." % nr_records
 
                         X = numpy.zeros((nr_records, 9))
@@ -100,7 +102,7 @@ viirs_cleanup
                                   "SourceID",
                                   "quality")
                                 values (
-                                  'VIIRS_CORRECTED_CLUSTERED',
+                                  %(dst)s,
                                   %(filename)s,
                                   %(datetime)s,
                                   '',
@@ -115,6 +117,7 @@ viirs_cleanup
                                   '',
                                   %(quality)s)""",
                                 {
+                                    'dst': dst,
                                     'filename': filename,
                                     'longitude': numpy.average(points[:,0]),
                                     'latitude': numpy.average(points[:,1]),
@@ -128,8 +131,8 @@ viirs_cleanup
                                     })
 
                         readcur.execute("""
-                            insert into appomatic_mapimport_downloaded (src, filename, parent_id) values ('VIIRS_CORRECTED_CLUSTERED', %(filename)s, %(parent_id)s)
-                        """, {'filename': filename, 'parent_id': file_id})
+                            insert into appomatic_mapimport_downloaded (src, filename, parent_id) values (%(dst)s, %(filename)s, %(parent_id)s)
+                        """, {'filename': filename, 'parent_id': file_id, 'dst':dst})
 
                     except Exception, e:
                         print "    Error loading file " + str(e)

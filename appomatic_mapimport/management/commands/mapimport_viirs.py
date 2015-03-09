@@ -28,7 +28,9 @@ mapimport_viirs raw
 
     # Included in an iframe at http://ngdc.noaa.gov/eog/viirs/download_viirs_fire.html
     starturls = {"corrected": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_cor.html",
-                "raw": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_ncor.html"}
+                "raw": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_ncor.html",
+                "prerun2": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_ncor_v20.html",
+                "prerun21": "http://ngdc.noaa.gov/eog/viirs/download_viirs_fire_iframe_ncor_v21.html"}
 
     @property
     def SRC(self):
@@ -73,64 +75,94 @@ mapimport_viirs raw
             k = fastkml.kml.KML()
             with zfile.open(kmlfile) as f:
                 k.from_string(f.read())
+        for res in self.loadfeature(k):
+            yield res
 
-            kmldoc = k.features().next()
+    def loadfeature(self, feature):
+        if isinstance(feature, (fastkml.kml.Folder, fastkml.kml.KML, fastkml.kml.Document)):
+            for child in feature.features():
+                for res in self.loadfeature(child):
+                    yield res
+        elif isinstance(feature, fastkml.kml.Placemark) and feature.description:
+            icon_href = None
+            for style in feature.styles():
+                for style2 in style.styles():
+                    if hasattr(style2, "icon_href"):
+                        icon_href = style2.icon_href
 
-            for feature in kmldoc.features():
-                if not isinstance(feature, fastkml.kml.Placemark): continue
-                if not feature.description: continue
+            description = lxml.html.soupparser.fromstring(feature.description)
 
-                icon_href = None
-                for style in feature.styles():
-                    for style2 in style.styles():
-                        if hasattr(style2, "icon_href"):
-                            icon_href = style2.icon_href
+            # Some ugly hack to parse their info popups...
+            detection = dict(row.split("=")
+                             for row in description.xpath(".//tr/td/text()")
+                             if row.count("=") == 1)
 
-                description = lxml.html.soupparser.fromstring(feature.description)
+            detection['name'] = feature.name or ""
+            detection['longitude'] = feature.geometry.x
+            detection['latitude'] = feature.geometry.y
+            detection['location'] = feature.geometry.to_wkt()                                                
+            detection['quality'] = [1, 0][icon_href == "http://maps.google.com/mapfiles/marker_white.png"] # White means curve fitting failed, so quality is shit...
 
-                # Some ugly hack to parse their info popups...
-                detection = dict(row.split("=")
-                                 for row in description.xpath(".//tr/td/text()")
-                                 if row.count("=") == 1)
+            # Example:
+            # {'Radiant output': '3.92 W/m2',
+            #  'Temperature': '1944 deg. K',
+            #  'Radiative heat': '10.75 MW',
+            #  'VIIRS band M10 raw DN': '418 ',
+            #  'Time': '28-Feb-2013 01:08:48',
+            #  'Source footprint': '13.28 m2',
+            #  'Sat zenith angle': '70.14',
+            #  'Source ID': 'SVM10_npp_d20130228_t0104572_e0110376_IR_source_1'}
 
-                detection['name'] = feature.name or ""
-                detection['longitude'] = feature.geometry.x
-                detection['latitude'] = feature.geometry.y
-                detection['location'] = feature.geometry.to_wkt()                                                
-                detection['quality'] = [1, 0][icon_href == "http://maps.google.com/mapfiles/marker_white.png"] # White means curve fitting failed, so quality is shit...
+            # Another example (later format):
+            # {'Temperature source': '1915 deg. K',
+            #  'Cloud state': 'clear',
+            #  'Atmosphere corrected': 'no',
+            #  'Methane equivalent': '0.058 m3/s',
+            #  'Radiant heat intensity': '1.26 W/m2',
+            #  'CO2 equivalent': '105.791 g/s',
+            #  'Radiant heat': '2.14 MW',
+            #  'Temperature background': '272 deg. K',
+            #  'Time': '2014/05/09 00:23:49',
+            #  'Source footprint': '2.81 m2',
+            #  'ID': 'VNF_npp_d20140509_t0020092_e0025496_b13104_x0076305E_y657049N_l1678_s0173_v21'}
 
-                # Example:
-                # {'Radiant output': '3.92 W/m2',
-                #  'Temperature': '1944 deg. K',
-                #  'Radiative heat': '10.75 MW',
-                #  'VIIRS band M10 raw DN': '418 ',
-                #  'Time': '28-Feb-2013 01:08:48',
-                #  'Source footprint': '13.28 m2',
-                #  'Sat zenith angle': '70.14',
-                #  'Source ID': 'SVM10_npp_d20130228_t0104572_e0110376_IR_source_1'}
+            keymapping = {'Temperature source': 'Temperature',
+                          'Radiant heat intensity': 'Radiant output',
+                          'Radiant heat': 'Radiative heat',
+                          'ID': 'Source IDSource ID'}
 
-                if 'Time' in detection:
-                    value = detection.pop('Time')
+            for key, value in keymapping.iteritems():
+                if key in detection:
+                    detection[value] = detection.pop(key)
+
+            if 'Time' in detection:
+                value = detection.pop('Time')
+                if '/' in value:
+                    detection['datetime'] = datetime.datetime.strptime(value, '%Y/%m/%d %H:%M:%S').replace(tzinfo=pytz.utc)
+                else:
                     detection['datetime'] = datetime.datetime.strptime(value, '%d-%b-%Y %H:%M:%S').replace(tzinfo=pytz.utc)
-                else:
-                    detection['datetime'] = date
+            else:
+                detection['datetime'] = date
 
-                # Normalize and remove units
-                self.getFloat(detection, 'RadiantOutput', ('Radiant output','Radiant heat intensity'), {'W/m2': 1.0, 'W/cm2': 0.0001})
-                self.getFloat(detection, 'Temperature', ('Temperature',), {'deg. K': 1.0})
-                self.getFloat(detection, 'RadiativeHeat', ('Radiative heat','Radiant heat'), {'MW': 1.0})
-                self.getFloat(detection, 'footprint', ('Source footprint heat','Source footprint'), {'m2': 1.0, 'cm2': 0.0001})
-                self.getFloat(detection, 'SatZenithAngle', ('Sat zenith angle',), {'': 1.0})
+            # Normalize and remove units
+            self.getFloat(detection, 'RadiantOutput', ('Radiant output','Radiant heat intensity'), {'W/m2': 1.0, 'W/cm2': 0.0001})
+            self.getFloat(detection, 'Temperature', ('Temperature',), {'deg. K': 1.0})
+            self.getFloat(detection, 'RadiativeHeat', ('Radiative heat','Radiant heat'), {'MW': 1.0})
+            self.getFloat(detection, 'footprint', ('Source footprint heat','Source footprint'), {'m2': 1.0, 'cm2': 0.0001})
+            self.getFloat(detection, 'SatZenithAngle', ('Sat zenith angle',), {'': 1.0})
 
-                if 'Source ID' in detection:
-                    detection['SourceID'] = detection.pop('Source ID')
-                else:
-                    detection['SourceID'] = ""
+            if 'Source ID' in detection:
+                detection['SourceID'] = detection.pop('Source ID')
+            else:
+                detection['SourceID'] = ""
 
-                if not detection['Temperature']:
-                    print feature.description
+            if not detection['Temperature']:
+                print feature.description
 
-                yield detection
+            yield detection
+        else:
+            import pdb
+            pdb.set_trace()
 
     def insertrow(self, row):
         row['src'] = self.SRC
@@ -177,6 +209,12 @@ mapimport_viirs raw
                 if ' ' in value:
                     value, suffix = value.split(' ', 1)
                     suffix = suffix.strip()
-                value = float(value.strip())
-                value *= suffixtable[suffix]
+                value = value.strip()
+                try:
+                    value = float(value.strip())
+                except Exception, e:
+                    print e
+                    value = None
+                else:
+                    value *= suffixtable[suffix]
         row[dstname] = value
